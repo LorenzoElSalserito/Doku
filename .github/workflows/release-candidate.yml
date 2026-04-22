@@ -1,0 +1,59 @@
+name: Release Candidate QA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  rc-qa:
+    name: RC QA (Linux)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install electron-builder
+        run: npm install -D electron-builder
+
+      - name: Install Linux packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fakeroot dpkg
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Package Linux
+        run: npm run package:linux
+
+      - name: Smoke Linux package
+        run: npm run smoke:linux
+
+      - name: Upload Linux RC artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: doku-rc-linux-artifacts
+          path: |
+            build/desktop/**/*.deb
+            build/desktop/latest-linux.yml
+            build/desktop/builder-debug.yml
+          if-no-files-found: error

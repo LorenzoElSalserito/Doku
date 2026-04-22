@@ -1,0 +1,42 @@
+{
+  "name": "doku",
+  "productName": "Doku",
+  "version": "0.1.0",
+  "private": true,
+  "icon": "apps/desktop/src/assets/icon.png",
+  "description": "Doku — Local-first Markdown editor",
+  "license": "AGPL-3.0-only",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace @doku/desktop",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dist": "npm run package:linux && npm run smoke:linux",
+    "smoke:linux": "node scripts/smoke-linux-package.cjs",
+    "package:dir": "npm run package:dir --workspace @doku/desktop",
+    "package:linux": "npm run package:linux --workspace @doku/desktop",
+    "package:mac": "npm run package:mac --workspace @doku/desktop",
+    "package:win": "npm run package:win --workspace @doku/desktop",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.73",
+    "@types/react-dom": "^18.2.23",
+    "@typescript-eslint/eslint-plugin": "^7.4.0",
+    "@typescript-eslint/parser": "^7.4.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.34.1",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "prettier": "^3.2.5",
+    "typescript": "^5.4.3"
+  }
+}

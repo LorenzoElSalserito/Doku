@@ -1,0 +1,21 @@
+node_modules
+dist
+out
+build
+.vite
+coverage
+*.log
+*.tsbuildinfo
+
+.DS_Store
+.idea
+.vscode
+.codex
+.codex/
+.claude/
+
+# Local planning and release notes not meant for publish
+PLAN.md
+Doku_PRD.md
+CHANGELOG.md
+docs/

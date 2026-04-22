@@ -1,0 +1,95 @@
+@page {
+  size: A4;
+  margin: 20mm 18mm 22mm;
+}
+
+:root {
+  color-scheme: light;
+  --print-accent: #00a3ee;
+  --print-text: #1a1816;
+  --print-text-secondary: #5f5953;
+  --print-border: #d9d3ca;
+  --print-code-bg: #f4efe8;
+}
+
+html {
+  font-size: 11pt;
+}
+
+body {
+  margin: 0;
+  color: var(--print-text);
+  font-family: "Libertinus Serif", "Georgia", serif;
+  line-height: 1.65;
+}
+
+main {
+  display: block;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 1.6em 0 0.5em;
+  color: var(--print-text);
+  font-family: "Libertinus Serif", "Georgia", serif;
+  line-height: 1.15;
+  break-after: avoid;
+}
+
+h1 {
+  margin-top: 0;
+  font-size: 2.2rem;
+}
+
+h2 {
+  font-size: 1.55rem;
+  padding-bottom: 0.2rem;
+  border-bottom: 1px solid var(--print-border);
+}
+
+p, ul, ol, blockquote, pre, table {
+  margin: 0 0 1em;
+}
+
+ul, ol {
+  padding-left: 1.3rem;
+}
+
+li + li {
+  margin-top: 0.25em;
+}
+
+blockquote {
+  margin-left: 0;
+  padding: 0.8rem 1rem;
+  border-left: 3px solid var(--print-accent);
+  color: var(--print-text-secondary);
+  background: #f9fcfe;
+}
+
+code {
+  font-family: "JetBrains Mono", "SFMono-Regular", monospace;
+  font-size: 0.92em;
+}
+
+pre {
+  padding: 0.9rem 1rem;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--print-code-bg);
+}
+
+pre code {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+hr {
+  margin: 1.5rem 0;
+  border: 0;
+  border-top: 1px solid var(--print-border);
+}
+
+a {
+  color: var(--print-accent);
+  text-decoration: none;
+}

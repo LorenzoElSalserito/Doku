@@ -1,0 +1,107 @@
+{
+  "name": "@doku/desktop",
+  "productName": "Doku",
+  "version": "0.1.0",
+  "private": true,
+  "icon": "src/assets/icon.png",
+  "description": "Doku desktop shell (Electron + Vite + React)",
+  "license": "AGPL-3.0-only",
+  "homepage": "https://github.com/LorenzoElSalserito/Doku",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LorenzoElSalserito/Doku.git"
+  },
+  "author": {
+    "name": "Lorenzo DM",
+    "email": "commercial.lorenzodm@gmail.com"
+  },
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "package:dir": "npm run build && npx electron-builder --dir",
+    "package:linux": "npm run build && npx electron-builder --linux deb",
+    "package:mac": "npm run build && npx electron-builder --mac dmg",
+    "package:win": "npm run build && npx electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "app.doku.desktop",
+    "productName": "Doku",
+    "electronVersion": "30.0.0",
+    "artifactName": "Doku-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "../../build/desktop",
+      "buildResources": "src/assets"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../../packages/infrastructure/src/export",
+        "to": "export-runtime",
+        "filter": [
+          "printStylesheet.css",
+          "scripts/**"
+        ]
+      }
+    ],
+    "linux": {
+      "category": "Office",
+      "maintainer": "Lorenzo DM <commercial.lorenzodm@gmail.com>",
+      "target": [
+        "deb"
+      ],
+      "icon": "src/assets/icon.png",
+      "desktop": {
+        "Name": "Doku",
+        "Icon": "/usr/share/icons/hicolor/1080x1080/apps/doku-desktop.png"
+      },
+      "synopsis": "The Definitive MarkDown Editor - AGPLv3",
+      "description": "Doku: you beautiful, elegant MarkDown Editor"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "src/assets/icon.icns"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "src/assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "fileAssociations": [
+      {
+        "ext": "md",
+        "name": "Markdown document",
+        "role": "Editor"
+      }
+    ]
+  },
+  "dependencies": {
+    "@doku/application": "*",
+    "@doku/infrastructure": "*",
+    "@doku/schemas": "*",
+    "@doku/ui": "*",
+    "monaco-editor": "^0.55.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "electron": "^30.0.0",
+    "electron-vite": "^2.1.0",
+    "vite": "^5.2.0"
+  }
+}

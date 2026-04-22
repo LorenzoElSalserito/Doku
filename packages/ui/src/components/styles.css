@@ -1,0 +1,246 @@
+/* Componenti Doku — classi tokenizzate. */
+
+/* Button */
+.doku-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+  border: 1px solid transparent;
+  white-space: nowrap;
+  user-select: none;
+}
+.doku-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.doku-button:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.doku-button--primary {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  box-shadow: var(--shadow-sm);
+}
+.doku-button--primary:not(:disabled):hover {
+  background: var(--color-accent-strong);
+  box-shadow: var(--shadow-md);
+}
+
+.doku-button--secondary {
+  background: var(--color-elevated);
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+}
+.doku-button--secondary:not(:disabled):hover {
+  background: var(--color-accent-surface);
+  border-color: var(--color-accent);
+}
+
+.doku-button--ghost {
+  background: transparent;
+  color: var(--color-text-primary);
+}
+.doku-button--ghost:not(:disabled):hover {
+  background: var(--color-accent-soft);
+}
+
+.doku-button--sm {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-xs);
+}
+.doku-button--lg {
+  padding: var(--space-4) var(--space-6);
+  font-size: var(--font-size-md);
+}
+
+/* IconButton */
+.doku-icon-button {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+.doku-icon-button:hover {
+  background: var(--color-accent-soft);
+  color: var(--color-text-primary);
+}
+
+/* Card */
+.doku-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.doku-card--elevated {
+  background: var(--color-elevated);
+  box-shadow: var(--shadow-md);
+}
+
+/* Input */
+.doku-input {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+.doku-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+.doku-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* SegmentedControl */
+.doku-segmented {
+  display: inline-flex;
+  padding: var(--space-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  gap: var(--space-1);
+  role: tablist;
+}
+.doku-segmented--full {
+  display: flex;
+  width: 100%;
+}
+.doku-segmented__option {
+  flex: 1;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  background: transparent;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+  text-align: center;
+}
+.doku-segmented__option:hover {
+  color: var(--color-text-primary);
+}
+.doku-segmented__option[aria-selected='true'] {
+  background: var(--color-elevated);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Stepper */
+.doku-stepper {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+.doku-stepper__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-border);
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    width var(--duration-fast) var(--ease-standard);
+}
+.doku-stepper__dot--current {
+  background: var(--color-accent);
+  width: 1.5rem;
+}
+.doku-stepper__dot--done {
+  background: var(--color-accent-strong);
+}
+
+/* Dialog */
+.doku-dialog {
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  max-width: min(640px, 92vw);
+  max-height: 90vh;
+  border-radius: var(--radius-xl);
+}
+.doku-dialog--wide {
+  max-width: min(1100px, 94vw);
+}
+.doku-dialog::backdrop {
+  background: rgba(12, 10, 8, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.doku-dialog__body {
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.doku-dialog__body:focus-visible {
+  outline: none;
+}
+.doku-dialog__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.doku-dialog__title {
+  font-family: var(--font-serif);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+.doku-dialog__subtitle {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+.doku-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+/* EmptyState */
+.doku-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-9) var(--space-6);
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+.doku-empty__title {
+  font-family: var(--font-serif);
+  font-size: var(--font-size-xl);
+  color: var(--color-text-primary);
+}

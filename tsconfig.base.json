@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@doku/ui": ["packages/ui/src/index.ts"],
+      "@doku/ui/*": ["packages/ui/src/*"],
+      "@doku/application": ["packages/application/src/index.ts"],
+      "@doku/application/*": ["packages/application/src/*"],
+      "@doku/domain": ["packages/domain/src/index.ts"],
+      "@doku/domain/*": ["packages/domain/src/*"],
+      "@doku/infrastructure": ["packages/infrastructure/src/index.ts"],
+      "@doku/infrastructure/*": ["packages/infrastructure/src/*"],
+      "@doku/schemas": ["packages/schemas/src/index.ts"],
+      "@doku/schemas/*": ["packages/schemas/src/*"]
+    }
+  }
+}
