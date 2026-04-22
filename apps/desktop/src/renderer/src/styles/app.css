@@ -505,8 +505,9 @@
 
 .workspace__editor-shell {
   width: 100%;
-  display: grid;
   min-height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .workspace__editor-notice {
@@ -520,33 +521,52 @@
   line-height: var(--line-height-normal);
 }
 
-.workspace__editor-shell--write,
-.workspace__editor-shell--preview {
+.workspace__editor-panels {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+}
+
+.workspace__editor-panels--write,
+.workspace__editor-panels--preview {
   grid-template-columns: 1fr;
 }
 
-.workspace__editor-shell--split {
+.workspace__editor-panels--split {
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.85fr);
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .workspace__editor-pane {
   min-width: 0;
   min-height: 0;
+  height: 100%;
 }
 
 .workspace__editor-pane--write {
-  min-height: 560px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .workspace__editor-pane--preview {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   padding: var(--space-6);
   border-left: 1px solid var(--color-border-subtle);
-  overflow: auto;
+  overflow: hidden;
   background: color-mix(in srgb, var(--color-base) 28%, var(--color-elevated));
 }
 
 .workspace__preview-head {
   margin-bottom: var(--space-5);
+  flex: 0 0 auto;
+}
+
+.workspace__preview-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .workspace__editor-content {
@@ -865,7 +885,8 @@
 
 .monaco-editor-host {
   width: 100%;
-  min-height: 560px;
+  height: 100%;
+  min-height: 0;
   border-radius: var(--radius-lg);
   overflow: hidden;
   background: var(--color-surface);
@@ -967,7 +988,7 @@
     flex-direction: column;
   }
 
-  .workspace__editor-shell--split {
+  .workspace__editor-panels--split {
     grid-template-columns: 1fr;
   }
 

@@ -21,10 +21,10 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "package:dir": "npm run build && npx electron-builder --dir",
-    "package:linux": "npm run build && npx electron-builder --linux deb",
-    "package:mac": "npm run build && npx electron-builder --mac dmg",
-    "package:win": "npm run build && npx electron-builder --win nsis"
+    "package:dir": "npm run build && npx electron-builder --dir --publish=never",
+    "package:linux": "npm run build && npx electron-builder --linux deb --publish=never",
+    "package:mac": "npm run build && npx electron-builder --mac dmg --publish=never",
+    "package:win": "npm run build && npx electron-builder --win nsis --publish=never"
   },
   "build": {
     "appId": "app.doku.desktop",
@@ -57,11 +57,13 @@
       ],
       "icon": "src/assets/icon.png",
       "desktop": {
-        "Name": "Doku",
-        "Icon": "/usr/share/icons/hicolor/1080x1080/apps/doku-desktop.png"
+        "entry": {
+          "Name": "Doku",
+          "Icon": "/usr/share/icons/hicolor/1080x1080/apps/@dokudesktop.png"
+        }
       },
       "synopsis": "The Definitive MarkDown Editor - AGPLv3",
-      "description": "Doku: you beautiful, elegant MarkDown Editor"
+      "description": "Doku: your beautiful, elegant MarkDown Editor"
     },
     "mac": {
       "target": [

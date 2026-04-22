@@ -6,20 +6,27 @@ import { useTheme } from '@doku/ui';
 interface MonacoEditorProps {
   value: string;
   onChange: (value: string) => void;
+  onScrollChange?: (state: { scrollTop: number; scrollHeight: number; viewportHeight: number }) => void;
 }
 
-export function MonacoEditor({ value, onChange }: MonacoEditorProps) {
+export function MonacoEditor({ value, onChange, onScrollChange }: MonacoEditorProps) {
   const { resolved, themeKey } = useTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const changeSubscriptionRef = useRef<monaco.IDisposable | null>(null);
+  const scrollSubscriptionRef = useRef<monaco.IDisposable | null>(null);
   const onChangeRef = useRef(onChange);
+  const onScrollChangeRef = useRef(onScrollChange);
   const initialValueRef = useRef(value);
   const resolvedThemeRef = useRef(resolved);
 
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  useEffect(() => {
+    onScrollChangeRef.current = onScrollChange;
+  }, [onScrollChange]);
 
   useEffect(() => {
     initialValueRef.current = value;
@@ -97,16 +104,49 @@ export function MonacoEditor({ value, onChange }: MonacoEditorProps) {
       glyphMargin: false,
       folding: false,
       renderLineHighlight: 'gutter',
+      scrollbar: { alwaysConsumeMouseWheel: false },
     });
 
     changeSubscriptionRef.current = editorRef.current.onDidChangeModelContent(() => {
       onChangeRef.current(editorRef.current?.getValue() ?? '');
     });
 
+    const emitScrollSnapshot = () => {
+      const editor = editorRef.current;
+      const domNode = editor?.getDomNode();
+      if (!editor || !domNode) {
+        return;
+      }
+
+      onScrollChangeRef.current?.({
+        scrollTop: editor.getScrollTop(),
+        scrollHeight: editor.getScrollHeight(),
+        viewportHeight: domNode.clientHeight,
+      });
+    };
+
+    scrollSubscriptionRef.current = editorRef.current.onDidScrollChange(() => {
+      emitScrollSnapshot();
+    });
+
+    const scheduleWheelSync = () => {
+      window.requestAnimationFrame(() => {
+        emitScrollSnapshot();
+      });
+    };
+
+    container.addEventListener('wheel', scheduleWheelSync, { passive: true });
+    container.addEventListener('touchmove', scheduleWheelSync, { passive: true });
+    emitScrollSnapshot();
+
     return () => {
+      container.removeEventListener('wheel', scheduleWheelSync);
+      container.removeEventListener('touchmove', scheduleWheelSync);
       changeSubscriptionRef.current?.dispose();
+      scrollSubscriptionRef.current?.dispose();
       editorRef.current?.dispose();
       changeSubscriptionRef.current = null;
+      scrollSubscriptionRef.current = null;
       editorRef.current = null;
     };
   }, []);

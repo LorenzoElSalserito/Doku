@@ -56,6 +56,8 @@ export function Workspace({
   const draftLayoutRef = useRef(layout);
   const autosaveTimeoutRef = useRef<number | null>(null);
   const defaultAppPromptRef = useRef(settings.defaultMarkdownAppPrompt);
+  const previewScrollRef = useRef<HTMLDivElement | null>(null);
+  const editorPaneRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     defaultAppPromptRef.current = settings.defaultMarkdownAppPrompt;
@@ -406,6 +408,33 @@ export function Workspace({
     setActiveSummary(summary);
   }, []);
 
+  useEffect(() => {
+    if (viewMode !== 'split') {
+      return;
+    }
+
+    const pane = editorPaneRef.current;
+    if (!pane) {
+      return;
+    }
+
+    const handleWheel = (event: WheelEvent) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+      const preview = previewScrollRef.current;
+      if (!preview) {
+        return;
+      }
+      preview.scrollTop += event.deltaY;
+    };
+
+    pane.addEventListener('wheel', handleWheel, { passive: true });
+    return () => {
+      pane.removeEventListener('wheel', handleWheel);
+    };
+  }, [viewMode, loadState]);
+
   return (
     <div className="workspace">
       <header className="workspace__header">
@@ -575,24 +604,30 @@ export function Workspace({
             ) : (
               <div className={`workspace__editor-shell workspace__editor-shell--${viewMode}`}>
                 {noticeMessage ? <div className="workspace__editor-notice">{noticeMessage}</div> : null}
+                <div className={`workspace__editor-panels workspace__editor-panels--${viewMode}`}>
+                  {(viewMode === 'write' || viewMode === 'split') && (
+                    <section ref={editorPaneRef} className="workspace__editor-pane workspace__editor-pane--write">
+                      <MonacoEditor
+                        value={document?.content ?? ''}
+                        onChange={handleContentChange}
+                      />
+                    </section>
+                  )}
 
-                {(viewMode === 'write' || viewMode === 'split') && (
-                  <section className="workspace__editor-pane workspace__editor-pane--write">
-                    <MonacoEditor value={document?.content ?? ''} onChange={handleContentChange} />
-                  </section>
-                )}
-
-                {(viewMode === 'preview' || viewMode === 'split') && (
-                  <section className="workspace__editor-pane workspace__editor-pane--preview">
-                    <div className="workspace__preview-head">
-                      <span className="workspace__panel-eyebrow">{dict.workspace.previewEyebrow}</span>
-                    </div>
-                    <MarkdownPreview
-                      content={previewContent}
-                      emptyLabel={dict.workspace.previewEmpty}
-                    />
-                  </section>
-                )}
+                  {(viewMode === 'preview' || viewMode === 'split') && (
+                    <section className="workspace__editor-pane workspace__editor-pane--preview">
+                      <div className="workspace__preview-head">
+                        <span className="workspace__panel-eyebrow">{dict.workspace.previewEyebrow}</span>
+                      </div>
+                      <div ref={previewScrollRef} className="workspace__preview-scroll">
+                        <MarkdownPreview
+                          content={previewContent}
+                          emptyLabel={dict.workspace.previewEmpty}
+                        />
+                      </div>
+                    </section>
+                  )}
+                </div>
               </div>
             )}
           </Card>
