@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { existsSync, statSync } = require('node:fs');
+const { existsSync, readFileSync, statSync } = require('node:fs');
 const { execFileSync } = require('node:child_process');
 const { join } = require('node:path');
 
@@ -41,6 +41,11 @@ function main() {
     assertExists(join(unpackedDir, relativePath), `Unpacked artifact contains ${relativePath}`);
   }
 
+  assertPythonScript(
+    join(unpackedDir, 'resources/export-runtime/scripts/render_weasy_pdf.py'),
+    'Unpacked Weasy renderer is a Python script',
+  );
+
   const debStats = statSync(debPath);
   checks.push(ok(`.deb size is ${formatBytes(debStats.size)}`));
 
@@ -78,6 +83,14 @@ function main() {
   function assertIncludes(haystack, needle, label) {
     if (!haystack.includes(needle)) {
       fail(`${label}: expected to find "${needle}"`);
+    }
+    checks.push(ok(label));
+  }
+
+  function assertPythonScript(path, label) {
+    const firstLine = readFileSync(path, 'utf8').split('\n', 1)[0] ?? '';
+    if (!firstLine.startsWith('#!') || !firstLine.includes('python')) {
+      fail(`${label}: unexpected first line "${firstLine}"`);
     }
     checks.push(ok(label));
   }
