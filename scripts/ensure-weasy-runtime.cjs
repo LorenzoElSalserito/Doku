@@ -19,16 +19,7 @@ main().catch((error) => {
 });
 
 async function main() {
-  await fs.mkdir(runtimeDir, { recursive: true });
-  await fs.copyFile(
-    join(sourceExportDir, 'printStylesheet.css'),
-    join(runtimeDir, 'printStylesheet.css'),
-  );
-  await fs.mkdir(join(runtimeDir, 'scripts'), { recursive: true });
-  await fs.copyFile(
-    join(sourceExportDir, 'scripts/render_weasy_pdf.py'),
-    join(runtimeDir, 'scripts/render_weasy_pdf.py'),
-  );
+  await ensurePortableExportAssets();
 
   if (!existsSync(pythonBin)) {
     run('python3', ['-m', 'venv', '--copies', weasyRuntimeDir]);
@@ -37,6 +28,18 @@ async function main() {
   run(pythonBin, ['-m', 'pip', 'install', '--upgrade', 'pip']);
   run(pythonBin, ['-m', 'pip', 'install', 'weasyprint==66.0']);
   run(pythonBin, ['-c', 'from weasyprint import HTML; print("WeasyPrint runtime ready")']);
+}
+
+async function ensurePortableExportAssets() {
+  await fs.mkdir(join(runtimeDir, 'scripts'), { recursive: true });
+  await fs.copyFile(
+    join(sourceExportDir, 'printStylesheet.css'),
+    join(runtimeDir, 'printStylesheet.css'),
+  );
+  await fs.copyFile(
+    join(sourceExportDir, 'scripts/render_weasy_pdf.py'),
+    join(runtimeDir, 'scripts/render_weasy_pdf.py'),
+  );
 }
 
 function run(command, args) {
