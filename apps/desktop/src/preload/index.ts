@@ -18,8 +18,39 @@ const bridge: DokuBridge = {
   },
   documents: {
     openMarkdownFile: () => ipcRenderer.invoke(IPC_CHANNELS.documentsOpenMarkdownFile),
+    openDocumentAtPath: (filePath) => ipcRenderer.invoke(IPC_CHANNELS.documentsOpenDocumentAtPath, filePath),
     loadDocument: (summary) => ipcRenderer.invoke(IPC_CHANNELS.documentsLoad, summary),
     saveDocument: (input) => ipcRenderer.invoke(IPC_CHANNELS.documentsSave, input),
+    importAsset: (input) => ipcRenderer.invoke(IPC_CHANNELS.documentsImportAsset, input),
+    listWorkspaceTree: (documentPath) => ipcRenderer.invoke(IPC_CHANNELS.documentsListWorkspaceTree, documentPath),
+    createWorkspaceFile: (documentPath, name) =>
+      ipcRenderer.invoke(IPC_CHANNELS.documentsCreateWorkspaceEntry, {
+        documentPath,
+        name,
+        kind: 'markdown',
+      }),
+    createWorkspaceFolder: (documentPath, name) =>
+      ipcRenderer.invoke(IPC_CHANNELS.documentsCreateWorkspaceEntry, {
+        documentPath,
+        name,
+        kind: 'directory',
+      }),
+    watchWorkspaceTree: (documentPath, onChange) => {
+      const watchId = `workspace:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+      const handler = (_event: Electron.IpcRendererEvent, payload: { watchId?: string }) => {
+        if (payload.watchId === watchId) {
+          onChange();
+        }
+      };
+
+      ipcRenderer.on(IPC_CHANNELS.documentsWorkspaceTreeChanged, handler);
+      void ipcRenderer.invoke(IPC_CHANNELS.documentsWatchWorkspaceTree, { watchId, documentPath });
+
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.documentsWorkspaceTreeChanged, handler);
+        void ipcRenderer.invoke(IPC_CHANNELS.documentsUnwatchWorkspaceTree, watchId);
+      };
+    },
   },
   exports: {
     exportPdf: (input) => ipcRenderer.invoke(IPC_CHANNELS.exportsPdf, input),

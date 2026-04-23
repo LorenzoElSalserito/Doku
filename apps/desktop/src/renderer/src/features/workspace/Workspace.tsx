@@ -1,15 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { Button, Card, IconButton, SegmentedControl, type SegmentedOption } from '@doku/ui';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
+import { Button, Card, IconButton, Input, SegmentedControl, type SegmentedOption } from '@doku/ui';
 import type {
   DocumentSession,
   DocumentSummary,
   Settings,
   SettingsPatch,
+  WorkspaceNode,
 } from '@doku/application';
 import { useDict } from '../../i18n/I18nProvider.js';
+import type { Dictionary } from '../../i18n/keys.js';
 import { MarkdownPreview } from './MarkdownPreview.js';
-import { MonacoEditor } from './MonacoEditor.js';
+import { MonacoEditor, type MonacoEditorHandle } from './MonacoEditor.js';
 import { DefaultMarkdownAppDialog } from './DefaultMarkdownAppDialog.js';
+import { MARKDOWN_ACTION_SPECS, buildMarkdownTable, type MarkdownActionId } from './markdownActions.js';
+import { WorkspaceExplorer } from './WorkspaceExplorer.js';
 
 interface WorkspaceProps {
   settings: Settings;
@@ -45,6 +57,7 @@ export function Workspace({
   const [layout, setLayout] = useState(persistedWorkspace);
   const [dragState, setDragState] = useState<ResizeSide | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(persistedViewMode);
+  const [quickActionsVisible, setQuickActionsVisible] = useState(settings.workspaceQuickActionsVisible);
   const [activeSummary, setActiveSummary] = useState<DocumentSummary | null>(initialDocument);
   const [draftToken, setDraftToken] = useState(0);
   const [document, setDocument] = useState<DocumentSession | null>(null);
@@ -53,11 +66,17 @@ export function Workspace({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
   const [defaultAppPromptOpen, setDefaultAppPromptOpen] = useState(false);
+  const [editorDropActive, setEditorDropActive] = useState(false);
+  const [tableRows, setTableRows] = useState('2');
+  const [tableColumns, setTableColumns] = useState('3');
+  const [workspaceTree, setWorkspaceTree] = useState<WorkspaceNode[]>([]);
   const draftLayoutRef = useRef(layout);
   const autosaveTimeoutRef = useRef<number | null>(null);
   const defaultAppPromptRef = useRef(settings.defaultMarkdownAppPrompt);
   const previewScrollRef = useRef<HTMLDivElement | null>(null);
   const editorPaneRef = useRef<HTMLElement | null>(null);
+  const monacoEditorRef = useRef<MonacoEditorHandle | null>(null);
+  const dropDepthRef = useRef(0);
 
   useEffect(() => {
     defaultAppPromptRef.current = settings.defaultMarkdownAppPrompt;
@@ -71,6 +90,38 @@ export function Workspace({
   useEffect(() => {
     setViewMode(persistedViewMode);
   }, [persistedViewMode]);
+
+  useEffect(() => {
+    setQuickActionsVisible(settings.workspaceQuickActionsVisible);
+  }, [settings.workspaceQuickActionsVisible]);
+
+  const refreshWorkspaceTree = useCallback(async () => {
+    if (!document?.path) {
+      setWorkspaceTree([]);
+      return;
+    }
+
+    try {
+      const nodes = await window.doku.documents.listWorkspaceTree(document.path);
+      setWorkspaceTree(nodes);
+    } catch {
+      setWorkspaceTree([]);
+    }
+  }, [document?.path]);
+
+  useEffect(() => {
+    void refreshWorkspaceTree();
+  }, [document?.lastSavedAt, refreshWorkspaceTree]);
+
+  useEffect(() => {
+    if (!document?.path) {
+      return undefined;
+    }
+
+    return window.doku.documents.watchWorkspaceTree(document.path, () => {
+      void refreshWorkspaceTree();
+    });
+  }, [document?.path, refreshWorkspaceTree]);
 
   const saveDocument = useCallback(
     async (mode: 'save' | 'saveAs' | 'autosave') => {
@@ -308,6 +359,12 @@ export function Workspace({
     [onUpdate],
   );
 
+  const toggleQuickActions = useCallback(() => {
+    const nextVisible = !quickActionsVisible;
+    setQuickActionsVisible(nextVisible);
+    void onUpdate({ workspaceQuickActionsVisible: nextVisible });
+  }, [onUpdate, quickActionsVisible]);
+
   const handleContentChange = (nextValue: string) => {
     setDocument((current) => {
       if (!current) {
@@ -408,6 +465,190 @@ export function Workspace({
     setActiveSummary(summary);
   }, []);
 
+  const handleOpenWorkspaceFile = useCallback(
+    async (filePath: string) => {
+      setNoticeMessage(null);
+      const result = await window.doku.documents.openDocumentAtPath(filePath);
+      if (!result) {
+        return;
+      }
+      await onUpdate({ launcher: result.launcher });
+      setActiveSummary({
+        id: result.document.id,
+        kind: result.document.kind,
+        title: result.document.title,
+        path: result.document.path,
+        snippet: result.document.snippet,
+        lastOpenedAt: result.document.lastOpenedAt,
+      });
+    },
+    [onUpdate],
+  );
+
+  const handleCreateWorkspaceFile = useCallback(async () => {
+    if (!document?.path) {
+      return;
+    }
+
+    const name = window.prompt(dict.workspace.workspaceExplorer.newFilePrompt);
+    if (!name?.trim()) {
+      return;
+    }
+
+    try {
+      const result = await window.doku.documents.createWorkspaceFile(document.path, name);
+      await refreshWorkspaceTree();
+      await handleOpenWorkspaceFile(result.path);
+    } catch {
+      setErrorMessage(dict.workspace.workspaceExplorer.createFileError);
+      setSaveState('error');
+    }
+  }, [dict.workspace.workspaceExplorer, document?.path, handleOpenWorkspaceFile, refreshWorkspaceTree]);
+
+  const handleCreateWorkspaceFolder = useCallback(async () => {
+    if (!document?.path) {
+      return;
+    }
+
+    const name = window.prompt(dict.workspace.workspaceExplorer.newFolderPrompt);
+    if (!name?.trim()) {
+      return;
+    }
+
+    try {
+      await window.doku.documents.createWorkspaceFolder(document.path, name);
+      await refreshWorkspaceTree();
+    } catch {
+      setErrorMessage(dict.workspace.workspaceExplorer.createFolderError);
+      setSaveState('error');
+    }
+  }, [dict.workspace.workspaceExplorer, document?.path, refreshWorkspaceTree]);
+
+  const handleMarkdownAction = useCallback(
+    (actionId: (typeof MARKDOWN_ACTION_SPECS)[number]['id']) => {
+      if (viewMode === 'preview') {
+        return;
+      }
+
+      const action = MARKDOWN_ACTION_SPECS.find((item) => item.id === actionId);
+      if (!action) {
+        return;
+      }
+
+      if (action.kind === 'surround') {
+        monacoEditorRef.current?.surroundSelection({
+          before: action.before ?? '',
+          after: action.after ?? '',
+          placeholder: action.placeholder ?? '',
+        });
+        return;
+      }
+
+      monacoEditorRef.current?.replaceSelection(action.text ?? '', {
+        selectionStartOffset: action.selectionStartOffset,
+        selectionEndOffset: action.selectionEndOffset,
+      });
+    },
+    [viewMode],
+  );
+
+  const handleInsertTable = useCallback(() => {
+    if (viewMode === 'preview') {
+      return;
+    }
+
+    const rows = Number.parseInt(tableRows, 10);
+    const columns = Number.parseInt(tableColumns, 10);
+    const snippet = buildMarkdownTable(Number.isFinite(rows) ? rows : 2, Number.isFinite(columns) ? columns : 3);
+    monacoEditorRef.current?.replaceSelection(snippet, {
+      selectionStartOffset: 2,
+      selectionEndOffset: 10,
+    });
+  }, [tableColumns, tableRows, viewMode]);
+
+  const handleEditorDragEnter = useCallback((event: ReactDragEvent<HTMLElement>) => {
+    if (!hasImageFiles(event)) {
+      return;
+    }
+    event.preventDefault();
+    dropDepthRef.current += 1;
+    setEditorDropActive(true);
+  }, []);
+
+  const handleEditorDragOver = useCallback((event: ReactDragEvent<HTMLElement>) => {
+    if (!hasImageFiles(event)) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    setEditorDropActive(true);
+  }, []);
+
+  const handleEditorDragLeave = useCallback((event: ReactDragEvent<HTMLElement>) => {
+    if (!hasImageFiles(event)) {
+      return;
+    }
+    event.preventDefault();
+    dropDepthRef.current = Math.max(0, dropDepthRef.current - 1);
+    if (dropDepthRef.current === 0) {
+      setEditorDropActive(false);
+    }
+  }, []);
+
+  const handleEditorDrop = useCallback(
+    async (event: ReactDragEvent<HTMLElement>) => {
+      if (!hasImageFiles(event)) {
+        return;
+      }
+
+      event.preventDefault();
+      dropDepthRef.current = 0;
+      setEditorDropActive(false);
+      setNoticeMessage(null);
+
+      if (!document?.path) {
+        setErrorMessage(dict.workspace.imageImportSaveFirst);
+        setSaveState('error');
+        return;
+      }
+
+      const imageFile = Array.from(event.dataTransfer.files).find((file) =>
+        isSupportedImageFile(getFilePath(file)),
+      );
+
+      const sourcePath = imageFile ? getFilePath(imageFile) : null;
+      if (!sourcePath) {
+        setErrorMessage(dict.workspace.editorErrorBody);
+        setSaveState('error');
+        return;
+      }
+
+      try {
+        const imported = await window.doku.documents.importAsset({
+          documentPath: document.path,
+          sourcePath,
+          strategy: 'project-assets',
+        });
+
+        const markdownToInsert = createImageMarkdownSnippet(imported.fileName, imported.relativePath);
+        monacoEditorRef.current?.insertText(markdownToInsert);
+        setNoticeMessage(
+          dict.workspace.imageImportSuccess.replace('{{fileName}}', imported.fileName),
+        );
+        setErrorMessage(null);
+        setSaveState('dirty');
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error
+            ? resolveImageImportErrorMessage(error.message, dict.workspace)
+            : dict.workspace.editorErrorBody;
+        setErrorMessage(message);
+        setSaveState('error');
+      }
+    },
+    [dict.workspace, document?.path],
+  );
+
   useEffect(() => {
     if (viewMode !== 'split') {
       return;
@@ -437,101 +678,175 @@ export function Workspace({
 
   return (
     <div className="workspace">
-      <header className="workspace__header">
-        <div className="workspace__header-main">
-          <FileMenu
-            labels={dict.workspace.fileMenu}
-            recents={settings.launcher.recentDocuments.slice(0, 5)}
-            onNew={handleNewDocument}
-            onOpen={() => void handleOpenFile()}
-            onSelectRecent={handleSelectRecent}
-          />
-          <nav className="workspace__breadcrumbs" aria-label={dict.workspace.breadcrumbWorkspace}>
-            {breadcrumbs.map((item, index) => (
-              <span key={`${item}-${index}`} className="workspace__crumb">
-                {item}
+      <div className="workspace__topbar">
+        <header className="workspace__header">
+          <div className="workspace__header-main">
+            <FileMenu
+              labels={dict.workspace.fileMenu}
+              recents={settings.launcher.recentDocuments.slice(0, 5)}
+              onNew={handleNewDocument}
+              onOpen={() => void handleOpenFile()}
+              onSelectRecent={handleSelectRecent}
+            />
+            <nav className="workspace__breadcrumbs" aria-label={dict.workspace.breadcrumbWorkspace}>
+              {breadcrumbs.map((item, index) => (
+                <span key={`${item}-${index}`} className="workspace__crumb">
+                  {item}
+                </span>
+              ))}
+            </nav>
+          </div>
+
+          <div className="workspace__header-side">
+            <div className="workspace__status">
+              <span className="workspace__status-pill" role="status" aria-live="polite">
+                {statusLabel(saveState, dict.workspace)}
               </span>
-            ))}
-          </nav>
-        </div>
-
-        <div className="workspace__header-side">
-          <div className="workspace__status">
-            <span className="workspace__status-pill" role="status" aria-live="polite">
-              {statusLabel(saveState, dict.workspace)}
-            </span>
-            <span className="workspace__status-pill workspace__status-pill--quiet">
-              {document?.kind === 'file' ? dict.workspace.fileLabel : dict.workspace.draftLabel}
-            </span>
-          </div>
-
-          <div className="workspace__header-actions">
-            <div className="workspace__action-group workspace__action-group--layout">
-              <IconButton
-                label={
-                  workspace.leftPanelCollapsed
-                    ? dict.workspace.leftPanelToggleExpand
-                    : dict.workspace.leftPanelToggleCollapse
-                }
-                onClick={toggleLeft}
-              >
-                <PanelLeftIcon />
-              </IconButton>
-              <IconButton
-                label={
-                  workspace.rightPanelCollapsed
-                    ? dict.workspace.rightPanelToggleExpand
-                    : dict.workspace.rightPanelToggleCollapse
-                }
-                onClick={toggleRight}
-              >
-                <PanelRightIcon />
-              </IconButton>
-              <SegmentedControl
-                value={viewMode}
-                options={viewOptions}
-                onChange={handleViewModeChange}
-                ariaLabel={dict.workspace.previewEyebrow}
-                idPrefix="workspace-mode"
-              />
+              <span className="workspace__status-pill workspace__status-pill--quiet">
+                {document?.kind === 'file' ? dict.workspace.fileLabel : dict.workspace.draftLabel}
+              </span>
             </div>
 
-            <div className="workspace__action-group workspace__action-group--primary">
-              <Button variant="secondary" size="sm" onClick={() => void saveDocument('save')}>
-                {dict.workspace.save}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => void saveDocument('saveAs')}>
-                {dict.workspace.saveAs}
-              </Button>
+            <div className="workspace__header-actions">
+              <div className="workspace__action-group workspace__action-group--layout">
+                <IconButton
+                  label={
+                    workspace.leftPanelCollapsed
+                      ? dict.workspace.leftPanelToggleExpand
+                      : dict.workspace.leftPanelToggleCollapse
+                  }
+                  onClick={toggleLeft}
+                >
+                  <PanelLeftIcon />
+                </IconButton>
+                <IconButton
+                  label={
+                    quickActionsVisible
+                      ? dict.workspace.quickActions.toggleHide
+                      : dict.workspace.quickActions.toggleShow
+                  }
+                  aria-pressed={quickActionsVisible}
+                  className={
+                    quickActionsVisible
+                      ? 'workspace__quick-toggle workspace__quick-toggle--active'
+                      : 'workspace__quick-toggle'
+                  }
+                  onClick={toggleQuickActions}
+                >
+                  <QuickActionsIcon />
+                </IconButton>
+                <IconButton
+                  label={
+                    workspace.rightPanelCollapsed
+                      ? dict.workspace.rightPanelToggleExpand
+                      : dict.workspace.rightPanelToggleCollapse
+                  }
+                  onClick={toggleRight}
+                >
+                  <PanelRightIcon />
+                </IconButton>
+                <SegmentedControl
+                  value={viewMode}
+                  options={viewOptions}
+                  onChange={handleViewModeChange}
+                  ariaLabel={dict.workspace.previewEyebrow}
+                  idPrefix="workspace-mode"
+                />
+              </div>
+
+              <div className="workspace__action-group workspace__action-group--primary">
+                <Button variant="secondary" size="sm" onClick={() => void saveDocument('save')}>
+                  {dict.workspace.save}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => void saveDocument('saveAs')}>
+                  {dict.workspace.saveAs}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    onOpenExport({
+                      title: exportTitle,
+                      content: document?.content ?? '',
+                      path: document?.path,
+                    })
+                  }
+                >
+                  {dict.workspace.export}
+                </Button>
+              </div>
+
+              <div className="workspace__action-group workspace__action-group--secondary">
+                <Button variant="ghost" size="sm" onClick={onOpenGuide}>
+                  {dict.workspace.guide}
+                </Button>
+                <Button variant="secondary" size="sm" onClick={onOpenSettings}>
+                  {dict.workspace.settings}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={onOpenInfo}>
+                  {dict.workspace.info}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {quickActionsVisible ? (
+          <div className="workspace__quick-actions" aria-label={dict.workspace.quickActions.barLabel}>
+            <div className="workspace__quick-actions-list">
+              {MARKDOWN_ACTION_SPECS.map((action) => (
+                <Button
+                  key={action.id}
+                  variant="ghost"
+                  size="sm"
+                  className="workspace__quick-action-button"
+                  onClick={() => handleMarkdownAction(action.id)}
+                  disabled={viewMode === 'preview'}
+                  aria-label={action.label(dict.workspace.quickActions)}
+                  title={action.label(dict.workspace.quickActions)}
+                >
+                  <MarkdownActionIcon actionId={action.id} />
+                </Button>
+              ))}
+            </div>
+
+            <div className="workspace__quick-actions-table">
+              <span className="workspace__quick-actions-table-label">
+                <TableIcon />
+                {dict.workspace.quickActions.tableButton}
+              </span>
+              <label className="workspace__quick-actions-field">
+                <span>{dict.workspace.quickActions.tableRows}</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={tableRows}
+                  onChange={(event) => setTableRows(event.target.value)}
+                />
+              </label>
+              <label className="workspace__quick-actions-field">
+                <span>{dict.workspace.quickActions.tableColumns}</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={8}
+                  value={tableColumns}
+                  onChange={(event) => setTableColumns(event.target.value)}
+                />
+              </label>
               <Button
-                variant="ghost"
+                variant="secondary"
                 size="sm"
-                onClick={() =>
-                  onOpenExport({
-                    title: exportTitle,
-                    content: document?.content ?? '',
-                    path: document?.path,
-                  })
-                }
+                onClick={handleInsertTable}
+                disabled={viewMode === 'preview'}
               >
-                {dict.workspace.export}
-              </Button>
-            </div>
-
-            <div className="workspace__action-group workspace__action-group--secondary">
-              <Button variant="ghost" size="sm" onClick={onOpenGuide}>
-                {dict.workspace.guide}
-              </Button>
-              <Button variant="secondary" size="sm" onClick={onOpenSettings}>
-                {dict.workspace.settings}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={onOpenInfo}>
-                {dict.workspace.info}
+                {dict.workspace.quickActions.tableInsert}
               </Button>
             </div>
           </div>
-        </div>
-      </header>
+        ) : null}
+      </div>
 
       <div className="workspace__body">
         {!workspace.leftPanelCollapsed && (
@@ -540,6 +855,109 @@ export function Workspace({
               className="workspace__panel workspace__panel--left"
               style={leftStyle}
               aria-label={dict.workspace.leftPanelLabel}
+            >
+              <Card className="workspace__panel-card workspace__panel-card--feature">
+                <span className="workspace__panel-eyebrow">
+                  {dict.workspace.workspaceExplorer.openFolder}
+                </span>
+                <h2 className="workspace__panel-title">{dict.workspace.workspaceExplorer.title}</h2>
+                <p className="workspace__panel-body">{dict.workspace.workspaceExplorer.body}</p>
+                {document?.path ? (
+                  <WorkspaceExplorer
+                    nodes={workspaceTree}
+                    activePath={document.path}
+                    onOpenFile={(path) => void handleOpenWorkspaceFile(path)}
+                    onCreateFile={() => void handleCreateWorkspaceFile()}
+                    onCreateFolder={() => void handleCreateWorkspaceFolder()}
+                  />
+                ) : (
+                  <p className="workspace__panel-meta">{dict.workspace.workspaceExplorer.draftHint}</p>
+                )}
+              </Card>
+            </aside>
+
+            <ResizeHandle
+              side="left"
+              onPointerDown={() => setDragState('left')}
+              onKeyboardResize={resizeFromKeyboard}
+            />
+          </>
+        )}
+
+        <main className="workspace__editor" id="workspace-editor" tabIndex={-1}>
+          <Card elevated className="workspace__editor-card">
+            {loadState === 'loading' ? (
+              <div className="workspace__editor-loading">{dict.workspace.editorLoading}</div>
+            ) : loadState === 'error' ? (
+              <div className="workspace__editor-error" role="alert">
+                <h2 className="workspace__editor-title">{dict.workspace.editorErrorTitle}</h2>
+                <p className="workspace__editor-body">{errorMessage ?? dict.workspace.editorErrorBody}</p>
+              </div>
+            ) : (
+              <div className={`workspace__editor-shell workspace__editor-shell--${viewMode}`}>
+                {noticeMessage ? <div className="workspace__editor-notice">{noticeMessage}</div> : null}
+                <div className={`workspace__editor-panels workspace__editor-panels--${viewMode}`}>
+                  {(viewMode === 'write' || viewMode === 'split') && (
+                    <section
+                      ref={editorPaneRef}
+                      className={`workspace__editor-pane workspace__editor-pane--write${
+                        editorDropActive ? ' workspace__editor-pane--drop-active' : ''
+                      }`}
+                      onDragEnter={handleEditorDragEnter}
+                      onDragOver={handleEditorDragOver}
+                      onDragLeave={handleEditorDragLeave}
+                      onDrop={handleEditorDrop}
+                    >
+                      {editorDropActive ? (
+                        <div className="workspace__editor-dropzone">
+                          <span className="workspace__editor-dropzone-eyebrow">
+                            {dict.workspace.imageDropzoneEyebrow}
+                          </span>
+                          <strong className="workspace__editor-dropzone-title">
+                            {dict.workspace.imageDropzoneTitle}
+                          </strong>
+                        </div>
+                      ) : null}
+                      <MonacoEditor
+                        ref={monacoEditorRef}
+                        value={document?.content ?? ''}
+                        onChange={handleContentChange}
+                      />
+                    </section>
+                  )}
+
+                  {(viewMode === 'preview' || viewMode === 'split') && (
+                    <section className="workspace__editor-pane workspace__editor-pane--preview">
+                      <div className="workspace__preview-head">
+                        <span className="workspace__panel-eyebrow">{dict.workspace.previewEyebrow}</span>
+                      </div>
+                      <div ref={previewScrollRef} className="workspace__preview-scroll">
+                        <MarkdownPreview
+                          content={previewContent}
+                          sourcePath={document?.path}
+                          emptyLabel={dict.workspace.previewEmpty}
+                        />
+                      </div>
+                    </section>
+                  )}
+                </div>
+              </div>
+            )}
+          </Card>
+        </main>
+
+        {!workspace.rightPanelCollapsed && (
+          <>
+            <ResizeHandle
+              side="right"
+              onPointerDown={() => setDragState('right')}
+              onKeyboardResize={resizeFromKeyboard}
+            />
+
+            <aside
+              className="workspace__panel workspace__panel--right"
+              style={rightStyle}
+              aria-label={dict.workspace.rightPanelLabel}
             >
               <Card className="workspace__panel-card workspace__panel-card--feature">
                 <span className="workspace__panel-eyebrow">{dict.workspace.projectPanelEyebrow}</span>
@@ -582,70 +1000,7 @@ export function Workspace({
                   <p className="workspace__panel-meta">{dict.workspace.fileMenu.recentEmpty}</p>
                 )}
               </Card>
-            </aside>
 
-            <ResizeHandle
-              side="left"
-              onPointerDown={() => setDragState('left')}
-              onKeyboardResize={resizeFromKeyboard}
-            />
-          </>
-        )}
-
-        <main className="workspace__editor" id="workspace-editor" tabIndex={-1}>
-          <Card elevated className="workspace__editor-card">
-            {loadState === 'loading' ? (
-              <div className="workspace__editor-loading">{dict.workspace.editorLoading}</div>
-            ) : loadState === 'error' ? (
-              <div className="workspace__editor-error" role="alert">
-                <h2 className="workspace__editor-title">{dict.workspace.editorErrorTitle}</h2>
-                <p className="workspace__editor-body">{errorMessage ?? dict.workspace.editorErrorBody}</p>
-              </div>
-            ) : (
-              <div className={`workspace__editor-shell workspace__editor-shell--${viewMode}`}>
-                {noticeMessage ? <div className="workspace__editor-notice">{noticeMessage}</div> : null}
-                <div className={`workspace__editor-panels workspace__editor-panels--${viewMode}`}>
-                  {(viewMode === 'write' || viewMode === 'split') && (
-                    <section ref={editorPaneRef} className="workspace__editor-pane workspace__editor-pane--write">
-                      <MonacoEditor
-                        value={document?.content ?? ''}
-                        onChange={handleContentChange}
-                      />
-                    </section>
-                  )}
-
-                  {(viewMode === 'preview' || viewMode === 'split') && (
-                    <section className="workspace__editor-pane workspace__editor-pane--preview">
-                      <div className="workspace__preview-head">
-                        <span className="workspace__panel-eyebrow">{dict.workspace.previewEyebrow}</span>
-                      </div>
-                      <div ref={previewScrollRef} className="workspace__preview-scroll">
-                        <MarkdownPreview
-                          content={previewContent}
-                          emptyLabel={dict.workspace.previewEmpty}
-                        />
-                      </div>
-                    </section>
-                  )}
-                </div>
-              </div>
-            )}
-          </Card>
-        </main>
-
-        {!workspace.rightPanelCollapsed && (
-          <>
-            <ResizeHandle
-              side="right"
-              onPointerDown={() => setDragState('right')}
-              onKeyboardResize={resizeFromKeyboard}
-            />
-
-            <aside
-              className="workspace__panel workspace__panel--right"
-              style={rightStyle}
-              aria-label={dict.workspace.rightPanelLabel}
-            >
               <Card className="workspace__panel-card workspace__panel-card--secondary">
                 <span className="workspace__panel-eyebrow">{dict.workspace.sessionTitle}</span>
                 <h3 className="workspace__panel-subtitle">{dict.workspace.sessionTitle}</h3>
@@ -712,6 +1067,48 @@ export function Workspace({
       />
     </div>
   );
+}
+
+function hasImageFiles(event: ReactDragEvent<HTMLElement>): boolean {
+  const { items, files } = event.dataTransfer;
+
+  if (items.length > 0) {
+    return Array.from(items).some(
+      (item) => item.kind === 'file' && item.type.toLowerCase().startsWith('image/'),
+    );
+  }
+
+  return Array.from(files).some((file) => isSupportedImageFile(getFilePath(file)));
+}
+
+function isSupportedImageFile(filePath: string): boolean {
+  return /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(filePath);
+}
+
+function getFilePath(file: File): string {
+  return typeof (file as File & { path?: string }).path === 'string'
+    ? (file as File & { path: string }).path
+    : file.name;
+}
+
+function createImageMarkdownSnippet(fileName: string, relativePath: string): string {
+  const altText = fileName.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || 'Image';
+  return `![${altText}](${relativePath})`;
+}
+
+function resolveImageImportErrorMessage(message: string, workspaceDict: Dictionary['workspace']): string {
+  switch (message) {
+    case 'documents:image-import:unsupported-format':
+      return workspaceDict.imageImportUnsupported;
+    case 'documents:image-import:document-missing':
+      return workspaceDict.imageImportSaveFirst;
+    case 'documents:image-import:source-missing':
+      return workspaceDict.imageImportMissingSource;
+    case 'documents:image-import:allocation-failed':
+      return workspaceDict.imageImportAllocationFailed;
+    default:
+      return message;
+  }
 }
 
 interface ResizeHandleProps {
@@ -1134,6 +1531,178 @@ function PanelRightIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M4 5h16v14H4z" stroke="currentColor" strokeWidth="1.6" />
       <path d="M15 5v14" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
+function QuickActionsIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M6 7.5h12M6 12h7M6 16.5h9M17.5 10.5l2 2 3-4"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function MarkdownActionIcon({ actionId }: { actionId: MarkdownActionId }) {
+  switch (actionId) {
+    case 'h1':
+      return <TextHeadingIcon level="1" />;
+    case 'h2':
+      return <TextHeadingIcon level="2" />;
+    case 'bold':
+      return <TextMarkIcon mark="B" />;
+    case 'italic':
+      return <TextMarkIcon mark="I" italic />;
+    case 'link':
+      return <LinkIcon />;
+    case 'image':
+      return <ImageIcon />;
+    case 'bullet-list':
+      return <ListIcon ordered={false} />;
+    case 'ordered-list':
+      return <ListIcon ordered />;
+    case 'checklist':
+      return <ChecklistIcon />;
+    case 'quote':
+      return <QuoteIcon />;
+    case 'inline-code':
+      return <InlineCodeIcon />;
+    case 'code-block':
+      return <CodeBlockIcon />;
+    case 'divider':
+      return <DividerIcon />;
+  }
+}
+
+function TextHeadingIcon({ level }: { level: '1' | '2' }) {
+  return (
+    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M5 6v12M14 6v12M5 12h9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <text x="16" y="18" fill="currentColor" fontSize="8" fontWeight="700">
+        {level}
+      </text>
+    </svg>
+  );
+}
+
+function TextMarkIcon({ mark, italic = false }: { mark: 'B' | 'I'; italic?: boolean }) {
+  return (
+    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <text
+        x="7"
+        y="17"
+        fill="currentColor"
+        fontFamily="Georgia, serif"
+        fontSize="15"
+        fontStyle={italic ? 'italic' : 'normal'}
+        fontWeight={italic ? '700' : '800'}
+      >
+        {mark}
+      </text>
+      <path d="M5 20h14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity="0.42" />
+    </svg>
+  );
+}
+
+function LinkIcon() {
+  return (
+    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M9.5 14.5l5-5M10 7.5l1.2-1.2a4 4 0 015.7 5.7L15.6 13.3M14 16.5l-1.2 1.2a4 4 0 01-5.7-5.7L8.4 10.7"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ImageIcon() {
+  return (
+    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M5 7.5h14v9H5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M7.5 15l3.3-3.2 2.5 2.4 1.5-1.5L18 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="15.8" cy="9.8" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function ListIcon({ ordered }: { ordered: boolean }) {
+  return (
+    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      {ordered ? (
+        <>
+          <text x="5" y="9" fill="currentColor" fontSize="5.5" fontWeight="700">1</text>
+          <text x="5" y="14" fill="currentColor" fontSize="5.5" fontWeight="700">2</text>
+          <text x="5" y="19" fill="currentColor" fontSize="5.5" fontWeight="700">3</text>
+        </>
+      ) : (
+        <>
+          <circle cx="7" cy="7.5" r="1.1" fill="currentColor" />
+          <circle cx="7" cy="12" r="1.1" fill="currentColor" />
+          <circle cx="7" cy="16.5" r="1.1" fill="currentColor" />
+        </>
+      )}
+      <path d="M11 7.5h8M11 12h8M11 16.5h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ChecklistIcon() {
+  return (
+    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M5.5 7.5l1.3 1.3 2.4-2.8M5.5 12l1.3 1.3 2.4-2.8M5.5 16.5l1.3 1.3 2.4-2.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 7.5h7M12 12h7M12 16.5h7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function QuoteIcon() {
+  return (
+    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M8 8.5h3v3.2c0 2.4-1.1 4-3.2 4.8M15 8.5h3v3.2c0 2.4-1.1 4-3.2 4.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function InlineCodeIcon() {
+  return (
+    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M9 8l-4 4 4 4M15 8l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CodeBlockIcon() {
+  return (
+    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M5 6.5h14v11H5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M9.5 10l-2 2 2 2M14.5 10l2 2-2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function DividerIcon() {
+  return (
+    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="7" cy="12" r="1.2" fill="currentColor" opacity="0.42" />
+      <circle cx="17" cy="12" r="1.2" fill="currentColor" opacity="0.42" />
+    </svg>
+  );
+}
+
+function TableIcon() {
+  return (
+    <svg className="workspace__quick-actions-table-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M5 6h14v12H5zM5 10h14M9.5 6v12M14.5 6v12" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
     </svg>
   );
 }

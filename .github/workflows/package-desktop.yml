@@ -20,17 +20,14 @@ jobs:
             label: Linux
             package_script: package:linux
             artifact_glob: build/desktop/**/*.deb
-            shell: bash
           - os: windows-latest
             label: Windows
             package_script: package:win
             artifact_glob: build/desktop/**/*.exe
-            shell: bash
           - os: macos-latest
             label: macOS
             package_script: package:mac
             artifact_glob: build/desktop/**/*.dmg
-            shell: bash
 
     steps:
       - name: Checkout
@@ -55,7 +52,7 @@ jobs:
           sudo apt-get install -y fakeroot dpkg
 
       - name: Build installer
-        shell: ${{ matrix.shell }}
+        shell: bash
         run: npm run ${{ matrix.package_script }}
 
       - name: Smoke Linux package

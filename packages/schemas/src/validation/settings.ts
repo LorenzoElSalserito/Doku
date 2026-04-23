@@ -72,6 +72,69 @@ export const DocumentSaveRequestSchema = z.object({
 });
 export type DocumentSaveRequest = z.infer<typeof DocumentSaveRequestSchema>;
 
+export const DocumentAssetImportStrategySchema = z.enum(['relative-path', 'project-assets']);
+export type DocumentAssetImportStrategy = z.infer<typeof DocumentAssetImportStrategySchema>;
+
+export const DocumentAssetImportRequestSchema = z.object({
+  documentPath: z.string().min(1),
+  sourcePath: z.string().min(1),
+  strategy: DocumentAssetImportStrategySchema,
+});
+export type DocumentAssetImportRequest = z.infer<typeof DocumentAssetImportRequestSchema>;
+
+export const DocumentAssetImportResultSchema = z.object({
+  fileName: z.string().min(1),
+  assetPath: z.string().min(1),
+  relativePath: z.string().min(1),
+});
+export type DocumentAssetImportResult = z.infer<typeof DocumentAssetImportResultSchema>;
+
+export const WorkspaceNodeKindSchema = z.enum(['directory', 'markdown', 'asset', 'other']);
+export type WorkspaceNodeKind = z.infer<typeof WorkspaceNodeKindSchema>;
+
+export type WorkspaceNode = {
+  name: string;
+  path: string;
+  kind: WorkspaceNodeKind;
+  children?: WorkspaceNode[];
+};
+
+export const WorkspaceNodeSchema: z.ZodType<WorkspaceNode> = z.lazy(() =>
+  z.object({
+    name: z.string().min(1),
+    path: z.string().min(1),
+    kind: WorkspaceNodeKindSchema,
+    children: z.array(WorkspaceNodeSchema).optional(),
+  }),
+);
+
+export const WorkspaceListingRequestSchema = z.object({
+  documentPath: z.string().min(1),
+});
+export type WorkspaceListingRequest = z.infer<typeof WorkspaceListingRequestSchema>;
+
+export const WorkspaceWatchRequestSchema = z.object({
+  watchId: z.string().min(1),
+  documentPath: z.string().min(1),
+});
+export type WorkspaceWatchRequest = z.infer<typeof WorkspaceWatchRequestSchema>;
+
+export const WorkspaceCreateEntryKindSchema = z.enum(['markdown', 'directory']);
+export type WorkspaceCreateEntryKind = z.infer<typeof WorkspaceCreateEntryKindSchema>;
+
+export const WorkspaceCreateEntryRequestSchema = z.object({
+  documentPath: z.string().min(1),
+  name: z.string().min(1),
+  kind: WorkspaceCreateEntryKindSchema,
+});
+export type WorkspaceCreateEntryRequest = z.infer<typeof WorkspaceCreateEntryRequestSchema>;
+
+export const WorkspaceCreateEntryResultSchema = z.object({
+  path: z.string().min(1),
+  kind: WorkspaceCreateEntryKindSchema,
+});
+export type WorkspaceCreateEntryResult = z.infer<typeof WorkspaceCreateEntryResultSchema>;
+
 export const LauncherStateSchema = z.object({
   recentDocuments: z.array(DocumentSummarySchema).max(8),
   quickResumeId: z.string().nullable(),
@@ -129,6 +192,7 @@ export const SettingsSchema = z.object({
   theme: ThemePreferenceSchema,
   customTheme: CustomThemeSchema,
   writingFontFamily: z.string().min(1).nullable(),
+  workspaceQuickActionsVisible: z.boolean(),
   defaultMarkdownAppPrompt: DefaultAppPromptSchema,
   firstRunCompleted: z.boolean(),
   launcher: LauncherStateSchema,
@@ -142,6 +206,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   customTheme: DEFAULT_CUSTOM_THEME,
   writingFontFamily: null,
+  workspaceQuickActionsVisible: false,
   defaultMarkdownAppPrompt: {
     dismissed: false,
     shown: false,

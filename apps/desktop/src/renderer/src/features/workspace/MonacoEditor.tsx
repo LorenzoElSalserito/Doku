@@ -1,4 +1,10 @@
-import { useEffect, useRef } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from 'react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import 'monaco-editor/esm/vs/basic-languages/markdown/markdown.contribution';
 import { useTheme } from '@doku/ui';
@@ -9,7 +15,23 @@ interface MonacoEditorProps {
   onScrollChange?: (state: { scrollTop: number; scrollHeight: number; viewportHeight: number }) => void;
 }
 
-export function MonacoEditor({ value, onChange, onScrollChange }: MonacoEditorProps) {
+export interface MonacoEditorHandle {
+  focus: () => void;
+  insertText: (text: string) => void;
+  replaceSelection: (
+    text: string,
+    options?: {
+      selectionStartOffset?: number;
+      selectionEndOffset?: number;
+    },
+  ) => void;
+  surroundSelection: (options: { before: string; after: string; placeholder: string }) => void;
+}
+
+export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(function MonacoEditor(
+  { value, onChange, onScrollChange },
+  ref,
+) {
   const { resolved, themeKey } = useTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -19,6 +41,81 @@ export function MonacoEditor({ value, onChange, onScrollChange }: MonacoEditorPr
   const onScrollChangeRef = useRef(onScrollChange);
   const initialValueRef = useRef(value);
   const resolvedThemeRef = useRef(resolved);
+  const applyReplacement = useCallback(
+    (
+      text: string,
+      options?: {
+        selectionStartOffset?: number;
+        selectionEndOffset?: number;
+      },
+    ) => {
+      const editor = editorRef.current;
+      const model = editor?.getModel();
+      const selection = editor?.getSelection();
+      if (!editor || !model || !selection) {
+        return;
+      }
+
+      const startOffset = model.getOffsetAt(selection.getStartPosition());
+      editor.executeEdits('doku-quick-action', [
+        {
+          range: selection,
+          text,
+          forceMoveMarkers: true,
+        },
+      ]);
+
+      const selectionStartOffset = options?.selectionStartOffset ?? text.length;
+      const selectionEndOffset = options?.selectionEndOffset ?? selectionStartOffset;
+      const nextStart = model.getPositionAt(startOffset + selectionStartOffset);
+      const nextEnd = model.getPositionAt(startOffset + selectionEndOffset);
+      editor.setSelection(
+        new monaco.Selection(
+          nextStart.lineNumber,
+          nextStart.column,
+          nextEnd.lineNumber,
+          nextEnd.column,
+        ),
+      );
+      editor.revealPositionInCenterIfOutsideViewport(nextEnd);
+      editor.focus();
+    },
+    [],
+  );
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => {
+        editorRef.current?.focus();
+      },
+      insertText: (text: string) => {
+        applyReplacement(text);
+      },
+      replaceSelection: (text, options) => {
+        applyReplacement(text, options);
+      },
+      surroundSelection: ({ before, after, placeholder }) => {
+        const editor = editorRef.current;
+        const model = editor?.getModel();
+        const selection = editor?.getSelection();
+        if (!editor || !model || !selection) {
+          return;
+        }
+
+        const selectedText = model.getValueInRange(selection);
+        const innerText = selectedText || placeholder;
+        const replacement = `${before}${innerText}${after}`;
+        const startOffset = before.length;
+        const endOffset = before.length + innerText.length;
+        applyReplacement(replacement, {
+          selectionStartOffset: startOffset,
+          selectionEndOffset: endOffset,
+        });
+      },
+    }),
+    [applyReplacement],
+  );
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -163,7 +260,7 @@ export function MonacoEditor({ value, onChange, onScrollChange }: MonacoEditorPr
   }, [value]);
 
   return <div ref={containerRef} className="monaco-editor-host" />;
-}
+});
 
 function normalizeColor(value: string): string {
   return value.trim().replace('#', '');

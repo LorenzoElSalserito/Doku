@@ -1,8 +1,18 @@
 export type {
+  DocumentAssetImportRequest,
+  DocumentAssetImportResult,
+  DocumentAssetImportStrategy,
   DocumentKind,
   DocumentSummary,
   DocumentSession,
   DocumentSaveMode,
   DocumentSaveRequest,
   DocumentOperationResult,
+  WorkspaceCreateEntryKind,
+  WorkspaceCreateEntryRequest,
+  WorkspaceCreateEntryResult,
+  WorkspaceListingRequest,
+  WorkspaceNode,
+  WorkspaceNodeKind,
+  WorkspaceWatchRequest,
 } from '@doku/schemas';

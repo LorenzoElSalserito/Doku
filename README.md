@@ -1,82 +1,131 @@
 # Doku
 
-Local-first Markdown editor — desktop app.
+![Doku icon](apps/desktop/src/assets/icon.png)
 
-## Stato
+**Doku is a local-first Markdown writing studio for desktop.**
 
-Repository allineato fino a **Sprint 13: Done**.
-La release candidate del repository corrente è stata consolidata con documentazione finale, baseline QA e packaging Linux verificato.
+It is designed for people who want a calm, beautiful and reliable place to write: authors, students, researchers, copywriters, essayists and anyone who prefers plain Markdown without giving up a polished editorial experience.
 
-Sprint 0 + Sprint 1 implementati: monorepo, shell Electron sicura, design system (temi Warm Ivory / Deep Slate con accento azzurro), wizard iniziale lingua + tema, persistenza impostazioni, i18n (it/en/es/de/fr/pt).
+Doku is not a cloud workspace, not an IDE and not a noisy productivity dashboard. It opens into a focused writing environment, keeps your documents local, and gives you a refined path from draft to preview to export.
 
-Nel repository corrente sono già presenti anche:
-- Workspace-first post wizard
-- Info Dialog prodotto
-- Guide Center con ricerca e snippet copiabili
-- tema personalizzato con editor modale colori e persistenza locale
-- font di sistema per editor/preview e apertura guidata delle preferenze app predefinite per `.md`
-- export PDF tipografico via LuaLaTeX
-- export PDF web-style via Weasy con fallback d'errore esplicito se il runtime non è ancora bundle-embedded
-- hardening accessibilità/tastiera sul workspace e sui dialog principali
+## Why Doku Exists
 
-Roadmap completa in [`PLAN.md`](./PLAN.md). Specifica di prodotto in [`Doku_PRD.md`](./Doku_PRD.md).
+Writing software should get out of the way without feeling unfinished.
 
-## Per un nuovo utente
+Doku is built around a simple product belief: **writing well should feel easy**. The interface is quiet, structured and deliberate. The editor is powerful, but the product does not force you to configure a system before you can begin. You choose your language and theme, enter the workspace, and write.
 
-- Se vuoi capire rapidamente come installare o provare Doku, parti da [docs/installazione.md](./docs/installazione.md).
-- Se vuoi sapere quali dati locali usa l'app, leggi [docs/privacy-locale.md](./docs/privacy-locale.md).
-- Se devi verificare gli installer o la CI di packaging, usa [docs/packaging-smoke-checklist.md](./docs/packaging-smoke-checklist.md).
-- Se vuoi un riepilogo dello stato corrente della release, consulta [CHANGELOG.md](./CHANGELOG.md).
-- La CI di Release Candidate ora usa anche `.github/workflows/release-candidate.yml` per eseguire la baseline QA Linux della RC.
+The result is a desktop Markdown editor that feels closer to a digital editorial desk than to a developer tool.
 
-## Requisiti
+## What Makes It Different
+
+- **Local-first by design**: documents, preferences, recent files and autosave data stay on your device.
+- **No account required**: Doku does not need a login, cloud workspace or remote service to support the core writing flow.
+- **Markdown-native**: write in plain `.md`, keep portable files, avoid lock-in.
+- **Editorial workspace**: write, preview and split modes are designed for long-form focus.
+- **Integrated guidance**: product help and Markdown guidance are available inside the app, so you do not need to leave your writing context.
+- **Beautiful light and dark themes**: Warm Ivory and Deep Slate are treated as two first-class editorial identities.
+- **Multilingual from the start**: the interface supports English, Italian, Spanish, German, French and Portuguese.
+- **Local export flow**: save Markdown and export PDFs through local document pipelines.
+- **Privacy-first posture**: no content upload, no content analytics and no telemetry-driven writing experience.
+
+## Core Experience
+
+Doku starts with a short onboarding flow for language and theme. After that, the workspace becomes the center of the product: a clean editor, a live preview, optional panels, recent documents, save state, guide access and export actions.
+
+The writing surface is intentionally restrained. It favors readability, keyboard access, persistent preferences and a clear sense of document state over crowded toolbars or technical panels.
+
+The integrated Guide Center includes product help, shortcuts and Markdown reference material with examples, so the app can teach without interrupting.
+
+## Privacy And Local Data
+
+Doku works primarily with local files. It is designed so the basic writing experience does not depend on a remote backend, cloud sync or account identity.
+
+Application preferences and supporting local data are stored in a `Doku` folder under the user's Documents location, or the localized equivalent provided by the operating system. This can include settings, autosave data and recent-document metadata.
+
+Some user-triggered actions may open system applications, such as a browser for external links, an email client for bug reports, or system preferences for default Markdown app settings. These actions do not upload your Markdown content through Doku.
+
+## Installation
+
+When you have a generated installer, use the standard installer for your platform:
+
+- Linux: `.deb`
+- Windows: `.exe`
+- macOS: `.dmg`
+
+After installation:
+
+1. Launch Doku from the installed application.
+2. Complete the first-run language and theme setup.
+3. Open or create a Markdown document.
+4. Confirm that preferences persist after closing and reopening the app.
+
+## Run From Source
+
+Prerequisites:
 
 - Node.js 20 LTS
-- npm 10+
+- npm 10 or newer
 
-## Comandi
+Install dependencies:
 
 ```bash
-npm install            # installa dipendenze workspace
-npm run dev            # avvia Doku in modalità sviluppo (Electron)
-npm run typecheck      # typecheck di tutti i workspace
-npm run lint           # ESLint
-npm run format         # Prettier
-npm run build          # build produzione di tutti i workspace
-npm run smoke:linux    # smoke check del packaging Linux gia' prodotto
+npm install
 ```
 
-## Struttura
+Start the desktop app in development mode:
 
-```
-apps/
-  desktop/         # Electron app (main + preload + renderer)
-
-packages/
-  application/     # Contratti applicativi (tipi condivisi main ↔ renderer)
-  domain/          # Logica pura (placeholder per sprint futuri)
-  infrastructure/  # Persistence, IPC server-side
-  schemas/         # Validazioni runtime (Zod)
-  ui/              # Design system: tokens, tema, componenti primitivi
+```bash
+npm run dev
 ```
 
-## Note architetturali
+## Quality Checks
 
-- `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`. Il renderer accede al sistema solo via `window.doku` esposto dal preload.
-- Ogni stringa visibile passa dai dizionari i18n. Nessun colore/padding/font è hardcoded: tutto via CSS variables tokenizzate (`@doku/ui`).
-- Palette contrattuale come da PRD §18.4 (Warm Ivory / Deep Slate, con accento `#00a3ee`).
-- Il profilo locale di Doku vive in una cartella `Doku` sotto il percorso documenti dell’OS: esempio tipico `~/Documents/Doku/` oppure `~/Documenti/Doku/` su sistemi localizzati.
-- In quella cartella Doku salva `settings.json`, autosave locali, metadati recenti e gli altri file applicativi che prima finivano nel legacy `userData` di Electron.
-- All'avvio, se esiste ancora un profilo legacy in `~/.config/Doku` o equivalente `userData` della piattaforma, Doku ne migra i contenuti verso `Documents/Doku` senza sovrascrivere eventuali file già presenti nel nuovo percorso.
-- Al primo ingresso post-wizard il workspace si presenta con entrambi i pannelli laterali chiusi e la vista editoriale in `split`; da quel momento layout pannelli e modalità `write/preview/split` continuano a vivere nelle preferenze locali dell’utente.
-- Nel workspace il nome del documento non viene più promosso come elemento UI principale: per le bozze il file resta anonimo finché non viene salvato.
-- Al primo salvataggio, sia `Salva` sia `Salva con nome` aprono la scelta del file e quindi definiscono nome e percorso; dai salvataggi successivi, `Salva` aggiorna direttamente il file corrente mentre `Salva con nome` apre sempre una nuova destinazione.
-- Il workspace mantiene un header leggero e clusterizzato, con menu `File` e controlli sempre sopra il canvas editoriale: il dropdown non viene nascosto dal body dell'editor e resta usabile anche in split view.
-- Il `Guide Center` ospita anche un manuale Markdown completo firmato Lorenzo DM, tradotto nelle lingue supportate e presentato come articolo integrato nel prodotto invece che come blocco tecnico grezzo.
+Run the automated checks:
 
-## Limitazioni note nella RC corrente
+```bash
+npm test
+npm run typecheck
+npm run lint
+```
 
-- Il packaging reale degli installer è configurato ma viene eseguito principalmente in GitHub Actions.
-- L'export `Weasy` è cablato nell'app ma richiede ancora il runtime Python/Weasy bundle-embedded per essere completamente autosufficiente in ogni installer.
-- La RC Linux ha evidenza concreta nel repository; Windows e macOS restano allineati a livello di configurazione/workflow ma non con la stessa evidenza locale raccolta in questo repository.
-- Lo scope della v1 è congelato: oltre questo punto si parla di release, hardening ulteriore o sprint successivi, non di nuove feature di prodotto.
+Format the codebase:
+
+```bash
+npm run format
+```
+
+## Build And Package
+
+Build the project:
+
+```bash
+npm run build
+```
+
+Create local desktop packages:
+
+```bash
+npm run package:linux
+npm run package:win
+npm run package:mac
+```
+
+Run the Linux packaging smoke check after producing a Linux package:
+
+```bash
+npm run smoke:linux
+```
+
+## Export Notes
+
+Doku is designed around local export flows:
+
+- Markdown remains the source format.
+- Typographic PDF export is intended for polished reading output.
+- Web-style PDF export is intended for HTML/CSS-oriented rendering.
+
+PDF runtime availability depends on the packaged build for each platform. If a runtime is unavailable, Doku should explain the issue clearly instead of failing silently.
+
+## License
+
+Doku is released under the **AGPL-3.0-only** license.

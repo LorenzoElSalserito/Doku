@@ -3,17 +3,18 @@ import { Fragment, type ReactNode } from 'react';
 interface MarkdownPreviewProps {
   content: string;
   emptyLabel: string;
+  sourcePath?: string;
 }
 
-export function MarkdownPreview({ content, emptyLabel }: MarkdownPreviewProps) {
+export function MarkdownPreview({ content, emptyLabel, sourcePath }: MarkdownPreviewProps) {
   if (!content.trim()) {
     return <p className="markdown-preview__empty">{emptyLabel}</p>;
   }
 
-  return <div className="markdown-preview">{renderBlocks(content)}</div>;
+  return <div className="markdown-preview">{renderBlocks(content, sourcePath)}</div>;
 }
 
-function renderBlocks(markdown: string): ReactNode[] {
+function renderBlocks(markdown: string, sourcePath?: string): ReactNode[] {
   const lines = markdown.replace(/\r\n/g, '\n').split('\n');
   const blocks: ReactNode[] = [];
   let index = 0;
@@ -56,7 +57,7 @@ function renderBlocks(markdown: string): ReactNode[] {
           className={`markdown-preview__heading markdown-preview__heading--${level}`}
           tabIndex={-1}
         >
-          {renderInline(text)}
+          {renderInline(text, sourcePath)}
         </Tag>,
       );
       index += 1;
@@ -77,7 +78,7 @@ function renderBlocks(markdown: string): ReactNode[] {
       }
       blocks.push(
         <blockquote key={`quote-${blocks.length}`} className="markdown-preview__quote">
-          {renderBlocks(quoteLines.join('\n'))}
+          {renderBlocks(quoteLines.join('\n'), sourcePath)}
         </blockquote>,
       );
       continue;
@@ -92,7 +93,7 @@ function renderBlocks(markdown: string): ReactNode[] {
       blocks.push(
         <ul key={`ul-${blocks.length}`} className="markdown-preview__list">
           {items.map((item, itemIndex) => (
-            <li key={`${itemIndex}-${item}`}>{renderInline(item)}</li>
+            <li key={`${itemIndex}-${item}`}>{renderInline(item, sourcePath)}</li>
           ))}
         </ul>,
       );
@@ -108,10 +109,21 @@ function renderBlocks(markdown: string): ReactNode[] {
       blocks.push(
         <ol key={`ol-${blocks.length}`} className="markdown-preview__list markdown-preview__list--ordered">
           {items.map((item, itemIndex) => (
-            <li key={`${itemIndex}-${item}`}>{renderInline(item)}</li>
+            <li key={`${itemIndex}-${item}`}>{renderInline(item, sourcePath)}</li>
           ))}
         </ol>,
       );
+      continue;
+    }
+
+    const imageOnlyMatch = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(trimmed);
+    if (imageOnlyMatch) {
+      blocks.push(
+        <figure key={`figure-${blocks.length}`} className="markdown-preview__figure">
+          {renderImage(imageOnlyMatch[1] ?? '', imageOnlyMatch[2] ?? '', sourcePath)}
+        </figure>,
+      );
+      index += 1;
       continue;
     }
 
@@ -126,7 +138,8 @@ function renderBlocks(markdown: string): ReactNode[] {
         /^#{1,6}\s+/.test(candidateTrimmed) ||
         /^[-*_]{3,}$/.test(candidateTrimmed) ||
         /^[-*+]\s+/.test(candidateTrimmed) ||
-        /^\d+\.\s+/.test(candidateTrimmed)
+        /^\d+\.\s+/.test(candidateTrimmed) ||
+        /^!\[([^\]]*)\]\(([^)]+)\)$/.test(candidateTrimmed)
       ) {
         break;
       }
@@ -136,7 +149,7 @@ function renderBlocks(markdown: string): ReactNode[] {
 
     blocks.push(
       <p key={`p-${blocks.length}`} className="markdown-preview__paragraph">
-        {renderInline(paragraphLines.join(' '))}
+        {renderInline(paragraphLines.join(' '), sourcePath)}
       </p>,
     );
   }
@@ -144,12 +157,21 @@ function renderBlocks(markdown: string): ReactNode[] {
   return blocks;
 }
 
-function renderInline(text: string): ReactNode[] {
+function renderInline(text: string, sourcePath?: string): ReactNode[] {
   const tokens = text
-    .split(/(`[^`]+`|\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*|\*[^*]+\*)/g)
+    .split(/(!\[[^\]]*\]\([^)]+\)|`[^`]+`|\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*|\*[^*]+\*)/g)
     .filter(Boolean);
 
   return tokens.map((token, index) => {
+    const imageMatch = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(token);
+    if (imageMatch) {
+      return (
+        <span key={`image-inline-${index}`} className="markdown-preview__inline-image">
+          {renderImage(imageMatch[1] ?? '', imageMatch[2] ?? '', sourcePath)}
+        </span>
+      );
+    }
+
     if (token.startsWith('`') && token.endsWith('`')) {
       return (
         <code key={`code-${index}`} className="markdown-preview__inline-code">
@@ -192,6 +214,47 @@ function renderInline(text: string): ReactNode[] {
       </Fragment>
     );
   });
+}
+
+function renderImage(alt: string, target: string, sourcePath?: string): ReactNode {
+  const imageUrl = resolveAssetUrl(target, sourcePath);
+  if (!imageUrl) {
+    return <span className="markdown-preview__image-fallback">{alt || target}</span>;
+  }
+
+  return (
+    <img
+      className="markdown-preview__image"
+      src={imageUrl}
+      alt={alt || 'Image'}
+      loading="lazy"
+    />
+  );
+}
+
+function resolveAssetUrl(target: string, sourcePath?: string): string | null {
+  if (!target.trim()) {
+    return null;
+  }
+
+  if (/^(https?:|file:|data:|blob:)/i.test(target)) {
+    return target;
+  }
+
+  try {
+    if (sourcePath) {
+      return new URL(target, toFileUrl(sourcePath)).toString();
+    }
+    return target;
+  } catch {
+    return null;
+  }
+}
+
+function toFileUrl(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, '/');
+  const prefixed = normalized.startsWith('/') ? normalized : `/${normalized}`;
+  return `file://${encodeURI(prefixed)}`;
 }
 
 function slugifyHeading(text: string): string {

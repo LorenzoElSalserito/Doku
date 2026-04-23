@@ -1,8 +1,12 @@
 import type {
+  DocumentAssetImportRequest,
+  DocumentAssetImportResult,
   DocumentOperationResult,
   DocumentSaveRequest,
   DocumentSession,
   DocumentSummary,
+  WorkspaceCreateEntryResult,
+  WorkspaceNode,
   PdfExportRequest,
   PdfExportResult,
   Settings,
@@ -41,8 +45,14 @@ export interface SystemBridge {
 
 export interface DocumentsBridge {
   openMarkdownFile: () => Promise<DocumentOperationResult | null>;
+  openDocumentAtPath: (filePath: string) => Promise<DocumentOperationResult | null>;
   loadDocument: (summary: DocumentSummary) => Promise<DocumentSession | null>;
   saveDocument: (input: DocumentSaveRequest) => Promise<DocumentOperationResult>;
+  importAsset: (input: DocumentAssetImportRequest) => Promise<DocumentAssetImportResult>;
+  listWorkspaceTree: (documentPath: string) => Promise<WorkspaceNode[]>;
+  createWorkspaceFile: (documentPath: string, name: string) => Promise<WorkspaceCreateEntryResult>;
+  createWorkspaceFolder: (documentPath: string, name: string) => Promise<WorkspaceCreateEntryResult>;
+  watchWorkspaceTree: (documentPath: string, onChange: () => void) => () => void;
 }
 
 export interface ExportsBridge {
