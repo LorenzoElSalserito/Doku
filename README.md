@@ -134,6 +134,8 @@ Packaged builds include the web-style PDF runtime internally, including the Weas
 
 Doku is released under the **AGPL-3.0-only** license.
 
+Please read LICENSE for more info.
+
 ## Copyright
 
 © Lorenzo De Marco (Lorenzo DM) - 2026
