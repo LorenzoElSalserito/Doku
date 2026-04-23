@@ -193,6 +193,13 @@ export const de: Dictionary = {
     fontLatexNotice: 'Benutzerdefinierte Systemschriften werden im LuaLaTeX-Export nicht eingebettet.',
     openDefaultApps: 'Standard-App-Einstellungen öffnen',
     defaultAppsHint: 'Du kannst Doku auch in den Systemeinstellungen als Standard-App für .md-Dateien festlegen.',
+    uninstallPreparationLabel: 'Vorbereitung der Deinstallation',
+    uninstallPreparationButton: 'Vorbereitung der Deinstallation',
+    uninstallPreparationWorking: 'Bereinigung läuft…',
+    uninstallPreparationHint:
+      'Löscht Doku-Einstellungen, Autosaves, Logs und lokale App-Daten und schließt danach die App. Vor der Deinstallation verwenden.',
+    uninstallPreparationConfirm:
+      'Alle Doku-Benutzerdaten endgültig löschen und die App schließen?',
     customThemeOpen: 'Benutzerdefiniertes Thema bearbeiten',
     customThemeHint: 'Passe die zentralen Paletten-Tokens an und wende sie auf Doku an.',
     close: 'Fertig',

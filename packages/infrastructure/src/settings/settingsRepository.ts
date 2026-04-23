@@ -6,21 +6,26 @@ import {
   type Settings,
   type SettingsPatch,
 } from '@doku/schemas';
+import type { SessionLogger } from '../logging/sessionLogger.js';
+import { serializeErrorForLog } from '../logging/sessionLogger.js';
 
 export interface SettingsRepositoryOptions {
   userDataDir: string;
   fileName?: string;
   legacyFilePaths?: string[];
+  logger?: SessionLogger;
 }
 
 export class SettingsRepository {
   private readonly filePath: string;
   private readonly legacyFilePaths: string[];
+  private readonly logger?: SessionLogger;
   private cached: Settings | null = null;
 
   constructor(options: SettingsRepositoryOptions) {
     this.filePath = join(options.userDataDir, options.fileName ?? 'settings.json');
     this.legacyFilePaths = options.legacyFilePaths ?? [];
+    this.logger = options.logger;
   }
 
   async read(): Promise<Settings> {
@@ -34,17 +39,29 @@ export class SettingsRepository {
             const migrated = await this.readAndNormalize(legacyPath, false);
             await this.persist(migrated);
             this.cached = migrated;
+            this.logger?.info('settings:migrated-from-legacy', { legacyPath });
             return migrated;
           } catch (legacyErr: unknown) {
             if (!isNodeError(legacyErr) || legacyErr.code !== 'ENOENT') {
-              throw legacyErr;
+              this.logger?.warn('settings:legacy-read-failed', {
+                legacyPath,
+                error: serializeErrorForLog(legacyErr),
+              });
             }
           }
         }
         this.cached = DEFAULT_SETTINGS;
+        await this.persist(DEFAULT_SETTINGS);
+        this.logger?.info('settings:created-defaults', { filePath: this.filePath });
         return DEFAULT_SETTINGS;
       }
-      throw err;
+      this.logger?.warn('settings:read-failed-using-defaults', {
+        filePath: this.filePath,
+        error: serializeErrorForLog(err),
+      });
+      this.cached = DEFAULT_SETTINGS;
+      await this.persist(DEFAULT_SETTINGS);
+      return DEFAULT_SETTINGS;
     }
   }
 
@@ -73,7 +90,14 @@ export class SettingsRepository {
     }
 
     // Corrupt or outdated schema: fall back to defaults, preserve known fields.
-    const merged = SettingsSchema.parse({ ...DEFAULT_SETTINGS, ...(parsed as object) });
+    const parsedObject = parsed && typeof parsed === 'object' ? parsed : {};
+    const mergedResult = SettingsSchema.safeParse({ ...DEFAULT_SETTINGS, ...parsedObject });
+    const merged = mergedResult.success ? mergedResult.data : DEFAULT_SETTINGS;
+    this.logger?.warn('settings:normalized-invalid-schema', {
+      path,
+      issueCount: result.error.issues.length,
+      usedDefaultsOnly: !mergedResult.success,
+    });
     this.cached = merged;
     if (persistIfNeeded) {
       await this.persist(merged);

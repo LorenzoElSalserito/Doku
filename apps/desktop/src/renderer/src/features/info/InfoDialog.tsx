@@ -48,7 +48,20 @@ export function InfoDialog({ open, onClose }: InfoDialogProps) {
     void window.doku.system.openExternal(url);
   };
 
-  const handleReportBug = () => {
+  const handleReportBug = async () => {
+    const diagnostics =
+      (await (
+        window.doku.system as {
+          diagnostics?: typeof window.doku.system.diagnostics;
+        }
+      ).diagnostics?.()) ?? {
+        sessionId: 'unavailable',
+        startedAt: '',
+        logFilePath: '',
+        logPreview: '',
+        appDataDir: '',
+        electronUserDataDir: '',
+      };
     const body = [
       '',
       '',
@@ -56,8 +69,15 @@ export function InfoDialog({ open, onClose }: InfoDialogProps) {
       `App: ${dict.app.name}`,
       `Version: ${appVersion}`,
       `Platform: ${window.doku.system.platform}`,
+      `Session: ${diagnostics.sessionId}`,
+      `Log file to attach: ${diagnostics.logFilePath}`,
+      `App data: ${diagnostics.appDataDir}`,
+      `Electron profile: ${diagnostics.electronUserDataDir}`,
       '',
       'Describe the issue here.',
+      '',
+      'Latest session log preview:',
+      diagnostics.logPreview || '(log unavailable)',
     ].join('\n');
 
     const mailtoUrl = `mailto:${BUG_REPORT_EMAIL}?subject=${encodeURIComponent('[DOKU BUG]')}&body=${encodeURIComponent(body)}`;
@@ -75,7 +95,7 @@ export function InfoDialog({ open, onClose }: InfoDialogProps) {
           <Button variant="secondary" onClick={() => openExternal(DONATE_URL)}>
             {dict.info.donations}
           </Button>
-          <Button variant="secondary" onClick={handleReportBug}>
+          <Button variant="secondary" onClick={() => void handleReportBug()}>
             {dict.info.reportBug}
           </Button>
           <Button variant="primary" onClick={onClose}>

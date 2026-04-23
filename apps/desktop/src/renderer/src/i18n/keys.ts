@@ -186,6 +186,11 @@ export interface Dictionary {
     fontLatexNotice: string;
     openDefaultApps: string;
     defaultAppsHint: string;
+    uninstallPreparationLabel: string;
+    uninstallPreparationButton: string;
+    uninstallPreparationWorking: string;
+    uninstallPreparationHint: string;
+    uninstallPreparationConfirm: string;
     customThemeOpen: string;
     customThemeHint: string;
     close: string;

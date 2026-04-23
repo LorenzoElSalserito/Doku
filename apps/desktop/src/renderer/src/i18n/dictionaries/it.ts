@@ -193,6 +193,13 @@ export const it: Dictionary = {
     fontLatexNotice: 'I font di sistema personalizzati non vengono incorporati nell’export LuaLaTeX.',
     openDefaultApps: 'Apri preferenze app predefinite',
     defaultAppsHint: 'Puoi anche configurare Doku come app predefinita per i file .md dalle impostazioni di sistema.',
+    uninstallPreparationLabel: 'Preparazione alla Disinstallazione',
+    uninstallPreparationButton: 'Preparazione alla Disinstallazione',
+    uninstallPreparationWorking: 'Pulizia in corso…',
+    uninstallPreparationHint:
+      'Elimina impostazioni, autosalvataggi, log e dati locali di Doku, poi chiude l’app. Usa questa opzione prima di disinstallare.',
+    uninstallPreparationConfirm:
+      'Eliminare definitivamente tutti i dati utente di Doku e chiudere l’app?',
     customThemeOpen: 'Modifica tema personalizzato',
     customThemeHint: 'Scegli i token principali della palette e applicali a Doku.',
     close: 'Fatto',

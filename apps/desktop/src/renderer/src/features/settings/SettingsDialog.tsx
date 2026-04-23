@@ -12,11 +12,17 @@ interface SettingsDialogProps {
   onUpdate: (patch: SettingsPatch) => Promise<void>;
 }
 
+function logSettingsDialogEvent(event: string, context?: Record<string, unknown>): void {
+  void (window.doku.system as { logEvent?: (event: string, context?: Record<string, unknown>) => Promise<void> })
+    .logEvent?.(event, context);
+}
+
 export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDialogProps) {
   const dict = useDict();
   const [customThemeOpen, setCustomThemeOpen] = useState(false);
   const [fonts, setFonts] = useState<string[]>([]);
   const [fontsLoading, setFontsLoading] = useState(false);
+  const [uninstallPreparing, setUninstallPreparing] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -142,6 +148,30 @@ export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDi
           {dict.settings.openDefaultApps}
         </Button>
         <span className="settings-field__hint">{dict.settings.defaultAppsHint}</span>
+      </div>
+
+      <div className="settings-field settings-field--danger">
+        <label className="settings-field__label">{dict.settings.uninstallPreparationLabel}</label>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="settings-danger-button"
+          disabled={uninstallPreparing}
+          onClick={() => {
+            const confirmed = window.confirm(dict.settings.uninstallPreparationConfirm);
+            if (!confirmed) {
+              return;
+            }
+            setUninstallPreparing(true);
+            logSettingsDialogEvent('uninstall-preparation-confirmed');
+            void window.doku.system.prepareForUninstall();
+          }}
+        >
+          {uninstallPreparing
+            ? dict.settings.uninstallPreparationWorking
+            : dict.settings.uninstallPreparationButton}
+        </Button>
+        <span className="settings-field__hint">{dict.settings.uninstallPreparationHint}</span>
       </div>
 
       <CustomThemeDialog

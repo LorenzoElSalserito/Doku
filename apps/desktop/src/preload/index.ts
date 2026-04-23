@@ -15,6 +15,10 @@ const bridge: DokuBridge = {
     listFonts: () => ipcRenderer.invoke(IPC_CHANNELS.systemListFonts),
     openDefaultAppsPreferences: () =>
       ipcRenderer.invoke(IPC_CHANNELS.systemOpenDefaultAppsPreferences),
+    diagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.systemDiagnostics),
+    logEvent: (event, context) =>
+      ipcRenderer.invoke(IPC_CHANNELS.systemLogEvent, { event, context }),
+    prepareForUninstall: () => ipcRenderer.invoke(IPC_CHANNELS.systemPrepareForUninstall),
   },
   documents: {
     openMarkdownFile: () => ipcRenderer.invoke(IPC_CHANNELS.documentsOpenMarkdownFile),

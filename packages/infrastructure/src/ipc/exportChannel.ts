@@ -3,6 +3,7 @@ import { BrowserWindow, dialog, ipcMain, type SaveDialogOptions } from 'electron
 import { PdfExportRequestSchema, type PdfExportRequest, type PdfExportResult } from '@doku/schemas';
 import { LatexPdfExportService } from '../export/latexPdfExportService.js';
 import { WeasyPdfExportService } from '../export/weasyPdfExportService.js';
+import type { SessionLogger } from '../logging/sessionLogger.js';
 import { IPC_CHANNELS } from './channels.js';
 
 export function registerExportChannel(
@@ -10,6 +11,7 @@ export function registerExportChannel(
     lualatex: new LatexPdfExportService(),
     weasy: new WeasyPdfExportService(),
   },
+  logger?: SessionLogger,
 ): () => void {
   const exportPdfHandler = async (
     event: Electron.IpcMainInvokeEvent,
@@ -17,17 +19,28 @@ export function registerExportChannel(
   ): Promise<PdfExportResult> => {
     const input = PdfExportRequestSchema.parse(raw);
     const ownerWindow = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+    logger?.info('export:pdf-requested', {
+      engine: input.engine,
+      title: input.title,
+      hasSourcePath: Boolean(input.sourcePath),
+      contentLength: input.content.length,
+    });
     const outputPath = await requestPdfSavePath(ownerWindow, input);
 
     if (!outputPath) {
+      logger?.info('export:pdf-cancelled', { engine: input.engine });
       throw new Error('Export operation canceled.');
     }
 
     if (input.engine === 'weasy') {
-      return services.weasy.exportPdf(input, outputPath);
+      const result = await services.weasy.exportPdf(input, outputPath);
+      logger?.info('export:pdf-completed', result);
+      return result;
     }
 
-    return services.lualatex.exportPdf(input, outputPath);
+    const result = await services.lualatex.exportPdf(input, outputPath);
+    logger?.info('export:pdf-completed', result);
+    return result;
   };
 
   ipcMain.handle(IPC_CHANNELS.exportsPdf, exportPdfHandler);

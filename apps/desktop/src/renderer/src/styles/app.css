@@ -1353,6 +1353,22 @@
   gap: var(--space-2);
 }
 
+.settings-field--danger {
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+}
+
+.settings-danger-button {
+  border-color: #C93A2E;
+  color: #C93A2E;
+}
+
+.settings-danger-button:not(:disabled):hover {
+  background: color-mix(in srgb, #C93A2E 12%, var(--color-elevated));
+  border-color: #C93A2E;
+}
+
 /* Info dialog */
 .info-dialog__brand {
   display: flex;

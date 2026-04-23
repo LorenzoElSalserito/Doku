@@ -192,6 +192,13 @@ export const pt: Dictionary = {
     fontLatexNotice: 'As fontes de sistema personalizadas não são incorporadas na exportação LuaLaTeX.',
     openDefaultApps: 'Abrir preferências de apps predefinidas',
     defaultAppsHint: 'Também pode configurar o Doku como app predefinida para ficheiros .md nas definições do sistema.',
+    uninstallPreparationLabel: 'Preparação para desinstalação',
+    uninstallPreparationButton: 'Preparação para desinstalação',
+    uninstallPreparationWorking: 'A limpar…',
+    uninstallPreparationHint:
+      'Elimina definições, gravações automáticas, logs e dados locais do Doku, e depois fecha a app. Use antes de desinstalar.',
+    uninstallPreparationConfirm:
+      'Eliminar definitivamente todos os dados de utilizador do Doku e fechar a app?',
     customThemeOpen: 'Editar tema personalizado',
     customThemeHint: 'Ajuste os tokens centrais da paleta e aplique-os ao Doku.',
     close: 'Concluído',

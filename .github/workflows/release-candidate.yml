@@ -31,7 +31,7 @@ jobs:
       - name: Install Linux packaging dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y fakeroot dpkg
+          sudo apt-get install -y fakeroot dpkg pandoc texlive-luatex texlive-latex-recommended texlive-fonts-recommended
 
       - name: Typecheck
         run: npm run typecheck

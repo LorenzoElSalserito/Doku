@@ -1,4 +1,5 @@
 export * from './settings/settingsRepository.js';
+export * from './logging/sessionLogger.js';
 export * from './export/latexPdfExportService.js';
 export * from './export/weasyPdfExportService.js';
 export * from './ipc/settingsChannel.js';

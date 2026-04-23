@@ -21,6 +21,7 @@ import {
   WorkspaceListingRequestSchema,
   WorkspaceWatchRequestSchema,
 } from '@doku/schemas';
+import type { SessionLogger } from '../logging/sessionLogger.js';
 import type { SettingsRepository } from '../settings/settingsRepository.js';
 import { IPC_CHANNELS } from './channels.js';
 import { classifyWorkspaceFile, compareWorkspaceEntries } from './workspaceTree.js';
@@ -44,6 +45,7 @@ const WORKSPACE_TREE_MAX_DEPTH = 4;
 
 interface DocumentsChannelOptions {
   userDataDir: string;
+  logger?: SessionLogger;
 }
 
 interface WorkspaceWatcherRegistration {
@@ -61,6 +63,7 @@ export function registerDocumentsChannel(
   options: DocumentsChannelOptions,
 ): () => void {
   const autosaveDir = join(options.userDataDir, 'autosave-documents');
+  const logger = options.logger;
   const workspaceWatchers = new Map<string, WorkspaceWatcherRegistration>();
 
   const openMarkdownFileHandler = async (
@@ -79,6 +82,7 @@ export function registerDocumentsChannel(
       : await dialog.showOpenDialog(dialogOptions);
 
     if (result.canceled || result.filePaths.length === 0) {
+      logger?.info('documents:open-markdown-file-cancelled');
       return null;
     }
 
@@ -89,6 +93,7 @@ export function registerDocumentsChannel(
 
     const document = await loadFileDocument(filePath, autosaveDir);
     const launcher = await persistOpenedDocument(repo, document);
+    logger?.info('documents:opened-markdown-file', summarizeDocument(document));
     return { document, launcher };
   };
 
@@ -97,18 +102,28 @@ export function registerDocumentsChannel(
     raw: unknown,
   ): Promise<DocumentSession | null> => {
     const summary = DocumentSummarySchema.parse(raw);
+    logger?.info('documents:load-requested', summarizeSummary(summary));
     if (summary.kind === 'file' && summary.path) {
       try {
-        return await loadFileDocument(summary.path, autosaveDir);
+        const document = await loadFileDocument(summary.path, autosaveDir);
+        logger?.info('documents:loaded-file', summarizeDocument(document));
+        return document;
       } catch (error: unknown) {
         if (isMissingFileError(error)) {
+          logger?.warn('documents:load-missing-file', summarizeSummary(summary));
           return null;
         }
         throw error;
       }
     }
 
-    return loadDraftDocument(summary, autosaveDir);
+    const document = await loadDraftDocument(summary, autosaveDir);
+    if (document) {
+      logger?.info('documents:loaded-draft', summarizeDocument(document));
+    } else {
+      logger?.warn('documents:load-missing-draft', summarizeSummary(summary));
+    }
+    return document;
   };
 
   const openDocumentAtPathHandler = async (
@@ -122,6 +137,7 @@ export function registerDocumentsChannel(
 
     const document = await loadFileDocument(filePath, autosaveDir);
     const launcher = await persistOpenedDocument(repo, document);
+    logger?.info('documents:opened-workspace-file', summarizeDocument(document));
     return { document, launcher };
   };
 
@@ -131,8 +147,17 @@ export function registerDocumentsChannel(
   ): Promise<DocumentOperationResult> => {
     const input = DocumentSaveRequestSchema.parse(raw);
     const ownerWindow = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+    logger?.info('documents:save-requested', {
+      id: input.id,
+      kind: input.kind,
+      mode: input.mode,
+      title: input.title,
+      path: input.path,
+      contentLength: input.content.length,
+    });
     const document = await saveDocument(input, autosaveDir, ownerWindow);
     const launcher = await persistOpenedDocument(repo, document);
+    logger?.info('documents:saved', summarizeDocument(document));
     return { document, launcher };
   };
 
@@ -141,7 +166,14 @@ export function registerDocumentsChannel(
     raw: unknown,
   ): Promise<DocumentAssetImportResult> => {
     const input = DocumentAssetImportRequestSchema.parse(raw);
-    return importAsset(input);
+    logger?.info('documents:asset-import-requested', {
+      documentPath: input.documentPath,
+      sourcePath: input.sourcePath,
+      strategy: input.strategy,
+    });
+    const result = await importAsset(input);
+    logger?.info('documents:asset-imported', result);
+    return result;
   };
 
   const listWorkspaceTreeHandler = async (
@@ -149,7 +181,12 @@ export function registerDocumentsChannel(
     raw: unknown,
   ): Promise<WorkspaceNode[]> => {
     const input = WorkspaceListingRequestSchema.parse({ documentPath: raw });
-    return listWorkspaceTree(input.documentPath);
+    const tree = await listWorkspaceTree(input.documentPath);
+    logger?.info('documents:workspace-tree-listed', {
+      documentPath: input.documentPath,
+      rootItems: tree.length,
+    });
+    return tree;
   };
 
   const createWorkspaceEntryHandler = async (
@@ -157,7 +194,10 @@ export function registerDocumentsChannel(
     raw: unknown,
   ): Promise<WorkspaceCreateEntryResult> => {
     const input = WorkspaceCreateEntryRequestSchema.parse(raw);
-    return createWorkspaceEntry(input.documentPath, input.name, input.kind);
+    logger?.info('documents:workspace-entry-create-requested', input);
+    const result = await createWorkspaceEntry(input.documentPath, input.name, input.kind);
+    logger?.info('documents:workspace-entry-created', result);
+    return result;
   };
 
   const watchWorkspaceTreeHandler = async (
@@ -165,6 +205,10 @@ export function registerDocumentsChannel(
     raw: unknown,
   ): Promise<void> => {
     const input = WorkspaceWatchRequestSchema.parse(raw);
+    logger?.info('documents:workspace-watch-started', {
+      watchId: input.watchId,
+      documentPath: input.documentPath,
+    });
     closeWorkspaceWatcher(workspaceWatchers.get(input.watchId));
 
     await ensureExistingFile(input.documentPath, IMAGE_IMPORT_ERRORS.documentMissing);
@@ -180,6 +224,7 @@ export function registerDocumentsChannel(
     raw: unknown,
   ): void => {
     const watchId = typeof raw === 'string' ? raw : '';
+    logger?.info('documents:workspace-watch-stopped', { watchId });
     closeWorkspaceWatcher(workspaceWatchers.get(watchId));
     workspaceWatchers.delete(watchId);
   };
@@ -737,6 +782,28 @@ function extractSnippet(content: string): string {
   }
 
   return `${normalized.slice(0, MAX_SNIPPET_LENGTH - 1).trimEnd()}…`;
+}
+
+function summarizeDocument(document: DocumentSession): Record<string, unknown> {
+  return {
+    id: document.id,
+    kind: document.kind,
+    title: document.title,
+    path: document.path,
+    contentLength: document.content.length,
+    lastSavedAt: document.lastSavedAt,
+    lastOpenedAt: document.lastOpenedAt,
+  };
+}
+
+function summarizeSummary(summary: DocumentSummary): Record<string, unknown> {
+  return {
+    id: summary.id,
+    kind: summary.kind,
+    title: summary.title,
+    path: summary.path,
+    lastOpenedAt: summary.lastOpenedAt,
+  };
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {

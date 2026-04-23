@@ -10,6 +10,8 @@ import {
   SettingsRepository,
   registerSettingsChannel,
   registerSystemChannel,
+  SessionLogger,
+  serializeErrorForLog,
 } from '@doku/infrastructure';
 import { PRODUCT_NAME } from '@doku/application';
 import { resolveExportRuntimePaths } from './exportRuntime.js';
@@ -19,6 +21,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ORIGINAL_USER_DATA_DIR = app.getPath('userData');
 const DOCUMENTS_DATA_DIR = resolveDocumentsDataDir(ORIGINAL_USER_DATA_DIR);
+const logger = new SessionLogger({ logsDir: join(DOCUMENTS_DATA_DIR, 'logs') });
+const LOG_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 if (process.platform === 'linux') {
   app.disableHardwareAcceleration();
@@ -27,24 +31,40 @@ if (process.platform === 'linux') {
 }
 
 app.setName(PRODUCT_NAME);
-app.setPath('userData', DOCUMENTS_DATA_DIR);
+
+registerProcessDiagnostics();
 
 async function bootstrap(): Promise<void> {
+  logger.info('app:bootstrap-started', {
+    platform: process.platform,
+    version: app.getVersion(),
+    appDataDir: DOCUMENTS_DATA_DIR,
+    electronUserDataDir: ORIGINAL_USER_DATA_DIR,
+  });
+  void logger.pruneOlderThan(LOG_RETENTION_MS);
+
   await app.whenReady();
 
-  const userDataDir = app.getPath('userData');
-  await migrateLegacyUserData(ORIGINAL_USER_DATA_DIR, userDataDir);
+  const electronUserDataDir = app.getPath('userData');
+  await migrateLegacyUserData(ORIGINAL_USER_DATA_DIR, DOCUMENTS_DATA_DIR);
   const repo = new SettingsRepository({
-    userDataDir,
+    userDataDir: DOCUMENTS_DATA_DIR,
     legacyFilePaths: [join(ORIGINAL_USER_DATA_DIR, 'settings.json')],
+    logger,
   });
   // Ensure defaults exist on disk (idempotent).
   await repo.read();
 
-  const disposeSettings = registerSettingsChannel(repo);
-  const disposeSystem = registerSystemChannel();
+  const disposeSettings = registerSettingsChannel(repo, logger);
+  const disposeSystem = registerSystemChannel({
+    appDataDir: DOCUMENTS_DATA_DIR,
+    electronUserDataDir,
+    cleanupDirs: [DOCUMENTS_DATA_DIR, electronUserDataDir],
+    logger,
+  });
   const disposeDocuments = registerDocumentsChannel(repo, {
-    userDataDir: app.getPath('userData'),
+    userDataDir: DOCUMENTS_DATA_DIR,
+    logger,
   });
   const exportRuntime = resolveExportRuntimePaths(__dirname);
   const disposeExport = registerExportChannel({
@@ -58,21 +78,23 @@ async function bootstrap(): Promise<void> {
       weasyScriptPath: exportRuntime.weasyScriptPath,
       pythonExecutablePath: exportRuntime.weasyPythonPath,
     }),
-  });
+  }, logger);
 
   const preloadPath = join(__dirname, '../preload/index.js');
   const rendererDevUrl = process.env.ELECTRON_RENDERER_URL;
   const rendererFile = join(__dirname, '../renderer/index.html');
 
-  createMainWindow({ preloadPath, rendererDevUrl, rendererFile });
+  const mainWindow = createMainWindow({ preloadPath, rendererDevUrl, rendererFile });
+  attachWindowDiagnostics(mainWindow);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow({ preloadPath, rendererDevUrl, rendererFile });
+      attachWindowDiagnostics(createMainWindow({ preloadPath, rendererDevUrl, rendererFile }));
     }
   });
 
   app.on('window-all-closed', () => {
+    logger.info('app:window-all-closed');
     disposeSettings();
     disposeSystem();
     disposeDocuments();
@@ -101,18 +123,58 @@ async function migrateLegacyUserData(sourceDir: string, targetDir: string): Prom
   }
 
   await fs.mkdir(targetDir, { recursive: true });
-  const entries = await fs.readdir(sourceDir);
+  const entries = ['settings.json', 'autosave-documents'];
 
   for (const entry of entries) {
-    await fs.cp(join(sourceDir, entry), join(targetDir, entry), {
-      recursive: true,
-      errorOnExist: false,
-      force: false,
-    });
+    try {
+      await fs.cp(join(sourceDir, entry), join(targetDir, entry), {
+        recursive: true,
+        errorOnExist: false,
+        force: false,
+      });
+      logger.info('app:legacy-user-data-migrated', { entry, sourceDir, targetDir });
+    } catch (error: unknown) {
+      if (!isNodeError(error) || error.code !== 'ENOENT') {
+        logger.warn('app:legacy-user-data-migration-failed', {
+          entry,
+          error: serializeErrorForLog(error),
+        });
+      }
+    }
   }
 }
 
+function attachWindowDiagnostics(window: BrowserWindow): void {
+  logger.info('window:created');
+  window.webContents.on('did-finish-load', () => logger.info('window:did-finish-load'));
+  window.webContents.on('render-process-gone', (_event, details) => {
+    logger.error('window:render-process-gone', { ...details });
+  });
+  window.webContents.on('unresponsive', () => logger.warn('window:unresponsive'));
+  window.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    logger.debug('renderer:console-message', { level, message, line, sourceId });
+  });
+}
+
+function registerProcessDiagnostics(): void {
+  process.on('uncaughtException', (error) => {
+    logger.error('process:uncaught-exception', { error: serializeErrorForLog(error) });
+  });
+  process.on('unhandledRejection', (reason) => {
+    logger.error('process:unhandled-rejection', { reason: serializeErrorForLog(reason) });
+  });
+  app.on('child-process-gone', (_event, details) => {
+    logger.error('app:child-process-gone', { ...details });
+  });
+  app.on('before-quit', () => logger.info('app:before-quit'));
+}
+
+function isNodeError(err: unknown): err is NodeJS.ErrnoException {
+  return err instanceof Error && 'code' in err;
+}
+
 bootstrap().catch((err) => {
+  logger.error('app:fatal-bootstrap-error', { error: serializeErrorForLog(err) });
   console.error(`[${PRODUCT_NAME}] fatal bootstrap error`, err);
   app.exit(1);
 });

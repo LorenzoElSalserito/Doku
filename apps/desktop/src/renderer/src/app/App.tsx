@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { ThemeProvider } from '@doku/ui';
 import type { Settings, SettingsPatch, ThemePreference } from '@doku/application';
 import { useSettings } from '../hooks/useSettings.js';
@@ -26,6 +26,11 @@ const GuideDialog = lazy(async () => {
   return { default: module.GuideDialog };
 });
 
+function logAppEvent(event: string, context?: Record<string, unknown>): void {
+  void (window.doku.system as { logEvent?: (event: string, context?: Record<string, unknown>) => Promise<void> })
+    .logEvent?.(event, context);
+}
+
 export function App() {
   const { status, settings, error, update } = useSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -38,6 +43,12 @@ export function App() {
     path?: string;
   } | null>(null);
   const bootstrapLanguage = settings?.language ?? resolvePreferredLanguage();
+
+  useEffect(() => {
+    if (status === 'ready') {
+      logAppEvent('app-ready');
+    }
+  }, [status]);
 
   const handleThemeChange = useCallback(
     (next: ThemePreference) => {
@@ -77,13 +88,27 @@ export function App() {
           guideOpen={guideOpen}
           exportOpen={exportOpen}
           onUpdate={update}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={() => {
+            logAppEvent('dialog-opened', { dialog: 'settings' });
+            setSettingsOpen(true);
+          }}
           onCloseSettings={() => setSettingsOpen(false)}
-          onOpenInfo={() => setInfoOpen(true)}
+          onOpenInfo={() => {
+            logAppEvent('dialog-opened', { dialog: 'info' });
+            setInfoOpen(true);
+          }}
           onCloseInfo={() => setInfoOpen(false)}
-          onOpenGuide={() => setGuideOpen(true)}
+          onOpenGuide={() => {
+            logAppEvent('dialog-opened', { dialog: 'guide' });
+            setGuideOpen(true);
+          }}
           onCloseGuide={() => setGuideOpen(false)}
           onOpenExport={(document) => {
+            logAppEvent('dialog-opened', {
+              dialog: 'export',
+              title: document.title,
+              hasPath: Boolean(document.path),
+            });
             setExportDraft(document);
             setExportOpen(true);
           }}

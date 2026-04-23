@@ -41,6 +41,16 @@ export interface SystemBridge {
   openExternal: (url: string) => Promise<void>;
   listFonts: () => Promise<string[]>;
   openDefaultAppsPreferences: () => Promise<void>;
+  diagnostics: () => Promise<{
+    sessionId: string;
+    startedAt: string;
+    logFilePath: string;
+    logPreview: string;
+    appDataDir: string;
+    electronUserDataDir: string;
+  }>;
+  logEvent: (event: string, context?: Record<string, unknown>) => Promise<void>;
+  prepareForUninstall: () => Promise<{ scheduled: true; deletedPaths: string[] }>;
 }
 
 export interface DocumentsBridge {

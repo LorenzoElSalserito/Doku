@@ -43,6 +43,11 @@ const RIGHT_MIN = 260;
 const RIGHT_MAX = 520;
 const RESIZE_KEYBOARD_STEP = 24;
 
+function logWorkspaceEvent(event: string, context?: Record<string, unknown>): void {
+  void (window.doku.system as { logEvent?: (event: string, context?: Record<string, unknown>) => Promise<void> })
+    .logEvent?.(event, context);
+}
+
 export function Workspace({
   settings,
   initialDocument,
@@ -136,6 +141,14 @@ export function Workspace({
 
       setSaveState('saving');
       setErrorMessage(null);
+      logWorkspaceEvent('document-save-started', {
+        mode,
+        id: document.id,
+        kind: document.kind,
+        title: document.title,
+        path: document.path,
+        contentLength: document.content.length,
+      });
 
       try {
         const result = await window.doku.documents.saveDocument({
@@ -163,6 +176,12 @@ export function Workspace({
           setDefaultAppPromptOpen(true);
         }
         setSaveState('saved');
+        logWorkspaceEvent('document-save-completed', {
+          mode,
+          id: result.document.id,
+          kind: result.document.kind,
+          path: result.document.path,
+        });
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : dict.workspace.editorErrorBody;
         if (message === 'Save operation canceled.') {
@@ -171,6 +190,7 @@ export function Workspace({
         }
         setSaveState('error');
         setErrorMessage(message);
+        logWorkspaceEvent('document-save-failed', { mode, message });
       }
     },
     [
@@ -205,6 +225,7 @@ export function Workspace({
           });
           setSaveState('saved');
           setLoadState('ready');
+          logWorkspaceEvent('document-draft-created');
           return;
         }
 
@@ -219,6 +240,10 @@ export function Workspace({
             return;
           }
           setNoticeMessage(dict.workspace.missingDocumentNotice);
+          logWorkspaceEvent('document-recent-missing', {
+            id: activeSummary.id,
+            path: activeSummary.path,
+          });
           setActiveSummary(null);
           setDraftToken((token) => token + 1);
           return;
@@ -227,12 +252,21 @@ export function Workspace({
         setSaveState('saved');
         setLoadState('ready');
         setNoticeMessage(null);
+        logWorkspaceEvent('document-loaded', {
+          id: next.id,
+          kind: next.kind,
+          title: next.title,
+          path: next.path,
+        });
       } catch (error: unknown) {
         if (cancelled) {
           return;
         }
         setLoadState('error');
         setErrorMessage(error instanceof Error ? error.message : dict.workspace.editorErrorBody);
+        logWorkspaceEvent('document-load-failed', {
+          message: error instanceof Error ? error.message : dict.workspace.editorErrorBody,
+        });
       }
     };
 
@@ -358,6 +392,7 @@ export function Workspace({
   const handleViewModeChange = useCallback(
     (nextMode: ViewMode) => {
       setViewMode(nextMode);
+      logWorkspaceEvent('workspace-view-mode-changed', { viewMode: nextMode });
       void onUpdate({ workspaceViewMode: nextMode });
     },
     [onUpdate],
@@ -366,6 +401,7 @@ export function Workspace({
   const toggleQuickActions = useCallback(() => {
     const nextVisible = !quickActionsVisible;
     setQuickActionsVisible(nextVisible);
+    logWorkspaceEvent('workspace-quick-actions-toggled', { visible: nextVisible });
     void onUpdate({ workspaceQuickActionsVisible: nextVisible });
   }, [onUpdate, quickActionsVisible]);
 
@@ -443,17 +479,24 @@ export function Workspace({
 
   const handleNewDocument = useCallback(() => {
     setNoticeMessage(null);
+    logWorkspaceEvent('document-new-requested');
     setActiveSummary(null);
     setDraftToken((token) => token + 1);
   }, []);
 
   const handleOpenFile = useCallback(async () => {
     setNoticeMessage(null);
+    logWorkspaceEvent('document-open-dialog-requested');
     const result = await window.doku.documents.openMarkdownFile();
     if (!result) {
       return;
     }
     await onUpdate({ launcher: result.launcher });
+    logWorkspaceEvent('document-opened-from-dialog', {
+      id: result.document.id,
+      title: result.document.title,
+      path: result.document.path,
+    });
     setActiveSummary({
       id: result.document.id,
       kind: result.document.kind,
@@ -466,17 +509,28 @@ export function Workspace({
 
   const handleSelectRecent = useCallback((summary: DocumentSummary) => {
     setNoticeMessage(null);
+    logWorkspaceEvent('document-recent-selected', {
+      id: summary.id,
+      title: summary.title,
+      path: summary.path,
+    });
     setActiveSummary(summary);
   }, []);
 
   const handleOpenWorkspaceFile = useCallback(
     async (filePath: string) => {
       setNoticeMessage(null);
+      logWorkspaceEvent('workspace-file-open-requested', { filePath });
       const result = await window.doku.documents.openDocumentAtPath(filePath);
       if (!result) {
         return;
       }
       await onUpdate({ launcher: result.launcher });
+      logWorkspaceEvent('workspace-file-opened', {
+        id: result.document.id,
+        title: result.document.title,
+        path: result.document.path,
+      });
       setActiveSummary({
         id: result.document.id,
         kind: result.document.kind,
@@ -503,9 +557,11 @@ export function Workspace({
       const result = await window.doku.documents.createWorkspaceFile(document.path, name);
       await refreshWorkspaceTree();
       await handleOpenWorkspaceFile(result.path);
+      logWorkspaceEvent('workspace-file-created', { path: result.path });
     } catch {
       setErrorMessage(dict.workspace.workspaceExplorer.createFileError);
       setSaveState('error');
+      logWorkspaceEvent('workspace-file-create-failed', { name });
     }
   }, [dict.workspace.workspaceExplorer, document?.path, handleOpenWorkspaceFile, refreshWorkspaceTree]);
 
@@ -522,9 +578,11 @@ export function Workspace({
     try {
       await window.doku.documents.createWorkspaceFolder(document.path, name);
       await refreshWorkspaceTree();
+      logWorkspaceEvent('workspace-folder-created', { documentPath: document.path, name });
     } catch {
       setErrorMessage(dict.workspace.workspaceExplorer.createFolderError);
       setSaveState('error');
+      logWorkspaceEvent('workspace-folder-create-failed', { documentPath: document.path, name });
     }
   }, [dict.workspace.workspaceExplorer, document?.path, refreshWorkspaceTree]);
 
@@ -540,6 +598,7 @@ export function Workspace({
       }
 
       if (action.kind === 'surround') {
+        logWorkspaceEvent('markdown-action-used', { actionId });
         monacoEditorRef.current?.surroundSelection({
           before: action.before ?? '',
           after: action.after ?? '',
@@ -548,6 +607,7 @@ export function Workspace({
         return;
       }
 
+      logWorkspaceEvent('markdown-action-used', { actionId });
       monacoEditorRef.current?.replaceSelection(action.text ?? '', {
         selectionStartOffset: action.selectionStartOffset,
         selectionEndOffset: action.selectionEndOffset,
@@ -564,6 +624,7 @@ export function Workspace({
     const rows = Number.parseInt(tableRows, 10);
     const columns = Number.parseInt(tableColumns, 10);
     const snippet = buildMarkdownTable(Number.isFinite(rows) ? rows : 2, Number.isFinite(columns) ? columns : 3);
+    logWorkspaceEvent('markdown-table-inserted', { rows, columns });
     monacoEditorRef.current?.replaceSelection(snippet, {
       selectionStartOffset: 2,
       selectionEndOffset: 10,
@@ -613,6 +674,7 @@ export function Workspace({
       if (!document?.path) {
         setErrorMessage(dict.workspace.imageImportSaveFirst);
         setSaveState('error');
+        logWorkspaceEvent('image-import-failed', { reason: 'document-not-saved' });
         return;
       }
 
@@ -624,10 +686,15 @@ export function Workspace({
       if (!sourcePath) {
         setErrorMessage(dict.workspace.editorErrorBody);
         setSaveState('error');
+        logWorkspaceEvent('image-import-failed', { reason: 'unsupported-source' });
         return;
       }
 
       try {
+        logWorkspaceEvent('image-import-started', {
+          documentPath: document.path,
+          sourcePath,
+        });
         const imported = await window.doku.documents.importAsset({
           documentPath: document.path,
           sourcePath,
@@ -641,6 +708,10 @@ export function Workspace({
         );
         setErrorMessage(null);
         setSaveState('dirty');
+        logWorkspaceEvent('image-import-completed', {
+          fileName: imported.fileName,
+          assetPath: imported.assetPath,
+        });
       } catch (error: unknown) {
         const message =
           error instanceof Error
@@ -648,6 +719,7 @@ export function Workspace({
             : dict.workspace.editorErrorBody;
         setErrorMessage(message);
         setSaveState('error');
+        logWorkspaceEvent('image-import-failed', { message });
       }
     },
     [dict.workspace, document?.path],
