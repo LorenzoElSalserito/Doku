@@ -9,7 +9,7 @@ const debPath = join(rootDir, 'build/desktop/Doku-0.1.0-linux-amd64.deb');
 const unpackedDir = join(rootDir, 'build/desktop/linux-unpacked');
 
 const requiredUnpackedFiles = [
-  '@dokudesktop',
+  'doku-desktop',
   'resources/app.asar',
   'resources/export-runtime/printStylesheet.css',
   'resources/export-runtime/scripts/render_weasy_pdf.py',
@@ -20,7 +20,7 @@ const requiredUnpackedFiles = [
 ];
 
 const requiredDebContent = [
-  './opt/Doku/@dokudesktop',
+  './opt/Doku/doku-desktop',
   './opt/Doku/resources/app.asar',
   './opt/Doku/resources/export-runtime/printStylesheet.css',
   './opt/Doku/resources/export-runtime/scripts/render_weasy_pdf.py',
@@ -28,7 +28,7 @@ const requiredDebContent = [
   './opt/Doku/resources/export-runtime/latex/bin/pandoc',
   './opt/Doku/resources/export-runtime/latex/bin/lualatex',
   './opt/Doku/resources/export-runtime/latex/share/texlive/texmf-dist/web2c/texmf.cnf',
-  './usr/share/applications/@dokudesktop.desktop',
+  './usr/share/applications/doku-desktop.desktop',
 ];
 
 function main() {

@@ -34,6 +34,10 @@ Doku starts with a short onboarding flow for language and theme. After that, the
 
 The writing surface is intentionally restrained. It favors readability, keyboard access, persistent preferences and a clear sense of document state over crowded toolbars or technical panels.
 
+Unsaved drafts remain a single continuous working sheet during autosave. Autosave updates the local draft snapshot and recent-document metadata without clearing the editor or creating a new blank document under the user's cursor.
+
+Manual save uses the operating system's native file chooser as a child dialog of the Doku editor window, so the save surface stays visible and foregrounded instead of opening unnoticed behind the workspace.
+
 The integrated Guide Center includes product help, shortcuts and Markdown reference material with examples, so the app can teach without interrupting.
 
 ## Privacy And Local Data

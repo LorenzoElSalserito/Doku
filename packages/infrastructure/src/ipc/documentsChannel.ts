@@ -393,11 +393,26 @@ async function requestSavePath(
     filters: [{ name: 'Markdown', extensions: ['md'] }],
   };
 
+  prepareWindowForModalDialog(ownerWindow);
+
   const result = ownerWindow
     ? await dialog.showSaveDialog(ownerWindow, dialogOptions)
     : await dialog.showSaveDialog(dialogOptions);
 
   return result.canceled ? null : (result.filePath ?? null);
+}
+
+function prepareWindowForModalDialog(ownerWindow: BrowserWindow | undefined): void {
+  if (!ownerWindow || ownerWindow.isDestroyed()) {
+    return;
+  }
+
+  if (ownerWindow.isMinimized()) {
+    ownerWindow.restore();
+  }
+
+  ownerWindow.show();
+  ownerWindow.focus();
 }
 
 async function persistOpenedDocument(

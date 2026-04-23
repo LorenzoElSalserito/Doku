@@ -1,5 +1,5 @@
 {
-  "name": "@doku/desktop",
+  "name": "doku-desktop",
   "productName": "Doku",
   "version": "0.1.0",
   "private": true,
@@ -52,6 +52,7 @@
       }
     ],
     "linux": {
+      "executableName": "doku-desktop",
       "category": "Office",
       "maintainer": "Lorenzo DM <commercial.lorenzodm@gmail.com>",
       "target": [
@@ -61,7 +62,7 @@
       "desktop": {
         "entry": {
           "Name": "Doku",
-          "Icon": "/usr/share/icons/hicolor/1080x1080/apps/@dokudesktop.png"
+          "Icon": "/usr/share/icons/hicolor/1080x1080/apps/doku-desktop.png"
         }
       },
       "synopsis": "The Definitive MarkDown Editor - AGPLv3",

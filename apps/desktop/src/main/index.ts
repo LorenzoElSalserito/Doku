@@ -20,6 +20,12 @@ const __dirname = dirname(__filename);
 const ORIGINAL_USER_DATA_DIR = app.getPath('userData');
 const DOCUMENTS_DATA_DIR = resolveDocumentsDataDir(ORIGINAL_USER_DATA_DIR);
 
+if (process.platform === 'linux') {
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch('disable-gpu');
+  app.commandLine.appendSwitch('disable-gpu-compositing');
+}
+
 app.setName(PRODUCT_NAME);
 app.setPath('userData', DOCUMENTS_DATA_DIR);
 

@@ -73,10 +73,15 @@ export function Workspace({
   const draftLayoutRef = useRef(layout);
   const autosaveTimeoutRef = useRef<number | null>(null);
   const defaultAppPromptRef = useRef(settings.defaultMarkdownAppPrompt);
+  const launcherRef = useRef(settings.launcher);
   const previewScrollRef = useRef<HTMLDivElement | null>(null);
   const editorPaneRef = useRef<HTMLElement | null>(null);
   const monacoEditorRef = useRef<MonacoEditorHandle | null>(null);
   const dropDepthRef = useRef(0);
+
+  useEffect(() => {
+    launcherRef.current = settings.launcher;
+  }, [settings.launcher]);
 
   useEffect(() => {
     defaultAppPromptRef.current = settings.defaultMarkdownAppPrompt;
@@ -208,7 +213,7 @@ export function Workspace({
           return;
         }
         if (!next) {
-          const nextLauncher = removeSummaryFromLauncher(settings.launcher, activeSummary);
+          const nextLauncher = removeSummaryFromLauncher(launcherRef.current, activeSummary);
           await onUpdate({ launcher: nextLauncher });
           if (cancelled) {
             return;
@@ -243,7 +248,6 @@ export function Workspace({
     dict.workspace.missingDocumentNotice,
     dict.workspace.untitledDocument,
     onUpdate,
-    settings.launcher,
   ]);
 
   useEffect(() => {

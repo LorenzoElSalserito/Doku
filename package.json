@@ -14,7 +14,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "npm run dev --workspace @doku/desktop",
+    "dev": "npm run dev --workspace doku-desktop",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run",
@@ -23,10 +23,10 @@
     "ensure:weasy-runtime": "node scripts/ensure-weasy-runtime.cjs",
     "ensure:latex-runtime": "node scripts/ensure-latex-runtime.cjs",
     "ensure:export-runtime": "npm run ensure:weasy-runtime && npm run ensure:latex-runtime",
-    "package:dir": "npm run package:dir --workspace @doku/desktop",
-    "package:linux": "npm run ensure:export-runtime && npm run package:linux --workspace @doku/desktop",
-    "package:mac": "npm run ensure:export-runtime && npm run package:mac --workspace @doku/desktop",
-    "package:win": "npm run ensure:export-runtime && npm run package:win --workspace @doku/desktop",
+    "package:dir": "npm run package:dir --workspace doku-desktop",
+    "package:linux": "npm run ensure:export-runtime && npm run package:linux --workspace doku-desktop",
+    "package:mac": "npm run ensure:export-runtime && npm run package:mac --workspace doku-desktop",
+    "package:win": "npm run ensure:export-runtime && npm run package:win --workspace doku-desktop",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write ."
   },

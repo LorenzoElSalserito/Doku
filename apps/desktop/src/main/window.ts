@@ -34,6 +34,15 @@ export function createMainWindow(options: CreateWindowOptions): BrowserWindow {
 
   window.once('ready-to-show', () => window.show());
 
+  window.on('enter-full-screen', () => {
+    if (process.platform !== 'linux') {
+      return;
+    }
+
+    window.setFullScreen(false);
+    window.maximize();
+  });
+
   window.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url);
     return { action: 'deny' };

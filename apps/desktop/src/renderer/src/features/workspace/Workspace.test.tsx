@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThemeProvider } from '@doku/ui';
 import type { DocumentSession, DocumentSummary, SettingsPatch } from '@doku/application';
 import { DEFAULT_SETTINGS } from '@doku/schemas';
@@ -19,9 +19,19 @@ const monacoRefState = {
 vi.mock('./MonacoEditor.js', async () => {
   const react = await import('react');
   return {
-    MonacoEditor: react.forwardRef(function MockMonacoEditor(_props, ref) {
+    MonacoEditor: react.forwardRef(function MockMonacoEditor(
+      props: { value: string; onChange: (value: string) => void },
+      ref,
+    ) {
       react.useImperativeHandle(ref, () => monacoRefState);
-      return <div data-testid="mock-monaco-editor" />;
+      return (
+        <textarea
+          aria-label="Markdown editor"
+          data-testid="mock-monaco-editor"
+          value={props.value}
+          onChange={(event) => props.onChange(event.currentTarget.value)}
+        />
+      );
     }),
   };
 });
@@ -46,6 +56,10 @@ const loadedDocument: DocumentSession = {
 };
 
 describe('Workspace', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     Object.defineProperty(window, 'doku', {
@@ -252,21 +266,143 @@ describe('Workspace', () => {
 
     promptSpy.mockRestore();
   });
+
+  it('keeps editing the same local draft after autosave updates launcher state', async () => {
+    const onUpdate = vi.fn<(patch: SettingsPatch) => Promise<void>>().mockResolvedValue(undefined);
+    const saveDocument = vi.fn().mockImplementation(async (input) => {
+      const now = '2026-04-23T10:01:00.000Z';
+      return {
+        document: {
+          id: input.id,
+          kind: input.kind,
+          title: input.title,
+          path: input.path,
+          content: input.content,
+          snippet: input.content,
+          lastOpenedAt: now,
+          lastSavedAt: null,
+        },
+        launcher: {
+          recentDocuments: [
+            {
+              id: input.id,
+              kind: input.kind,
+              title: input.title,
+              path: input.path,
+              snippet: input.content,
+              lastOpenedAt: now,
+            },
+          ],
+          quickResumeId: input.id,
+        },
+      };
+    });
+
+    Object.defineProperty(window, 'doku', {
+      configurable: true,
+      value: {
+        ...window.doku,
+        documents: {
+          ...window.doku.documents,
+          saveDocument,
+        },
+      },
+    });
+
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      firstRunCompleted: true,
+    };
+    const view = renderWorkspace({
+      initialDocument: null,
+      onUpdate,
+      settings,
+    });
+
+    const editor = await within(view.container).findByLabelText('Markdown editor');
+    vi.useFakeTimers();
+    fireEvent.change(editor, { target: { value: 'first paragraph' } });
+
+    await vi.advanceTimersByTimeAsync(950);
+
+    expect(saveDocument).toHaveBeenCalledTimes(1);
+
+    const firstAutosaveInput = saveDocument.mock.calls[0]?.[0];
+    expect(firstAutosaveInput).toEqual(
+      expect.objectContaining({
+        id: expect.stringMatching(/^draft:/),
+        kind: 'draft',
+        content: 'first paragraph',
+        mode: 'autosave',
+      }),
+    );
+
+    view.rerender(
+      <I18nProvider language="en">
+        <ThemeProvider preference="light">
+          <Workspace
+            settings={{
+              ...settings,
+              launcher: {
+                recentDocuments: [
+                  {
+                    id: firstAutosaveInput.id,
+                    kind: 'draft',
+                    title: 'Untitled document',
+                    snippet: 'first paragraph',
+                    lastOpenedAt: '2026-04-23T10:01:00.000Z',
+                  },
+                ],
+                quickResumeId: firstAutosaveInput.id,
+              },
+            }}
+            initialDocument={null}
+            onUpdate={onUpdate}
+            onOpenSettings={vi.fn()}
+            onOpenInfo={vi.fn()}
+            onOpenGuide={vi.fn()}
+            onOpenExport={vi.fn()}
+          />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    expect(within(view.container).getByLabelText('Markdown editor')).toHaveValue('first paragraph');
+
+    fireEvent.change(within(view.container).getByLabelText('Markdown editor'), {
+      target: { value: 'second paragraph' },
+    });
+    await vi.advanceTimersByTimeAsync(950);
+
+    expect(saveDocument).toHaveBeenCalledTimes(2);
+
+    expect(saveDocument.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({
+        id: firstAutosaveInput.id,
+        kind: 'draft',
+        content: 'second paragraph',
+        mode: 'autosave',
+      }),
+    );
+    expect(within(view.container).getByLabelText('Markdown editor')).toHaveValue('second paragraph');
+  });
 });
 
 function renderWorkspace({
   settings = DEFAULT_SETTINGS,
   onUpdate = vi.fn<(patch: SettingsPatch) => Promise<void>>().mockResolvedValue(undefined),
+  initialDocument: initialDocumentOverride = initialDocument,
 }: {
   settings?: typeof DEFAULT_SETTINGS;
   onUpdate?: (patch: SettingsPatch) => Promise<void>;
+  initialDocument?: DocumentSummary | null;
 }) {
   return render(
     <I18nProvider language="en">
       <ThemeProvider preference="light">
         <Workspace
           settings={settings}
-          initialDocument={initialDocument}
+          initialDocument={initialDocumentOverride}
           onUpdate={onUpdate}
           onOpenSettings={vi.fn()}
           onOpenInfo={vi.fn()}
