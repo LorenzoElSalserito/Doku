@@ -17,8 +17,11 @@ export function createMainWindow(options: CreateWindowOptions): BrowserWindow {
   const window = new BrowserWindow({
     width: 1200,
     height: 820,
-    minWidth: 880,
-    minHeight: 600,
+    // Minimums chosen so the window still fits OS snap gestures on common displays:
+    // 1440×900 half → 720×450, 1920×1080 top/bottom → 1920×540. Responsive CSS
+    // breakpoints at 1080px and 900px keep the UI readable below these sizes.
+    minWidth: 720,
+    minHeight: 480,
     show: false,
     title: PRODUCT_NAME,
     icon: WINDOW_ICON_PATH,
@@ -32,7 +35,12 @@ export function createMainWindow(options: CreateWindowOptions): BrowserWindow {
     },
   });
 
-  window.once('ready-to-show', () => window.show());
+  window.once('ready-to-show', () => {
+    // Maximize instead of setFullScreen: fills the work area on startup while
+    // remaining a normal resizable window that the OS can snap to half / top / bottom.
+    window.maximize();
+    window.show();
+  });
 
   window.on('enter-full-screen', () => {
     if (process.platform !== 'linux') {
