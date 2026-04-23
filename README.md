@@ -129,3 +129,7 @@ PDF runtime availability depends on the packaged build for each platform. If a r
 ## License
 
 Doku is released under the **AGPL-3.0-only** license.
+
+## Copyright
+
+© Lorenzo De Marco (Lorenzo DM) - 2026
