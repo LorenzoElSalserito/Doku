@@ -42,10 +42,15 @@ async function bootstrap(): Promise<void> {
   });
   const exportRuntime = resolveExportRuntimePaths(__dirname);
   const disposeExport = registerExportChannel({
-    lualatex: new LatexPdfExportService(),
+    lualatex: new LatexPdfExportService({
+      pandocPath: exportRuntime.pandocPath,
+      lualatexPath: exportRuntime.lualatexPath,
+      latexRuntimeRoot: exportRuntime.latexRuntimeRoot,
+    }),
     weasy: new WeasyPdfExportService({
       printStylesheetPath: exportRuntime.printStylesheetPath,
       weasyScriptPath: exportRuntime.weasyScriptPath,
+      pythonExecutablePath: exportRuntime.weasyPythonPath,
     }),
   });
 

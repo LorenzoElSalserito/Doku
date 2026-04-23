@@ -7,7 +7,23 @@ import { PdfExportRequestSchema, type PdfExportRequest, type PdfExportResult } f
 
 const execFileAsync = promisify(execFile);
 
+interface LatexPdfExportServiceOptions {
+  pandocPath?: string;
+  lualatexPath?: string;
+  latexRuntimeRoot?: string;
+}
+
 export class LatexPdfExportService {
+  private readonly pandocPath: string;
+  private readonly lualatexPath: string;
+  private readonly latexRuntimeRoot?: string;
+
+  constructor(options: LatexPdfExportServiceOptions = {}) {
+    this.pandocPath = options.pandocPath ?? 'pandoc';
+    this.lualatexPath = options.lualatexPath ?? 'lualatex';
+    this.latexRuntimeRoot = options.latexRuntimeRoot;
+  }
+
   async exportPdf(raw: unknown, outputPath: string): Promise<PdfExportResult> {
     const input = PdfExportRequestSchema.parse(raw);
 
@@ -24,7 +40,11 @@ export class LatexPdfExportService {
       await mkdir(cacheDir, { recursive: true });
       await mkdir(dirname(outputPath), { recursive: true });
 
-      await runPandoc(markdownPath, outputPath, input, cacheDir);
+      await runPandoc(markdownPath, outputPath, input, cacheDir, {
+        pandocPath: this.pandocPath,
+        lualatexPath: this.lualatexPath,
+        latexRuntimeRoot: this.latexRuntimeRoot,
+      });
 
       const details = await stat(outputPath);
       return {
@@ -44,28 +64,54 @@ async function runPandoc(
   outputPath: string,
   input: PdfExportRequest,
   cacheDir: string,
+  runtime: {
+    pandocPath: string;
+    lualatexPath: string;
+    latexRuntimeRoot?: string;
+  },
 ): Promise<void> {
   try {
-    await execFileAsync('pandoc', [
+    await execFileAsync(runtime.pandocPath, [
       markdownPath,
       '--from=gfm',
       '--standalone',
-      '--pdf-engine=lualatex',
+      `--pdf-engine=${runtime.lualatexPath}`,
       '--metadata',
       `title=${input.title}`,
       '--output',
       outputPath,
     ], {
-      env: {
-        ...process.env,
-        TEXMFCACHE: cacheDir,
-        TEXMFVAR: cacheDir,
-        XDG_CACHE_HOME: cacheDir,
-      },
+      env: buildLatexEnvironment(cacheDir, runtime.latexRuntimeRoot),
     });
   } catch (error: unknown) {
     throw humanizeExportError(error);
   }
+}
+
+function buildLatexEnvironment(cacheDir: string, latexRuntimeRoot: string | undefined): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    TEXMFCACHE: cacheDir,
+    TEXMFVAR: cacheDir,
+    XDG_CACHE_HOME: cacheDir,
+  };
+
+  if (!latexRuntimeRoot) {
+    return env;
+  }
+
+  env.TEXMFROOT = join(latexRuntimeRoot, 'share/texlive');
+  env.TEXMFDIST = join(latexRuntimeRoot, 'share/texlive/texmf-dist');
+  env.TEXMFLOCAL = join(latexRuntimeRoot, 'share/texmf');
+  env.TEXMFSYSVAR = join(latexRuntimeRoot, 'var/lib/texmf');
+  env.TEXMFSYSCONFIG = join(latexRuntimeRoot, 'etc/texmf');
+  env.TEXMFCNF = [
+    join(latexRuntimeRoot, 'etc/texmf/web2c'),
+    join(latexRuntimeRoot, 'share/texlive/texmf-dist/web2c'),
+  ].join(':');
+  env.PATH = `${join(latexRuntimeRoot, 'bin')}:${env.PATH ?? ''}`;
+
+  return env;
 }
 
 function humanizeExportError(error: unknown): Error {

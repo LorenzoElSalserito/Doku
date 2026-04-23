@@ -13,15 +13,18 @@ const DEFAULT_PRINT_STYLESHEET_PATH = fileURLToPath(new URL('./printStylesheet.c
 interface WeasyPdfExportServiceOptions {
   weasyScriptPath?: string;
   printStylesheetPath?: string;
+  pythonExecutablePath?: string;
 }
 
 export class WeasyPdfExportService {
   private readonly weasyScriptPath: string;
   private readonly printStylesheetPath: string;
+  private readonly pythonExecutablePath: string;
 
   constructor(options: WeasyPdfExportServiceOptions = {}) {
     this.weasyScriptPath = options.weasyScriptPath ?? DEFAULT_WEASY_SCRIPT_PATH;
     this.printStylesheetPath = options.printStylesheetPath ?? DEFAULT_PRINT_STYLESHEET_PATH;
+    this.pythonExecutablePath = options.pythonExecutablePath ?? 'python3';
   }
 
   async exportPdf(raw: unknown, outputPath: string): Promise<PdfExportResult> {
@@ -43,7 +46,7 @@ export class WeasyPdfExportService {
       await mkdir(dirname(outputPath), { recursive: true });
 
       await renderHtml(markdownPath, htmlPath, stylesheetPath, input);
-      await renderPdf(htmlPath, outputPath, this.weasyScriptPath);
+      await renderPdf(htmlPath, outputPath, this.weasyScriptPath, this.pythonExecutablePath);
 
       const details = await stat(outputPath);
       return {
@@ -86,9 +89,10 @@ async function renderPdf(
   htmlPath: string,
   outputPath: string,
   weasyScriptPath: string,
+  pythonExecutablePath: string,
 ): Promise<void> {
   try {
-    await execFileAsync('python3', [weasyScriptPath, htmlPath, outputPath]);
+    await execFileAsync(pythonExecutablePath, [weasyScriptPath, htmlPath, outputPath]);
   } catch (error: unknown) {
     throw humanizeWeasyError(error);
   }

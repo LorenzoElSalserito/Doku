@@ -13,6 +13,10 @@ const requiredUnpackedFiles = [
   'resources/app.asar',
   'resources/export-runtime/printStylesheet.css',
   'resources/export-runtime/scripts/render_weasy_pdf.py',
+  'resources/export-runtime/weasy-python/bin/python',
+  'resources/export-runtime/latex/bin/pandoc',
+  'resources/export-runtime/latex/bin/lualatex',
+  'resources/export-runtime/latex/share/texlive/texmf-dist/web2c/texmf.cnf',
 ];
 
 const requiredDebContent = [
@@ -20,6 +24,10 @@ const requiredDebContent = [
   './opt/Doku/resources/app.asar',
   './opt/Doku/resources/export-runtime/printStylesheet.css',
   './opt/Doku/resources/export-runtime/scripts/render_weasy_pdf.py',
+  './opt/Doku/resources/export-runtime/weasy-python/bin/python',
+  './opt/Doku/resources/export-runtime/latex/bin/pandoc',
+  './opt/Doku/resources/export-runtime/latex/bin/lualatex',
+  './opt/Doku/resources/export-runtime/latex/share/texlive/texmf-dist/web2c/texmf.cnf',
   './usr/share/applications/@dokudesktop.desktop',
 ];
 
@@ -78,10 +86,11 @@ function main() {
 function exec(command, args) {
   try {
     return execFileSync(command, args, {
-      cwd: rootDir,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    cwd: rootDir,
+    encoding: 'utf8',
+    maxBuffer: 128 * 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   } catch (error) {
     fail(`${command} ${args.join(' ')} failed: ${error.message}`);
   }

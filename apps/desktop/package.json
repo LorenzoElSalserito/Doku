@@ -41,11 +41,13 @@
     ],
     "extraResources": [
       {
-        "from": "../../packages/infrastructure/src/export",
+        "from": "../../build/export-runtime",
         "to": "export-runtime",
         "filter": [
           "printStylesheet.css",
-          "scripts/**"
+          "scripts/**",
+          "weasy-python/**",
+          "latex/**"
         ]
       }
     ],

@@ -124,7 +124,7 @@ Doku is designed around local export flows:
 - Typographic PDF export is intended for polished reading output.
 - Web-style PDF export is intended for HTML/CSS-oriented rendering.
 
-PDF runtime availability depends on the packaged build for each platform. If a runtime is unavailable, Doku should explain the issue clearly instead of failing silently.
+Packaged builds include the web-style PDF runtime internally, including the WeasyPrint Python environment used by Doku. Export runs locally and does not upload document content to a remote service.
 
 ## License
 
