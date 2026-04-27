@@ -1,6 +1,6 @@
 import { SegmentedControl, type SegmentedOption } from '@doku/ui';
 import type { Language } from '@doku/application';
-import { LANGUAGES } from '../../../i18n/keys.js';
+import { LANGUAGE_FLAGS, LANGUAGES } from '../../../i18n/keys.js';
 import { useDict } from '../../../i18n/I18nProvider.js';
 
 interface LanguageStepProps {
@@ -13,7 +13,9 @@ export function LanguageStep({ value, onChange }: LanguageStepProps) {
 
   const options: SegmentedOption<Language>[] = LANGUAGES.map((code) => ({
     value: code,
-    label: dict.languages[code],
+    label: <LanguageOption flag={LANGUAGE_FLAGS[code]} label={dict.languages[code]} />,
+    ariaLabel: dict.languages[code],
+    title: dict.languages[code],
   }));
 
   return (
@@ -25,5 +27,14 @@ export function LanguageStep({ value, onChange }: LanguageStepProps) {
       fullWidth
       idPrefix="wizard-lang"
     />
+  );
+}
+
+function LanguageOption({ flag, label }: { flag: string; label: string }) {
+  return (
+    <span className="language-option">
+      <span className="language-option__flag" aria-hidden>{flag}</span>
+      <span className="language-option__label">{label}</span>
+    </span>
   );
 }

@@ -1,7 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button, Dialog, SegmentedControl, type SegmentedOption } from '@doku/ui';
-import type { Language, Settings, SettingsPatch, ThemePreference } from '@doku/application';
-import { LANGUAGES } from '../../i18n/keys.js';
+import {
+  DOKU_FONT_CATALOG,
+  buildUnifiedDokuTypography,
+  type AppZoom,
+  type DokuFontFamily,
+  type Language,
+  type Settings,
+  type SettingsPatch,
+  type ThemePreference,
+} from '@doku/application';
+import { LANGUAGE_FLAGS, LANGUAGES } from '../../i18n/keys.js';
 import { useDict } from '../../i18n/I18nProvider.js';
 import { CustomThemeDialog } from './CustomThemeDialog.js';
 
@@ -17,43 +26,18 @@ function logSettingsDialogEvent(event: string, context?: Record<string, unknown>
     .logEvent?.(event, context);
 }
 
+type AppZoomOption = '75' | '100' | '125' | '150';
+
 export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDialogProps) {
   const dict = useDict();
   const [customThemeOpen, setCustomThemeOpen] = useState(false);
-  const [fonts, setFonts] = useState<string[]>([]);
-  const [fontsLoading, setFontsLoading] = useState(false);
   const [uninstallPreparing, setUninstallPreparing] = useState(false);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    let cancelled = false;
-    setFontsLoading(true);
-
-    window.doku.system
-      .listFonts()
-      .then((items) => {
-        if (cancelled) {
-          return;
-        }
-        setFonts(items);
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setFontsLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open]);
 
   const languageOptions: SegmentedOption<Language>[] = LANGUAGES.map((code) => ({
     value: code,
-    label: dict.languages[code],
+    label: <LanguageOption flag={LANGUAGE_FLAGS[code]} />,
+    ariaLabel: dict.languages[code],
+    title: dict.languages[code],
   }));
 
   const themeOptions: SegmentedOption<ThemePreference>[] = [
@@ -61,6 +45,13 @@ export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDi
     { value: 'dark', label: dict.themes.dark, description: dict.themes.darkDescription },
     { value: 'custom', label: dict.themes.custom, description: dict.themes.customDescription },
     { value: 'system', label: dict.themes.system, description: dict.themes.systemDescription },
+  ];
+
+  const zoomOptions: SegmentedOption<AppZoomOption>[] = [
+    { value: '75', label: '75%' },
+    { value: '100', label: '100%' },
+    { value: '125', label: '125%' },
+    { value: '150', label: '150%' },
   ];
 
   return (
@@ -91,6 +82,21 @@ export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDi
       </div>
 
       <div className="settings-field">
+        <label className="settings-field__label">{dict.settings.zoomLabel}</label>
+        <SegmentedControl
+          value={String(settings.appZoom) as AppZoomOption}
+          options={zoomOptions}
+          onChange={(appZoom) => {
+            void onUpdate({ appZoom: Number(appZoom) as AppZoom });
+          }}
+          ariaLabel={dict.settings.zoomLabel}
+          fullWidth
+          idPrefix="settings-zoom"
+        />
+        <span className="settings-field__hint">{dict.settings.zoomHint}</span>
+      </div>
+
+      <div className="settings-field">
         <label className="settings-field__label">{dict.settings.themeLabel}</label>
         <SegmentedControl
           value={settings.theme}
@@ -112,27 +118,18 @@ export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDi
       </div>
 
       <div className="settings-field">
-        <label className="settings-field__label" htmlFor="settings-font-family">
-          {dict.settings.fontLabel}
-        </label>
-        <select
+        <FontSelect
           id="settings-font-family"
-          className="settings-select"
-          value={settings.writingFontFamily ?? ''}
-          onChange={(event) => {
-            void onUpdate({ writingFontFamily: event.target.value || null });
+          label={dict.settings.fontLabel}
+          value={settings.typography.uiFontFamily}
+          onChange={(fontFamily) => {
+            void onUpdate({
+              typography: buildUnifiedDokuTypography(fontFamily),
+              writingFontFamily: null,
+            });
           }}
-        >
-          <option value="">{dict.settings.fontDefault}</option>
-          {fonts.map((font) => (
-            <option key={font} value={font}>
-              {font}
-            </option>
-          ))}
-        </select>
-        <span className="settings-field__hint">
-          {fontsLoading ? dict.settings.fontLoading : dict.settings.fontHint}
-        </span>
+        />
+        <span className="settings-field__hint">{dict.settings.fontHint}</span>
         <span className="settings-field__hint">{dict.settings.fontLatexNotice}</span>
       </div>
 
@@ -184,5 +181,46 @@ export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDi
         }}
       />
     </Dialog>
+  );
+}
+
+function LanguageOption({ flag }: { flag: string }) {
+  return (
+    <span className="language-option language-option--flag-only">
+      <span className="language-option__flag" aria-hidden>{flag}</span>
+    </span>
+  );
+}
+
+function FontSelect({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: DokuFontFamily;
+  onChange: (next: DokuFontFamily) => void;
+}) {
+  return (
+    <label className="settings-font-select" htmlFor={id}>
+      <span className="settings-field__hint">{label}</span>
+      <select
+        id={id}
+        className="settings-select"
+        value={value}
+        onChange={(event) => onChange(event.target.value as DokuFontFamily)}
+      >
+        {DOKU_FONT_CATALOG.map((font) => (
+          <option key={font.family} value={font.family}>
+            {font.family}
+          </option>
+        ))}
+      </select>
+      <span className="font-select-preview" style={{ fontFamily: value }}>
+        {DOKU_FONT_CATALOG.find((font) => font.family === value)?.previewText ?? value}
+      </span>
+    </label>
   );
 }

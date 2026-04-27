@@ -3,6 +3,8 @@ import { useCallback, useRef, type KeyboardEvent, type ReactNode } from 'react';
 export interface SegmentedOption<T extends string> {
   value: T;
   label: ReactNode;
+  ariaLabel?: string;
+  title?: string;
   description?: string;
 }
 
@@ -62,7 +64,8 @@ export function SegmentedControl<T extends string>({
             role="tab"
             id={`${idPrefix}-${opt.value}`}
             aria-selected={selected}
-            aria-label={opt.description}
+            aria-label={opt.ariaLabel ?? (typeof opt.label === 'string' ? opt.label : opt.description)}
+            title={opt.title ?? opt.description}
             tabIndex={selected ? 0 : -1}
             className="doku-segmented__option"
             onClick={() => onChange(opt.value)}

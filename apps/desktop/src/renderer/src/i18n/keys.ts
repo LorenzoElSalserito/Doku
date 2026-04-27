@@ -30,6 +30,7 @@ export interface Dictionary {
     steps: {
       language: string;
       theme: string;
+      font: string;
       confirm: string;
     };
     language: {
@@ -42,11 +43,18 @@ export interface Dictionary {
       previewHeading: string;
       previewBody: string;
     };
+    font: {
+      title: string;
+      subtitle: string;
+      previewLabel: string;
+      sampleText: string;
+    };
     confirm: {
       title: string;
       subtitle: string;
       languageLabel: string;
       themeLabel: string;
+      fontLabel: string;
       nextSteps: string;
     };
     actions: {
@@ -61,6 +69,8 @@ export interface Dictionary {
     untitledDocument: string;
     statusLocal: string;
     statusReady: string;
+    documentTitleLabel: string;
+    documentTitlePlaceholder: string;
     leftPanelLabel: string;
     rightPanelLabel: string;
     guide: string;
@@ -179,11 +189,23 @@ export interface Dictionary {
     languageHint: string;
     themeLabel: string;
     themeHint: string;
+    zoomLabel: string;
+    zoomHint: string;
     fontLabel: string;
     fontHint: string;
     fontLoading: string;
     fontDefault: string;
     fontLatexNotice: string;
+    fontProfileLabel: string;
+    fontUiLabel: string;
+    fontPdfLabel: string;
+    fontMonoLabel: string;
+    fontAccessibilityLabel: string;
+    fontAccessibilityMode: string;
+    fontProfiles: {
+      professional: string;
+      allPurpose: string;
+    };
     openDefaultApps: string;
     defaultAppsHint: string;
     uninstallPreparationLabel: string;
@@ -314,3 +336,12 @@ export interface Dictionary {
 
 export const LANGUAGES = ['it', 'en', 'es', 'de', 'fr', 'pt'] as const;
 export type LanguageCode = (typeof LANGUAGES)[number];
+
+export const LANGUAGE_FLAGS: Record<LanguageCode, string> = {
+  it: '🇮🇹',
+  en: '🇬🇧',
+  es: '🇪🇸',
+  de: '🇩🇪',
+  fr: '🇫🇷',
+  pt: '🇵🇹',
+};

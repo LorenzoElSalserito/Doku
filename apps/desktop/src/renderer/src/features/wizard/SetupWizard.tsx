@@ -2,6 +2,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { Button, Card, Stepper } from '@doku/ui';
 import {
   DEFAULT_WORKSPACE_LAYOUT,
+  buildUnifiedDokuTypography,
+  type DokuFontFamily,
   type Language,
   type Settings,
   type SettingsPatch,
@@ -12,6 +14,7 @@ import { ThemeProvider } from '@doku/ui';
 import { LanguageStep } from './steps/LanguageStep.js';
 import { ThemeStep } from './steps/ThemeStep.js';
 import { ConfirmStep } from './steps/ConfirmStep.js';
+import { FontStep } from './steps/FontStep.js';
 
 interface SetupWizardProps {
   initialSettings: Settings;
@@ -21,10 +24,13 @@ interface SetupWizardProps {
 export function SetupWizard({ initialSettings, onComplete }: SetupWizardProps) {
   const [language, setLanguage] = useState<Language>(initialSettings.language);
   const [theme, setTheme] = useState<ThemePreference>(initialSettings.theme);
+  const [fontFamily, setFontFamily] = useState<DokuFontFamily>(
+    initialSettings.typography.uiFontFamily,
+  );
   const [stepIndex, setStepIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
-  const goNext = useCallback(() => setStepIndex((i) => Math.min(i + 1, 2)), []);
+  const goNext = useCallback(() => setStepIndex((i) => Math.min(i + 1, 3)), []);
   const goBack = useCallback(() => setStepIndex((i) => Math.max(i - 1, 0)), []);
 
   const handleFinish = useCallback(async () => {
@@ -33,6 +39,8 @@ export function SetupWizard({ initialSettings, onComplete }: SetupWizardProps) {
       await onComplete({
         language,
         theme,
+        typography: buildUnifiedDokuTypography(fontFamily),
+        writingFontFamily: null,
         firstRunCompleted: true,
         workspace: DEFAULT_WORKSPACE_LAYOUT,
         workspaceViewMode: 'split',
@@ -40,19 +48,29 @@ export function SetupWizard({ initialSettings, onComplete }: SetupWizardProps) {
     } finally {
       setSubmitting(false);
     }
-  }, [language, theme, onComplete]);
+  }, [fontFamily, language, theme, onComplete]);
 
   // Wrap the wizard body in provider that reflects live selection so ogni
   // modifica aggiorna copy e tema immediatamente.
   return (
     <I18nProvider language={language}>
-      <ThemeProvider preference={theme} onPreferenceChange={setTheme}>
+      <ThemeProvider
+        preference={theme}
+        appZoom={initialSettings.appZoom}
+        uiFontFamily={fontFamily}
+        contentFontFamily={fontFamily}
+        monospaceFontFamily={fontFamily}
+        accessibilityFontFamily={fontFamily}
+        onPreferenceChange={setTheme}
+      >
         <WizardInner
           stepIndex={stepIndex}
           language={language}
           theme={theme}
+          fontFamily={fontFamily}
           onLanguageChange={setLanguage}
           onThemeChange={setTheme}
+          onFontFamilyChange={setFontFamily}
           onBack={goBack}
           onNext={goNext}
           onFinish={handleFinish}
@@ -67,8 +85,10 @@ interface WizardInnerProps {
   stepIndex: number;
   language: Language;
   theme: ThemePreference;
+  fontFamily: DokuFontFamily;
   onLanguageChange: (l: Language) => void;
   onThemeChange: (t: ThemePreference) => void;
+  onFontFamilyChange: (fontFamily: DokuFontFamily) => void;
   onBack: () => void;
   onNext: () => void;
   onFinish: () => void;
@@ -79,8 +99,10 @@ function WizardInner({
   stepIndex,
   language,
   theme,
+  fontFamily,
   onLanguageChange,
   onThemeChange,
+  onFontFamilyChange,
   onBack,
   onNext,
   onFinish,
@@ -99,6 +121,11 @@ function WizardInner({
         key: 'theme' as const,
         title: dict.wizard.theme.title,
         subtitle: dict.wizard.theme.subtitle,
+      },
+      {
+        key: 'font' as const,
+        title: dict.wizard.font.title,
+        subtitle: dict.wizard.font.subtitle,
       },
       {
         key: 'confirm' as const,
@@ -132,7 +159,12 @@ function WizardInner({
             <LanguageStep value={language} onChange={onLanguageChange} />
           )}
           {current.key === 'theme' && <ThemeStep value={theme} onChange={onThemeChange} />}
-          {current.key === 'confirm' && <ConfirmStep language={language} theme={theme} />}
+          {current.key === 'font' && (
+            <FontStep value={fontFamily} onChange={onFontFamilyChange} />
+          )}
+          {current.key === 'confirm' && (
+            <ConfirmStep language={language} theme={theme} fontFamily={fontFamily} />
+          )}
         </div>
 
         <footer className="wizard__footer">

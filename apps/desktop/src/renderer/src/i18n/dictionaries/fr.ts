@@ -31,6 +31,7 @@ export const fr: Dictionary = {
     steps: {
       language: 'Langue',
       theme: 'Thème',
+      font: 'Police',
       confirm: 'Prêt',
     },
     language: {
@@ -44,11 +45,20 @@ export const fr: Dictionary = {
       previewBody:
         'Doku place la page au cœur de votre métier. Chaque surface, chaque espace, chaque détail typographique est pensé pour que les mots restent au premier plan.',
     },
+    font: {
+      title: 'Choisissez votre police d’écriture',
+      subtitle:
+        'Choisissez la typographie utilisée par Doku pour l’interface, l’éditeur, l’aperçu et l’export PDF.',
+      previewLabel: 'Aperçu',
+      sampleText:
+        'Un paragraphe clair rend les longues notes plus faciles à lire, modifier et exporter.',
+    },
     confirm: {
       title: 'Tout est prêt — ouvrez votre studio',
       subtitle: 'Vos préférences sont enregistrées sur cet appareil.',
       languageLabel: 'Langue',
       themeLabel: 'Thème',
+      fontLabel: 'Police',
       nextSteps:
         'Après le wizard, vous arrivez directement sur la page. Le guide et l’export continuent de grandir dans les prochaines étapes.',
     },
@@ -64,6 +74,8 @@ export const fr: Dictionary = {
     untitledDocument: 'Document sans titre',
     statusLocal: 'Local-first',
     statusReady: 'Shell prête',
+    documentTitleLabel: 'Titre du document',
+    documentTitlePlaceholder: 'Titre du document',
     leftPanelLabel: 'Panneau gauche',
     rightPanelLabel: 'Panneau droit',
     guide: 'Guide',
@@ -185,11 +197,23 @@ export const fr: Dictionary = {
     languageHint: 'Appliqué immédiatement, aucun redémarrage nécessaire.',
     themeLabel: 'Thème',
     themeHint: 'Clair, sombre ou aligné sur le système.',
-    fontLabel: 'Police d’écriture',
-    fontHint: 'S’applique à l’éditeur et à l’aperçu en utilisant les polices déjà installées sur ce système.',
+    zoomLabel: 'Zoom de l’app',
+    zoomHint: 'Agrandit toute l’interface sans changer la police Doku selectionnee.',
+    fontLabel: 'Typographie',
+    fontHint: 'Chaque selecteur utilise le catalogue complet des polices Doku defini dans FONTS.md.',
     fontLoading: 'Chargement des polices système…',
     fontDefault: 'Police Doku par défaut',
-    fontLatexNotice: 'Les polices système personnalisées ne sont pas intégrées dans l’export LuaLaTeX.',
+    fontLatexNotice: 'L’export PDF recoit les polices Doku selectionnees pour le texte et le code.',
+    fontProfileLabel: 'Configuration des polices',
+    fontUiLabel: 'UI',
+    fontPdfLabel: 'PDF et apercu',
+    fontMonoLabel: 'Code',
+    fontAccessibilityLabel: 'Accessibilite',
+    fontAccessibilityMode: 'Utiliser la police accessible dans l’interface et la zone d’ecriture',
+    fontProfiles: {
+      professional: 'Professionnel',
+      allPurpose: 'Polyvalent',
+    },
     openDefaultApps: 'Ouvrir les préférences des apps par défaut',
     defaultAppsHint: 'Vous pouvez aussi définir Doku comme app par défaut pour les fichiers .md depuis les réglages système.',
     uninstallPreparationLabel: 'Préparation à la désinstallation',

@@ -2,26 +2,33 @@ import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { PdfExportRequestSchema, type PdfExportRequest, type PdfExportResult } from '@doku/schemas';
+import { shouldInjectPandocTitle } from './markdownTitle.js';
+import { buildLatexFontVariables, resolvePdfTypography } from './pdfTypography.js';
 
 const execFileAsync = promisify(execFile);
+const DEFAULT_FONT_ASSETS_DIR = fileURLToPath(new URL('./fonts', import.meta.url));
 
 interface LatexPdfExportServiceOptions {
   pandocPath?: string;
   lualatexPath?: string;
   latexRuntimeRoot?: string;
+  fontAssetsDir?: string;
 }
 
 export class LatexPdfExportService {
   private readonly pandocPath: string;
   private readonly lualatexPath: string;
   private readonly latexRuntimeRoot?: string;
+  private readonly fontAssetsDir: string;
 
   constructor(options: LatexPdfExportServiceOptions = {}) {
     this.pandocPath = options.pandocPath ?? 'pandoc';
     this.lualatexPath = options.lualatexPath ?? 'lualatex';
     this.latexRuntimeRoot = options.latexRuntimeRoot;
+    this.fontAssetsDir = options.fontAssetsDir ?? DEFAULT_FONT_ASSETS_DIR;
   }
 
   async exportPdf(raw: unknown, outputPath: string): Promise<PdfExportResult> {
@@ -44,6 +51,7 @@ export class LatexPdfExportService {
         pandocPath: this.pandocPath,
         lualatexPath: this.lualatexPath,
         latexRuntimeRoot: this.latexRuntimeRoot,
+        fontAssetsDir: this.fontAssetsDir,
       });
 
       const details = await stat(outputPath);
@@ -68,33 +76,47 @@ async function runPandoc(
     pandocPath: string;
     lualatexPath: string;
     latexRuntimeRoot?: string;
+    fontAssetsDir: string;
   },
 ): Promise<void> {
   try {
-    await execFileAsync(runtime.pandocPath, [
+    const args = [
       markdownPath,
       '--from=gfm',
       '--standalone',
       `--pdf-engine=${runtime.lualatexPath}`,
-      '--metadata',
-      `title=${input.title}`,
+      ...buildLatexFontVariables(resolvePdfTypography(input.typography)),
       '--output',
       outputPath,
-    ], {
-      env: buildLatexEnvironment(cacheDir, runtime.latexRuntimeRoot),
+    ];
+
+    if (shouldInjectPandocTitle(input.content, input.title)) {
+      args.splice(args.length - 2, 0, '--metadata', `title=${input.title.trim()}`);
+    }
+
+    await execFileAsync(runtime.pandocPath, args, {
+      env: buildLatexEnvironment(cacheDir, runtime.latexRuntimeRoot, runtime.fontAssetsDir),
     });
   } catch (error: unknown) {
     throw humanizeExportError(error);
   }
 }
 
-function buildLatexEnvironment(cacheDir: string, latexRuntimeRoot: string | undefined): NodeJS.ProcessEnv {
+function buildLatexEnvironment(
+  cacheDir: string,
+  latexRuntimeRoot: string | undefined,
+  bundledFontAssetsDir: string,
+): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     TEXMFCACHE: cacheDir,
     TEXMFVAR: cacheDir,
     XDG_CACHE_HOME: cacheDir,
   };
+
+  const runtimeFontAssetsDir = latexRuntimeRoot ? join(dirname(latexRuntimeRoot), 'fonts') : null;
+  const fontAssetsDir = runtimeFontAssetsDir ?? bundledFontAssetsDir;
+  env.OSFONTDIR = env.OSFONTDIR ? `${fontAssetsDir}:${env.OSFONTDIR}` : fontAssetsDir;
 
   if (!latexRuntimeRoot) {
     return env;

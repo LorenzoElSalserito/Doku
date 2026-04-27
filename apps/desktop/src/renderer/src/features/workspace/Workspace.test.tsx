@@ -386,6 +386,77 @@ describe('Workspace', () => {
     );
     expect(within(view.container).getByLabelText('Markdown editor')).toHaveValue('second paragraph');
   });
+
+  it('exports using the markdown heading instead of the untitled placeholder', async () => {
+    const user = userEvent.setup();
+    const onOpenExport = vi.fn();
+
+    render(
+      <I18nProvider language="en">
+        <ThemeProvider preference="light">
+          <Workspace
+            settings={{
+              ...DEFAULT_SETTINGS,
+              firstRunCompleted: true,
+            }}
+            initialDocument={null}
+            onUpdate={vi.fn().mockResolvedValue(undefined)}
+            onOpenSettings={vi.fn()}
+            onOpenInfo={vi.fn()}
+            onOpenGuide={vi.fn()}
+            onOpenExport={onOpenExport}
+          />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    const editor = (await screen.findAllByLabelText('Markdown editor')).at(-1);
+    expect(editor).toBeTruthy();
+    fireEvent.change(editor as HTMLElement, { target: { value: '# Editorial Title\n\nBody copy' } });
+
+    await user.click(screen.getAllByRole('button', { name: 'Export' }).at(-1) as HTMLElement);
+
+    expect(onOpenExport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Editorial Title',
+        content: '# Editorial Title\n\nBody copy',
+      }),
+    );
+  });
+
+  it('uses the document title field as the first markdown heading', async () => {
+    render(
+      <I18nProvider language="en">
+        <ThemeProvider preference="light">
+          <Workspace
+            settings={{
+              ...DEFAULT_SETTINGS,
+              firstRunCompleted: true,
+            }}
+            initialDocument={null}
+            onUpdate={vi.fn().mockResolvedValue(undefined)}
+            onOpenSettings={vi.fn()}
+            onOpenInfo={vi.fn()}
+            onOpenGuide={vi.fn()}
+            onOpenExport={vi.fn()}
+          />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    const titleInput = (await screen.findAllByLabelText('Document title')).at(-1);
+    if (!titleInput) {
+      throw new Error('Missing document title input');
+    }
+    fireEvent.change(titleInput, { target: { value: 'Editorial Title' } });
+
+    const editor = (await screen.findAllByLabelText('Markdown editor')).at(-1);
+    expect(editor).toHaveValue('# Editorial Title\n\n');
+
+    fireEvent.change(titleInput, { target: { value: 'Revised Title' } });
+
+    expect(editor).toHaveValue('# Revised Title\n\n');
+  });
 });
 
 function renderWorkspace({

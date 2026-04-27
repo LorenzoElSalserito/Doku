@@ -27,7 +27,13 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 interface ThemeProviderProps {
   preference: ThemePreference;
   customTheme?: CustomTheme;
+  appZoom?: 75 | 100 | 125 | 150;
   writingFontFamily?: string | null;
+  uiFontFamily?: string;
+  contentFontFamily?: string;
+  monospaceFontFamily?: string;
+  accessibilityFontFamily?: string;
+  accessibilityMode?: boolean;
   onPreferenceChange?: (next: ThemePreference) => void;
   children: ReactNode;
 }
@@ -48,7 +54,13 @@ const CUSTOM_THEME_VARIABLES = [
 export function ThemeProvider({
   preference,
   customTheme,
+  appZoom = 100,
   writingFontFamily,
+  uiFontFamily,
+  contentFontFamily,
+  monospaceFontFamily,
+  accessibilityFontFamily,
+  accessibilityMode = false,
   onPreferenceChange,
   children,
 }: ThemeProviderProps) {
@@ -74,6 +86,8 @@ export function ThemeProvider({
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = resolved;
+    root.dataset.appZoom = String(appZoom);
+    root.style.fontSize = `${appZoom}%`;
     if (preference === 'custom' && customTheme) {
       for (const [variable, key] of CUSTOM_THEME_VARIABLES) {
         root.style.setProperty(variable, customTheme[key]);
@@ -84,22 +98,52 @@ export function ThemeProvider({
       }
     }
 
-    if (writingFontFamily) {
-      const family = quoteFontFamily(writingFontFamily);
-      root.style.setProperty('--font-sans', `${family}, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`);
-      root.style.setProperty('--font-serif', `${family}, 'Source Serif 4', 'Source Serif Pro', 'Iowan Old Style', 'Charter', Georgia, 'Times New Roman', serif`);
-    } else {
-      root.style.removeProperty('--font-sans');
-      root.style.removeProperty('--font-serif');
-    }
-  }, [resolved, preference, customTheme, writingFontFamily]);
+    const readableFamily = accessibilityMode && accessibilityFontFamily ? accessibilityFontFamily : undefined;
+    const resolvedUiFont = readableFamily ?? uiFontFamily ?? writingFontFamily;
+    const resolvedContentFont = readableFamily ?? contentFontFamily ?? writingFontFamily;
+    const metricScale = getFontMetricScale(resolvedUiFont);
+
+    setFontVariable(root, '--font-sans', resolvedUiFont, "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif");
+    setFontVariable(root, '--font-serif', resolvedContentFont, "'Source Serif 4', 'Source Serif Pro', 'Iowan Old Style', 'Charter', Georgia, 'Times New Roman', serif");
+    setFontVariable(root, '--font-mono', monospaceFontFamily, "'JetBrains Mono', 'Fira Code', ui-monospace, 'SF Mono', Menlo, Consolas, monospace");
+    root.style.setProperty('--font-metric-scale', metricScale.toString());
+  }, [
+    accessibilityFontFamily,
+    accessibilityMode,
+    appZoom,
+    contentFontFamily,
+    customTheme,
+    monospaceFontFamily,
+    preference,
+    resolved,
+    uiFontFamily,
+    writingFontFamily,
+  ]);
 
   const themeKey = useMemo(
     () =>
-      preference === 'custom' && customTheme
-        ? `custom:${JSON.stringify(customTheme)}`
-        : `${preference}:${resolved}`,
-    [customTheme, preference, resolved],
+      [
+        preference === 'custom' && customTheme
+          ? `custom:${JSON.stringify(customTheme)}`
+          : `${preference}:${resolved}`,
+        `zoom:${appZoom}`,
+        `ui:${uiFontFamily ?? writingFontFamily ?? ''}`,
+        `content:${contentFontFamily ?? writingFontFamily ?? ''}`,
+        `mono:${monospaceFontFamily ?? ''}`,
+        `access:${accessibilityMode ? accessibilityFontFamily ?? '' : ''}`,
+      ].join('|'),
+    [
+      accessibilityFontFamily,
+      accessibilityMode,
+      appZoom,
+      contentFontFamily,
+      customTheme,
+      monospaceFontFamily,
+      preference,
+      resolved,
+      uiFontFamily,
+      writingFontFamily,
+    ],
   );
 
   const value = useMemo<ThemeContextValue>(
@@ -115,8 +159,43 @@ export function ThemeProvider({
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
+const FONT_METRIC_SCALE: Record<string, number> = {
+  Inter: 1,
+  Roboto: 0.98,
+  'Open Sans': 0.96,
+  'IBM Plex Sans': 0.98,
+  Ubuntu: 0.96,
+  'Source Serif 4': 0.98,
+  Merriweather: 0.88,
+  Lora: 0.97,
+  'Libre Baskerville': 0.94,
+  'JetBrains Mono': 0.92,
+  'Fira Code': 0.92,
+  'Roboto Mono': 0.92,
+  OpenDyslexic: 0.88,
+  'Atkinson Hyperlegible': 0.96,
+};
+
+function getFontMetricScale(family: string | null | undefined): number {
+  return family ? (FONT_METRIC_SCALE[family] ?? 1) : 1;
+}
+
 function quoteFontFamily(value: string): string {
   return /\s/.test(value) ? `'${value.replace(/'/g, "\\'")}'` : value;
+}
+
+function setFontVariable(
+  root: HTMLElement,
+  variable: string,
+  family: string | null | undefined,
+  fallback: string,
+): void {
+  if (!family) {
+    root.style.removeProperty(variable);
+    return;
+  }
+
+  root.style.setProperty(variable, `${quoteFontFamily(family)}, ${fallback}`);
 }
 
 export function useTheme(): ThemeContextValue {

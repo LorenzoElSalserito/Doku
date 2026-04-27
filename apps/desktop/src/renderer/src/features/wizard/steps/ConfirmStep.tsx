@@ -1,12 +1,13 @@
-import type { Language, ThemePreference } from '@doku/application';
+import type { DokuFontFamily, Language, ThemePreference } from '@doku/application';
 import { useDict } from '../../../i18n/I18nProvider.js';
 
 interface ConfirmStepProps {
   language: Language;
   theme: ThemePreference;
+  fontFamily: DokuFontFamily;
 }
 
-export function ConfirmStep({ language, theme }: ConfirmStepProps) {
+export function ConfirmStep({ language, theme, fontFamily }: ConfirmStepProps) {
   const dict = useDict();
 
   const themeLabel =
@@ -22,6 +23,12 @@ export function ConfirmStep({ language, theme }: ConfirmStepProps) {
         <div className="confirm-item">
           <div className="confirm-item__label">{dict.wizard.confirm.themeLabel}</div>
           <div className="confirm-item__value">{themeLabel}</div>
+        </div>
+        <div className="confirm-item">
+          <div className="confirm-item__label">{dict.wizard.confirm.fontLabel}</div>
+          <div className="confirm-item__value" style={{ fontFamily }}>
+            {fontFamily}
+          </div>
         </div>
       </div>
       <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>

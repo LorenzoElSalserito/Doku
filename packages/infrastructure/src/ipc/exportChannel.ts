@@ -21,7 +21,7 @@ export function registerExportChannel(
     const ownerWindow = BrowserWindow.fromWebContents(event.sender) ?? undefined;
     logger?.info('export:pdf-requested', {
       engine: input.engine,
-      title: input.title,
+      title: input.title ?? null,
       hasSourcePath: Boolean(input.sourcePath),
       contentLength: input.content.length,
     });
@@ -71,7 +71,7 @@ function buildDefaultPdfName(input: PdfExportRequest): string {
     return basename(input.sourcePath).replace(/\.[^.]+$/, '.pdf');
   }
 
-  return `${sanitizeFileName(input.title)}.pdf`;
+  return `${sanitizeFileName(input.title ?? 'document')}.pdf`;
 }
 
 function sanitizeFileName(value: string): string {

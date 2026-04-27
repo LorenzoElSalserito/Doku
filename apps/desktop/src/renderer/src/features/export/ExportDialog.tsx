@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Button, Dialog, SegmentedControl, type SegmentedOption } from '@doku/ui';
-import type { PdfExportResult, PdfExportRequest } from '@doku/application';
+import type { DokuTypography, PdfExportResult, PdfExportRequest } from '@doku/application';
 import { useDict } from '../../i18n/I18nProvider.js';
 
 interface ExportDialogProps {
   open: boolean;
-  documentTitle: string;
+  documentTitle?: string;
   documentContent: string;
   documentPath?: string;
+  typography: DokuTypography;
   onClose: () => void;
 }
 
@@ -28,6 +29,7 @@ export function ExportDialog({
   documentTitle,
   documentContent,
   documentPath,
+  typography,
   onClose,
 }: ExportDialogProps) {
   const dict = useDict();
@@ -56,6 +58,7 @@ export function ExportDialog({
         title: documentTitle,
         content: documentContent,
         sourcePath: documentPath,
+        typography,
       });
       setState({ status: 'success', error: null, result });
     } catch (error: unknown) {
@@ -104,7 +107,7 @@ export function ExportDialog({
         <dl className="export-dialog__meta">
           <div>
             <dt>{dict.exportDialog.documentLabel}</dt>
-            <dd>{documentTitle}</dd>
+            <dd>{documentTitle || documentPath || 'document'}</dd>
           </div>
           <div>
             <dt>{dict.exportDialog.outputLabel}</dt>
@@ -146,12 +149,12 @@ export function ExportDialog({
   );
 }
 
-function buildSuggestedOutputPath(documentTitle: string, documentPath?: string): string {
+function buildSuggestedOutputPath(documentTitle?: string, documentPath?: string): string {
   if (documentPath) {
     return documentPath.replace(/\.[^.]+$/, '.pdf');
   }
 
-  return `${sanitizeFileName(documentTitle)}.pdf`;
+  return `${sanitizeFileName(documentTitle || 'document')}.pdf`;
 }
 
 function sanitizeFileName(value: string): string {

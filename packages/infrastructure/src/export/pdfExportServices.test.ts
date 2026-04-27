@@ -112,6 +112,84 @@ describe('PDF export services', () => {
       expect.any(Function),
     );
   });
+
+  it('does not inject a fallback title into Pandoc when the markdown has no explicit title metadata', async () => {
+    const latexOutputPath = join('/tmp', `doku-lualatex-no-title-${Date.now()}.pdf`);
+    const latexService = new LatexPdfExportService({
+      pandocPath: '/opt/Doku/resources/export-runtime/latex/bin/pandoc',
+      lualatexPath: '/opt/Doku/resources/export-runtime/latex/bin/lualatex',
+      latexRuntimeRoot: '/opt/Doku/resources/export-runtime/latex',
+    });
+
+    await latexService.exportPdf(
+      {
+        engine: 'lualatex',
+        content: 'Body only',
+      },
+      latexOutputPath,
+    );
+
+    const weasyOutputPath = join('/tmp', `doku-weasy-no-title-${Date.now()}.pdf`);
+    const weasyService = new WeasyPdfExportService({
+      printStylesheetPath: 'packages/infrastructure/src/export/printStylesheet.css',
+      weasyScriptPath: 'packages/infrastructure/src/export/scripts/render_weasy_pdf.py',
+      pythonExecutablePath: '/opt/Doku/resources/export-runtime/weasy-python/bin/python',
+    });
+
+    await weasyService.exportPdf(
+      {
+        engine: 'weasy',
+        content: 'Body only',
+      },
+      weasyOutputPath,
+    );
+
+    const latexPandocArgs = execFileMock.mock.calls[0]?.[1];
+    const weasyPandocArgs = execFileMock.mock.calls[1]?.[1];
+
+    expect(latexPandocArgs).not.toContain('--metadata');
+    expect(weasyPandocArgs).not.toContain('--metadata');
+  });
+
+  it('does not duplicate the markdown heading as Pandoc title metadata', async () => {
+    const latexOutputPath = join('/tmp', `doku-lualatex-heading-title-${Date.now()}.pdf`);
+    const latexService = new LatexPdfExportService({
+      pandocPath: '/opt/Doku/resources/export-runtime/latex/bin/pandoc',
+      lualatexPath: '/opt/Doku/resources/export-runtime/latex/bin/lualatex',
+      latexRuntimeRoot: '/opt/Doku/resources/export-runtime/latex',
+    });
+
+    await latexService.exportPdf(
+      {
+        engine: 'lualatex',
+        title: 'Documento di Prova',
+        content: '# Documento di Prova\n\nQuesto è un documento di prova provata',
+      },
+      latexOutputPath,
+    );
+
+    const weasyOutputPath = join('/tmp', `doku-weasy-heading-title-${Date.now()}.pdf`);
+    const weasyService = new WeasyPdfExportService({
+      printStylesheetPath: 'packages/infrastructure/src/export/printStylesheet.css',
+      weasyScriptPath: 'packages/infrastructure/src/export/scripts/render_weasy_pdf.py',
+      pythonExecutablePath: '/opt/Doku/resources/export-runtime/weasy-python/bin/python',
+    });
+
+    await weasyService.exportPdf(
+      {
+        engine: 'weasy',
+        title: 'Documento di Prova',
+        content: '# Documento di Prova\n\nQuesto è un documento di prova provata',
+      },
+      weasyOutputPath,
+    );
+
+    const latexPandocArgs = execFileMock.mock.calls[0]?.[1];
+    const weasyPandocArgs = execFileMock.mock.calls[1]?.[1];
+
+    expect(latexPandocArgs).not.toContain('--metadata');
+    expect(weasyPandocArgs).not.toContain('--metadata');
+  });
 });
 
 function resolveOutputPath(command: string, args: string[]): string {

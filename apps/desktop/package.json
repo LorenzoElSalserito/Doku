@@ -46,6 +46,7 @@
         "filter": [
           "printStylesheet.css",
           "scripts/**",
+          "fonts/**",
           "weasy-python/**",
           "latex/**"
         ]

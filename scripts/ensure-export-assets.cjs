@@ -22,6 +22,20 @@ async function main() {
     join(sourceExportDir, 'scripts/render_weasy_pdf.py'),
     join(runtimeDir, 'scripts/render_weasy_pdf.py'),
   );
+  await copyDirIfExists(
+    join(sourceExportDir, 'fonts'),
+    join(runtimeDir, 'fonts'),
+  );
 
   console.log(`Portable export assets ready at ${runtimeDir}`);
+}
+
+async function copyDirIfExists(source, destination) {
+  try {
+    await fs.access(source);
+  } catch {
+    return;
+  }
+
+  await fs.cp(source, destination, { recursive: true, force: true });
 }

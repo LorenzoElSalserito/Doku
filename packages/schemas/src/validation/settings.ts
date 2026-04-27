@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEFAULT_DOKU_TYPOGRAPHY, DokuTypographySchema } from './fonts.js';
 
 export const LanguageSchema = z.enum(['it', 'en', 'es', 'de', 'fr', 'pt']);
 export type Language = z.infer<typeof LanguageSchema>;
@@ -8,6 +9,14 @@ export type ThemeBase = z.infer<typeof ThemeBaseSchema>;
 
 export const ThemePreferenceSchema = z.enum(['light', 'dark', 'system', 'custom']);
 export type ThemePreference = z.infer<typeof ThemePreferenceSchema>;
+
+export const AppZoomSchema = z.union([
+  z.literal(75),
+  z.literal(100),
+  z.literal(125),
+  z.literal(150),
+]);
+export type AppZoom = z.infer<typeof AppZoomSchema>;
 
 const HexColorSchema = z
   .string()
@@ -149,9 +158,10 @@ export type DocumentOperationResult = z.infer<typeof DocumentOperationResultSche
 
 export const PdfExportRequestSchema = z.object({
   engine: z.enum(['lualatex', 'weasy']),
-  title: z.string().min(1),
+  title: z.string().min(1).optional(),
   content: z.string(),
   sourcePath: z.string().min(1).optional(),
+  typography: DokuTypographySchema.optional(),
 });
 export type PdfExportRequest = z.infer<typeof PdfExportRequestSchema>;
 
@@ -190,7 +200,9 @@ export type DefaultAppPrompt = z.infer<typeof DefaultAppPromptSchema>;
 export const SettingsSchema = z.object({
   language: LanguageSchema,
   theme: ThemePreferenceSchema,
+  appZoom: AppZoomSchema,
   customTheme: CustomThemeSchema,
+  typography: DokuTypographySchema,
   writingFontFamily: z.string().min(1).nullable(),
   workspaceQuickActionsVisible: z.boolean(),
   defaultMarkdownAppPrompt: DefaultAppPromptSchema,
@@ -204,7 +216,9 @@ export type Settings = z.infer<typeof SettingsSchema>;
 export const DEFAULT_SETTINGS: Settings = {
   language: 'en',
   theme: 'system',
+  appZoom: 100,
   customTheme: DEFAULT_CUSTOM_THEME,
+  typography: DEFAULT_DOKU_TYPOGRAPHY,
   writingFontFamily: null,
   workspaceQuickActionsVisible: false,
   defaultMarkdownAppPrompt: {

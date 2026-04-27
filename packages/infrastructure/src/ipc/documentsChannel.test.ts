@@ -151,6 +151,35 @@ describe('documents channel', () => {
       }),
     );
   });
+
+  it('derives the saved document title from the markdown heading instead of the untitled placeholder', async () => {
+    const outputPath = join(userDataDir, 'document.md');
+    electronMock.dialog.showSaveDialog.mockResolvedValue({
+      canceled: false,
+      filePath: outputPath,
+    });
+
+    const result = await invokeDocumentsSave({
+      id: 'draft:current',
+      kind: 'draft',
+      title: 'Untitled document',
+      content: '# Real Title\n\nBody copy',
+      mode: 'save',
+    });
+
+    expect(electronMock.dialog.showSaveDialog).toHaveBeenCalledWith(
+      electronMock.ownerWindow,
+      expect.objectContaining({
+        defaultPath: 'real-title.md',
+      }),
+    );
+    expect(result.document).toEqual(
+      expect.objectContaining({
+        title: 'Real Title',
+        path: outputPath,
+      }),
+    );
+  });
 });
 
 async function invokeDocumentsSave(input: unknown) {

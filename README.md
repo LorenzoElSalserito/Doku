@@ -24,15 +24,16 @@ The result is a desktop Markdown editor that feels closer to a digital editorial
 - **Editorial workspace**: write, preview and split modes are designed for long-form focus.
 - **Integrated guidance**: product help and Markdown guidance are available inside the app, so you do not need to leave your writing context.
 - **Beautiful light and dark themes**: Warm Ivory and Deep Slate are treated as two first-class editorial identities.
+- **Bundled typography and app zoom**: Doku ships its font catalog with the app and offers 75%, 100%, 125% and 150% interface zoom without requiring system font installation.
 - **Multilingual from the start**: the interface supports English, Italian, Spanish, German, French and Portuguese.
 - **Local export flow**: save Markdown and export PDFs through local document pipelines.
 - **Privacy-first posture**: no content upload, no content analytics and no telemetry-driven writing experience.
 
 ## Core Experience
 
-Doku starts with a short onboarding flow for language and theme. After that, the workspace becomes the center of the product: a clean editor, a live preview, optional panels, recent documents, save state, guide access and export actions.
+Doku starts with a short onboarding flow for language, theme and writing font. After that, the workspace becomes the center of the product: a clean editor, a live preview, optional panels, recent documents, save state, guide access and export actions.
 
-The writing surface is intentionally restrained. It favors readability, keyboard access, persistent preferences and a clear sense of document state over crowded toolbars or technical panels.
+The writing surface is intentionally restrained. It favors readability, keyboard access, persistent preferences and a clear sense of document state over crowded toolbars or technical panels. The selected font is normalized for consistent UI behavior at 100%; the app zoom preference scales the full interface when a user wants a smaller or larger workspace.
 
 Unsaved drafts remain a single continuous working sheet during autosave. Autosave updates the local draft snapshot and recent-document metadata without clearing the editor or creating a new blank document under the user's cursor.
 
@@ -59,7 +60,7 @@ When you have a generated installer, use the standard installer for your platfor
 After installation:
 
 1. Launch Doku from the installed application.
-2. Complete the first-run language and theme setup.
+2. Complete the first-run language, theme and font setup.
 3. Open or create a Markdown document.
 4. Confirm that preferences persist after closing and reopening the app.
 

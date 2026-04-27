@@ -31,6 +31,7 @@ export const pt: Dictionary = {
     steps: {
       language: 'Idioma',
       theme: 'Tema',
+      font: 'Fonte',
       confirm: 'Pronto',
     },
     language: {
@@ -44,11 +45,20 @@ export const pt: Dictionary = {
       previewBody:
         'O Doku trata a página como o coração do seu ofício. Cada superfície, cada espaço e cada detalhe tipográfico foram afinados para manter as palavras em primeiro plano.',
     },
+    font: {
+      title: 'Escolha a fonte de escrita',
+      subtitle:
+        'Escolha a tipografia que o Doku usará na interface, editor, pré-visualização e exportação PDF.',
+      previewLabel: 'Pré-visualização',
+      sampleText:
+        'Um parágrafo claro facilita ler, editar e exportar notas longas.',
+    },
     confirm: {
       title: 'Tudo pronto — abra o seu estúdio',
       subtitle: 'As suas preferências são guardadas neste dispositivo.',
       languageLabel: 'Idioma',
       themeLabel: 'Tema',
+      fontLabel: 'Fonte',
       nextSteps:
         'Depois do wizard, você entra diretamente na página. Guia e exportação continuam a crescer nas próximas milestones.',
     },
@@ -64,6 +74,8 @@ export const pt: Dictionary = {
     untitledDocument: 'Documento sem título',
     statusLocal: 'Local-first',
     statusReady: 'Shell pronta',
+    documentTitleLabel: 'Título do documento',
+    documentTitlePlaceholder: 'Título do documento',
     leftPanelLabel: 'Painel esquerdo',
     rightPanelLabel: 'Painel direito',
     guide: 'Guia',
@@ -185,11 +197,23 @@ export const pt: Dictionary = {
     languageHint: 'Aplicado de imediato, sem reinício.',
     themeLabel: 'Tema',
     themeHint: 'Claro, escuro ou seguindo o sistema.',
-    fontLabel: 'Fonte de escrita',
-    fontHint: 'Aplica-se ao editor e à pré-visualização usando fontes já instaladas neste sistema.',
+    zoomLabel: 'Zoom da app',
+    zoomHint: 'Dimensiona toda a interface sem alterar a fonte Doku selecionada.',
+    fontLabel: 'Tipografia',
+    fontHint: 'Cada seletor usa o catalogo completo de fontes Doku definido em FONTS.md.',
     fontLoading: 'A carregar fontes do sistema…',
     fontDefault: 'Predefinição do Doku',
-    fontLatexNotice: 'As fontes de sistema personalizadas não são incorporadas na exportação LuaLaTeX.',
+    fontLatexNotice: 'A exportacao PDF recebe as fontes Doku selecionadas para texto e codigo.',
+    fontProfileLabel: 'Configuracao de fontes',
+    fontUiLabel: 'UI',
+    fontPdfLabel: 'PDF e pre-visualizacao',
+    fontMonoLabel: 'Codigo',
+    fontAccessibilityLabel: 'Acessibilidade',
+    fontAccessibilityMode: 'Usar a fonte acessivel na interface e na area de escrita',
+    fontProfiles: {
+      professional: 'Profissional',
+      allPurpose: 'Versatil',
+    },
     openDefaultApps: 'Abrir preferências de apps predefinidas',
     defaultAppsHint: 'Também pode configurar o Doku como app predefinida para ficheiros .md nas definições do sistema.',
     uninstallPreparationLabel: 'Preparação para desinstalação',

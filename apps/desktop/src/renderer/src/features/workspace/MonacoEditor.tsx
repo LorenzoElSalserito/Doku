@@ -187,10 +187,8 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
       wordWrap: 'on',
       scrollBeyondLastLine: false,
       automaticLayout: true,
-      padding: { top: 24, bottom: 24 },
-      fontFamily: 'var(--font-sans)',
-      fontSize: 15,
-      lineHeight: 25,
+      padding: getEditorPadding(),
+      ...getEditorTypography(),
       smoothScrolling: true,
       tabSize: 2,
       insertSpaces: true,
@@ -254,6 +252,18 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
       return;
     }
 
+    editor.updateOptions({
+      padding: getEditorPadding(),
+      ...getEditorTypography(),
+    });
+  }, [themeKey]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+
     if (editor.getValue() !== value) {
       editor.setValue(value);
     }
@@ -264,4 +274,32 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
 
 function normalizeColor(value: string): string {
   return value.trim().replace('#', '');
+}
+
+function getEditorTypography(): { fontFamily: string; fontSize: number; lineHeight: number } {
+  const rootStyles = getComputedStyle(document.documentElement);
+  const rootFontSize = parseCssPx(rootStyles.fontSize, 16);
+  const metricScale = Number.parseFloat(rootStyles.getPropertyValue('--font-metric-scale')) || 1;
+  const fontSize = clamp(Math.round(rootFontSize * metricScale), 11, 28);
+
+  return {
+    fontFamily: rootStyles.getPropertyValue('--font-sans').trim() || 'Inter, sans-serif',
+    fontSize,
+    lineHeight: Math.round(fontSize * 1.65),
+  };
+}
+
+function getEditorPadding(): { top: number; bottom: number } {
+  const rootFontSize = parseCssPx(getComputedStyle(document.documentElement).fontSize, 16);
+  const padding = Math.round(rootFontSize * 1.5);
+  return { top: padding, bottom: padding };
+}
+
+function parseCssPx(value: string, fallback: number): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }

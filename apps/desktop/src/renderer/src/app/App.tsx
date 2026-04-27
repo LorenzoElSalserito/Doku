@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { ThemeProvider } from '@doku/ui';
-import type { Settings, SettingsPatch, ThemePreference } from '@doku/application';
+import type { DokuTypography, Settings, SettingsPatch, ThemePreference } from '@doku/application';
 import { useSettings } from '../hooks/useSettings.js';
 import { I18nProvider, useDict } from '../i18n/I18nProvider.js';
 import { SetupWizard } from '../features/wizard/SetupWizard.js';
@@ -38,7 +38,7 @@ export function App() {
   const [guideOpen, setGuideOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportDraft, setExportDraft] = useState<{
-    title: string;
+    title?: string;
     content: string;
     path?: string;
   } | null>(null);
@@ -78,7 +78,13 @@ export function App() {
       <ThemeProvider
         preference={settings.theme}
         customTheme={settings.customTheme}
+        appZoom={settings.appZoom}
         writingFontFamily={settings.writingFontFamily}
+        uiFontFamily={normalizeUnifiedTypography(settings.typography).uiFontFamily}
+        contentFontFamily={normalizeUnifiedTypography(settings.typography).pdfFontFamily}
+        monospaceFontFamily={normalizeUnifiedTypography(settings.typography).monospaceFontFamily}
+        accessibilityFontFamily={normalizeUnifiedTypography(settings.typography).accessibilityFontFamily}
+        accessibilityMode={normalizeUnifiedTypography(settings.typography).accessibilityMode}
         onPreferenceChange={handleThemeChange}
       >
         <AppShell
@@ -126,7 +132,7 @@ interface AppShellProps {
   infoOpen: boolean;
   guideOpen: boolean;
   exportOpen: boolean;
-  exportDraft: { title: string; content: string; path?: string } | null;
+  exportDraft: { title?: string; content: string; path?: string } | null;
   onUpdate: (patch: SettingsPatch) => Promise<void>;
   onOpenSettings: () => void;
   onCloseSettings: () => void;
@@ -134,7 +140,7 @@ interface AppShellProps {
   onCloseInfo: () => void;
   onOpenGuide: () => void;
   onCloseGuide: () => void;
-  onOpenExport: (document: { title: string; content: string; path?: string }) => void;
+  onOpenExport: (document: { title?: string; content: string; path?: string }) => void;
   onCloseExport: () => void;
 }
 
@@ -208,16 +214,27 @@ function AppShell({
           <ExportDialog
             open={exportOpen}
             onClose={onCloseExport}
-            documentTitle={
-              exportDraft?.title ?? quickResumeDocument?.title ?? dict.workspace.untitledDocument
-            }
+            documentTitle={exportDraft?.title ?? quickResumeDocument?.title}
             documentContent={exportDraft?.content ?? ''}
             documentPath={exportDraft?.path}
+            typography={normalizeUnifiedTypography(settings.typography)}
           />
         ) : null}
       </Suspense>
     </div>
   );
+}
+
+function normalizeUnifiedTypography(typography: DokuTypography): DokuTypography {
+  const fontFamily = typography.uiFontFamily;
+
+  return {
+    ...typography,
+    pdfFontFamily: fontFamily,
+    monospaceFontFamily: fontFamily,
+    accessibilityFontFamily: fontFamily,
+    accessibilityMode: false,
+  };
 }
 
 function resolvePreferredLanguage(): LanguageCode {

@@ -5,6 +5,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { PdfExportRequestSchema, type PdfExportRequest, type PdfExportResult } from '@doku/schemas';
+import { shouldInjectPandocTitle } from './markdownTitle.js';
+import { buildWeasyTypographyCss, resolvePdfTypography } from './pdfTypography.js';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_WEASY_SCRIPT_PATH = fileURLToPath(new URL('./scripts/render_weasy_pdf.py', import.meta.url));
@@ -43,6 +45,14 @@ export class WeasyPdfExportService {
 
       await writeFile(markdownPath, input.content, 'utf-8');
       await copyFile(this.printStylesheetPath, stylesheetPath);
+      await writeFile(
+        stylesheetPath,
+        buildWeasyTypographyCss(
+          resolvePdfTypography(input.typography),
+          join(dirname(this.printStylesheetPath), 'fonts'),
+        ),
+        { flag: 'a' },
+      );
       await mkdir(dirname(outputPath), { recursive: true });
 
       await renderHtml(markdownPath, htmlPath, stylesheetPath, input);
@@ -68,18 +78,22 @@ async function renderHtml(
   input: PdfExportRequest,
 ): Promise<void> {
   try {
-    await execFileAsync('pandoc', [
+    const args = [
       markdownPath,
       '--from=gfm',
       '--to=html5',
       '--standalone',
       '--css',
       stylesheetPath,
-      '--metadata',
-      `title=${input.title}`,
       '--output',
       htmlPath,
-    ]);
+    ];
+
+    if (shouldInjectPandocTitle(input.content, input.title)) {
+      args.splice(args.length - 2, 0, '--metadata', `title=${input.title.trim()}`);
+    }
+
+    await execFileAsync('pandoc', args);
   } catch (error: unknown) {
     throw humanizeWeasyError(error);
   }

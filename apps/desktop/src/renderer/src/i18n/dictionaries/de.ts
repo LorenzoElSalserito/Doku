@@ -31,6 +31,7 @@ export const de: Dictionary = {
     steps: {
       language: 'Sprache',
       theme: 'Thema',
+      font: 'Schrift',
       confirm: 'Bereit',
     },
     language: {
@@ -45,11 +46,20 @@ export const de: Dictionary = {
       previewBody:
         'Für Doku steht die Seite im Mittelpunkt deines Handwerks. Jede Fläche, jeder Abstand und jedes typografische Detail wurde so abgestimmt, dass die Worte im Vordergrund bleiben.',
     },
+    font: {
+      title: 'Wähle deine Schreibschrift',
+      subtitle:
+        'Wähle die Typografie für Oberfläche, Editor, Vorschau und PDF-Export.',
+      previewLabel: 'Vorschau',
+      sampleText:
+        'Ein klarer Absatz macht lange Notizen leichter lesbar, bearbeitbar und exportierbar.',
+    },
     confirm: {
       title: 'Alles bereit — öffne dein Studio',
       subtitle: 'Deine Einstellungen werden auf diesem Gerät gespeichert.',
       languageLabel: 'Sprache',
       themeLabel: 'Thema',
+      fontLabel: 'Schrift',
       nextSteps:
         'Nach dem Wizard landest du direkt auf der Seite. Guide und Export wachsen in den nächsten Meilensteinen weiter.',
     },
@@ -65,6 +75,8 @@ export const de: Dictionary = {
     untitledDocument: 'Unbenanntes Dokument',
     statusLocal: 'Local-first',
     statusReady: 'Shell bereit',
+    documentTitleLabel: 'Dokumenttitel',
+    documentTitlePlaceholder: 'Dokumenttitel',
     leftPanelLabel: 'Linkes Panel',
     rightPanelLabel: 'Rechtes Panel',
     guide: 'Guide',
@@ -186,11 +198,23 @@ export const de: Dictionary = {
     languageHint: 'Sofort wirksam, kein Neustart nötig.',
     themeLabel: 'Thema',
     themeHint: 'Hell, dunkel oder nach Systemeinstellung.',
-    fontLabel: 'Schrift zum Schreiben',
-    fontHint: 'Wird auf Editor und Vorschau angewendet und nutzt nur auf diesem System installierte Schriften.',
+    zoomLabel: 'App-Zoom',
+    zoomHint: 'Skaliert die gesamte Oberflache, ohne die gewahlte Doku-Schrift zu andern.',
+    fontLabel: 'Typografie',
+    fontHint: 'Jede Auswahl nutzt den vollstandigen Doku-Fontkatalog aus FONTS.md.',
     fontLoading: 'Systemschriften werden geladen…',
     fontDefault: 'Doku-Standard',
-    fontLatexNotice: 'Benutzerdefinierte Systemschriften werden im LuaLaTeX-Export nicht eingebettet.',
+    fontLatexNotice: 'Der PDF-Export erhalt die ausgewahlten Doku-Schriften fur Dokumenttext und Code.',
+    fontProfileLabel: 'Font-Setup',
+    fontUiLabel: 'UI',
+    fontPdfLabel: 'PDF und Vorschau',
+    fontMonoLabel: 'Code',
+    fontAccessibilityLabel: 'Barrierefreiheit',
+    fontAccessibilityMode: 'Barrierefreie Schrift fur Oberflache und Schreibbereich verwenden',
+    fontProfiles: {
+      professional: 'Professionell',
+      allPurpose: 'Allround',
+    },
     openDefaultApps: 'Standard-App-Einstellungen öffnen',
     defaultAppsHint: 'Du kannst Doku auch in den Systemeinstellungen als Standard-App für .md-Dateien festlegen.',
     uninstallPreparationLabel: 'Vorbereitung der Deinstallation',

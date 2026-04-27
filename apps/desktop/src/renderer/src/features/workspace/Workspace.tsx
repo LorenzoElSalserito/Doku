@@ -154,7 +154,7 @@ export function Workspace({
         const result = await window.doku.documents.saveDocument({
           id: document.id,
           kind: document.kind,
-          title: document.title || dict.workspace.untitledDocument,
+          title: resolveDocumentSaveTitle(document),
           path: document.path,
           content: document.content,
           mode,
@@ -195,7 +195,6 @@ export function Workspace({
     },
     [
       dict.workspace.editorErrorBody,
-      dict.workspace.untitledDocument,
       document,
       onUpdate,
     ],
@@ -377,16 +376,32 @@ export function Workspace({
   const previewContent = document?.content ?? '';
   const words = useMemo(() => countWords(previewContent), [previewContent]);
   const characters = previewContent.length;
-  const exportTitle = resolveDocumentExportTitle(document, dict.workspace.untitledDocument);
+  const exportTitle = resolveDocumentExportTitle(document);
+  const documentTitleValue = exportTitle ?? '';
   const recentDocuments = useMemo(
     () => settings.launcher.recentDocuments.filter((summary) => summary.id !== document?.id).slice(0, 4),
     [document?.id, settings.launcher.recentDocuments],
   );
 
   const viewOptions: SegmentedOption<ViewMode>[] = [
-    { value: 'write', label: dict.workspace.writeMode },
-    { value: 'preview', label: dict.workspace.previewMode },
-    { value: 'split', label: dict.workspace.splitMode },
+    {
+      value: 'write',
+      label: <WriteModeIcon />,
+      ariaLabel: dict.workspace.writeMode,
+      title: dict.workspace.writeMode,
+    },
+    {
+      value: 'preview',
+      label: <PreviewModeIcon />,
+      ariaLabel: dict.workspace.previewMode,
+      title: dict.workspace.previewMode,
+    },
+    {
+      value: 'split',
+      label: <SplitModeIcon />,
+      ariaLabel: dict.workspace.splitMode,
+      title: dict.workspace.splitMode,
+    },
   ];
 
   const handleViewModeChange = useCallback(
@@ -413,8 +428,28 @@ export function Workspace({
 
       return {
         ...current,
+        title: resolveDocumentDisplayTitle(nextValue, current.path, dict.workspace.untitledDocument),
         content: nextValue,
         snippet: extractSnippet(nextValue),
+        lastOpenedAt: new Date().toISOString(),
+      };
+    });
+    setSaveState('dirty');
+  };
+
+  const handleTitleChange = (nextTitle: string) => {
+    setDocument((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const nextContent = updateMarkdownTitle(current.content, nextTitle);
+
+      return {
+        ...current,
+        title: resolveDocumentDisplayTitle(nextContent, current.path, dict.workspace.untitledDocument),
+        content: nextContent,
+        snippet: extractSnippet(nextContent),
         lastOpenedAt: new Date().toISOString(),
       };
     });
@@ -771,6 +806,15 @@ export function Workspace({
                 </span>
               ))}
             </nav>
+            <label className="workspace__document-title">
+              <span className="sr-only">{dict.workspace.documentTitleLabel}</span>
+              <Input
+                value={documentTitleValue}
+                placeholder={dict.workspace.documentTitlePlaceholder}
+                aria-label={dict.workspace.documentTitleLabel}
+                onChange={(event) => handleTitleChange(event.target.value)}
+              />
+            </label>
           </div>
 
           <div className="workspace__header-side">
@@ -831,37 +875,36 @@ export function Workspace({
               </div>
 
               <div className="workspace__action-group workspace__action-group--primary">
-                <Button variant="secondary" size="sm" onClick={() => void saveDocument('save')}>
-                  {dict.workspace.save}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => void saveDocument('saveAs')}>
-                  {dict.workspace.saveAs}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <IconButton label={dict.workspace.save} onClick={() => void saveDocument('save')}>
+                  <SaveIcon />
+                </IconButton>
+                <IconButton label={dict.workspace.saveAs} onClick={() => void saveDocument('saveAs')}>
+                  <SaveAsIcon />
+                </IconButton>
+                <IconButton
+                  label={dict.workspace.export}
                   onClick={() =>
                     onOpenExport({
-                      title: exportTitle,
+                      title: documentTitleValue,
                       content: document?.content ?? '',
                       path: document?.path,
                     })
                   }
                 >
-                  {dict.workspace.export}
-                </Button>
+                  <ExportIcon />
+                </IconButton>
               </div>
 
               <div className="workspace__action-group workspace__action-group--secondary">
-                <Button variant="ghost" size="sm" onClick={onOpenGuide}>
-                  {dict.workspace.guide}
-                </Button>
-                <Button variant="secondary" size="sm" onClick={onOpenSettings}>
-                  {dict.workspace.settings}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={onOpenInfo}>
-                  {dict.workspace.info}
-                </Button>
+                <IconButton label={dict.workspace.guide} onClick={onOpenGuide}>
+                  <GuideIcon />
+                </IconButton>
+                <IconButton label={dict.workspace.settings} onClick={onOpenSettings}>
+                  <SettingsIcon />
+                </IconButton>
+                <IconButton label={dict.workspace.info} onClick={onOpenInfo}>
+                  <InfoIcon />
+                </IconButton>
               </div>
             </div>
           </div>
@@ -1273,14 +1316,116 @@ function removeSummaryFromLauncher(
 
 function resolveDocumentExportTitle(
   document: DocumentSession | null,
-  fallback: string,
-): string {
-  if (!document?.path) {
-    return fallback;
+): string | undefined {
+  if (!document) {
+    return undefined;
   }
 
-  const filename = document.path.split(/[\\/]/).pop();
-  return filename?.replace(/\.[^.]+$/, '') || fallback;
+  return extractMarkdownTitle(document.content) ?? undefined;
+}
+
+function resolveDocumentSaveTitle(document: DocumentSession): string {
+  const markdownTitle = extractMarkdownTitle(document.content);
+  if (markdownTitle) {
+    return markdownTitle;
+  }
+
+  if (document.path) {
+    return fileNameWithoutExtension(document.path);
+  }
+
+  return 'document';
+}
+
+function resolveDocumentDisplayTitle(content: string, filePath: string | undefined, fallback: string): string {
+  const markdownTitle = extractMarkdownTitle(content);
+  if (markdownTitle) {
+    return markdownTitle;
+  }
+
+  if (filePath) {
+    return fileNameWithoutExtension(filePath);
+  }
+
+  return fallback;
+}
+
+function extractMarkdownTitle(content: string): string | null {
+  const normalized = content.replace(/\r\n/g, '\n');
+  const lines = normalized.split('\n');
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]?.trim();
+    if (!line) {
+      continue;
+    }
+
+    const atxHeading = line.match(/^#\s+(.+?)\s*#*$/);
+    if (atxHeading?.[1]) {
+      return atxHeading[1].trim();
+    }
+
+    const nextLine = lines[index + 1]?.trim();
+    if (nextLine && (/^=+$/.test(nextLine) || /^-+$/.test(nextLine))) {
+      return line;
+    }
+
+    return null;
+  }
+
+  return null;
+}
+
+function updateMarkdownTitle(content: string, title: string): string {
+  const nextTitle = title.trim();
+  const normalized = content.replace(/\r\n/g, '\n');
+  const lines = normalized.split('\n');
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]?.trim();
+    if (!line) {
+      continue;
+    }
+
+    if (/^#\s+(.+?)\s*#*$/.test(line)) {
+      if (nextTitle) {
+        lines[index] = `# ${nextTitle}`;
+      } else {
+        lines.splice(index, 1);
+        if (lines[index] === '') {
+          lines.splice(index, 1);
+        }
+      }
+      return lines.join('\n');
+    }
+
+    const nextLine = lines[index + 1]?.trim();
+    if (nextLine && (/^=+$/.test(nextLine) || /^-+$/.test(nextLine))) {
+      if (nextTitle) {
+        lines[index] = nextTitle;
+        lines[index + 1] = '='.repeat(Math.max(nextTitle.length, 1));
+      } else {
+        lines.splice(index, 2);
+        if (lines[index] === '') {
+          lines.splice(index, 1);
+        }
+      }
+      return lines.join('\n');
+    }
+
+    break;
+  }
+
+  if (!nextTitle) {
+    return content;
+  }
+
+  return normalized.trim().length > 0 ? `# ${nextTitle}\n\n${normalized}` : `# ${nextTitle}\n\n`;
+}
+
+function fileNameWithoutExtension(filePath: string): string {
+  const filename = filePath.split(/[\\/]/).pop();
+  return filename?.replace(/\.[^.]+$/, '') || filename || '';
 }
 
 function extractSnippet(value: string): string {
@@ -1621,6 +1766,88 @@ function QuickActionsIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function WriteModeIcon() {
+  return (
+    <svg className="workspace__mode-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M6 18l3.4-.7L18 8.7 15.3 6 6.7 14.6z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M13.8 7.5l2.7 2.7M5 20h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PreviewModeIcon() {
+  return (
+    <svg className="workspace__mode-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M4.5 12s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="2.2" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
+function SplitModeIcon() {
+  return (
+    <svg className="workspace__mode-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M5 6h14v12H5zM12 6v12" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M7.5 9h2.2M7.5 12h2.8M14.5 10.2c.6-.7 1.3-1 2-1s1.4.3 2 1M14.5 13.8c.6.7 1.3 1 2 1s1.4-.3 2-1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SaveIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M6 4h10l2 2v14H6z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M9 4v5h6V4M9 17h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function SaveAsIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M5 5h9l2 2v5.5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M7 5v5h6V5M7 19h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M14 18.5l4.6-4.6 1.5 1.5-4.6 4.6H14z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ExportIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M6 5h8l4 4v10H6z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M14 5v4h4M12 12v5M9.5 14.5L12 17l2.5-2.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function GuideIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M5.5 5.5h6.2c1.3 0 2.3 1 2.3 2.3v10.7c0-1.2-1-2.2-2.2-2.2H5.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M18.5 5.5H14v13c0-1.2 1-2.2 2.2-2.2h2.3zM8 8.5h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M12 8.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M18.2 13.3l1.3 1-.8 1.5-1.6-.4a6.6 6.6 0 01-1.2 1l-.2 1.7h-1.7l-.2-1.7a6.4 6.4 0 01-1.5-.2l-1.2 1.2-1.5-.9.4-1.6a6.4 6.4 0 01-1-1.2l-1.7-.2v-1.7l1.7-.2c.1-.5.2-1 .4-1.4L6.8 8.8l.9-1.5 1.6.4a6.6 6.6 0 011.2-1l.2-1.7h1.7l.2 1.7c.5.1 1 .2 1.4.4l1.3-1.1 1.5.9-.4 1.6c.4.4.7.8 1 1.2l1.7.2v1.7l-1.7.2c-.1.5-.2 1-.4 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M12 11v4M12 8.2v.1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }

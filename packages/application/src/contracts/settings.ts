@@ -1,6 +1,7 @@
 export type {
   Language,
   ThemePreference,
+  AppZoom,
   ThemeBase,
   CustomTheme,
   DefaultAppPrompt,
@@ -15,6 +16,15 @@ export type {
   LauncherState,
   WorkspaceLayout,
   WorkspaceViewMode,
+  DokuTypography,
+  DokuFontFamily,
 } from '@doku/schemas';
 
-export { DEFAULT_CUSTOM_THEME, DEFAULT_WORKSPACE_LAYOUT } from '@doku/schemas';
+export {
+  DEFAULT_CUSTOM_THEME,
+  DEFAULT_WORKSPACE_LAYOUT,
+  DOKU_FONT_CATALOG,
+  DOKU_FONT_PROFILES,
+  DEFAULT_DOKU_TYPOGRAPHY,
+  buildUnifiedDokuTypography,
+} from '@doku/schemas';

@@ -260,7 +260,7 @@ async function loadFileDocument(filePath: string, autosaveDir: string): Promise<
   const diskContent = await fs.readFile(filePath, 'utf-8');
   const autosave = await readAutosaveForDocument(filePath, autosaveDir);
   const content = autosave?.content ?? diskContent;
-  const title = basename(filePath).replace(/\.[^.]+$/, '') || basename(filePath);
+  const title = resolveDocumentTitle(content, filePath, basename(filePath).replace(/\.[^.]+$/, '') || basename(filePath));
 
   return {
     id: filePath,
@@ -286,7 +286,7 @@ async function loadDraftDocument(
   return {
     id: summary.id,
     kind: 'draft',
-    title: autosave.title || summary.title,
+    title: resolveDocumentTitle(autosave.content, undefined, autosave.title || summary.title),
     content: autosave.content,
     snippet: extractSnippet(autosave.content),
     lastOpenedAt: new Date().toISOString(),
@@ -299,6 +299,8 @@ async function saveDocument(
   autosaveDir: string,
   ownerWindow?: BrowserWindow,
 ): Promise<DocumentSession> {
+  const suggestedTitle = resolveDocumentTitle(input.content, input.path);
+
   if (input.mode === 'autosave') {
     let lastSavedAt: string | null = null;
 
@@ -315,8 +317,8 @@ async function saveDocument(
 
   const savePath =
     input.mode === 'saveAs'
-      ? await requestSavePath(ownerWindow, input.title, input.path)
-      : input.path ?? (await requestSavePath(ownerWindow, input.title, input.path));
+      ? await requestSavePath(ownerWindow, suggestedTitle, input.path)
+      : input.path ?? (await requestSavePath(ownerWindow, suggestedTitle, input.path));
 
   if (!savePath) {
     throw new Error('Save operation canceled.');
@@ -325,7 +327,11 @@ async function saveDocument(
   await fs.mkdir(dirname(savePath), { recursive: true });
   await fs.writeFile(savePath, input.content, 'utf-8');
 
-  const title = basename(savePath).replace(/\.[^.]+$/, '') || basename(savePath);
+  const title = resolveDocumentTitle(
+    input.content,
+    savePath,
+    basename(savePath).replace(/\.[^.]+$/, '') || basename(savePath),
+  );
   const lastSavedAt = new Date().toISOString();
   const document: DocumentSession = {
     id: savePath,
@@ -419,7 +425,7 @@ function createSessionFromInput(
   return {
     id: input.kind === 'file' && filePath ? filePath : input.id || `draft:${randomUUID()}`,
     kind: input.kind,
-    title: input.title,
+    title: resolveDocumentTitle(input.content, filePath, input.title),
     path: filePath,
     content: input.content,
     snippet: extractSnippet(input.content),
@@ -434,7 +440,7 @@ async function requestSavePath(
   existingPath?: string,
 ): Promise<string | null> {
   const dialogOptions: SaveDialogOptions = {
-    defaultPath: existingPath ?? `${sanitizeFileName(title)}.md`,
+    defaultPath: existingPath ?? `${sanitizeFileName(title || 'document')}.md`,
     filters: [{ name: 'Markdown', extensions: ['md'] }],
   };
 
@@ -543,6 +549,45 @@ function sanitizeFileName(value: string): string {
     .replace(/[<>:"/\\|?*]+/g, '-')
     .replace(/\s+/g, '-')
     .toLowerCase();
+}
+
+function resolveDocumentTitle(content: string, filePath?: string, fallback = ''): string {
+  const markdownTitle = extractMarkdownTitle(content);
+  if (markdownTitle) {
+    return markdownTitle;
+  }
+
+  if (filePath) {
+    return basename(filePath).replace(/\.[^.]+$/, '') || basename(filePath);
+  }
+
+  return fallback;
+}
+
+function extractMarkdownTitle(content: string): string | null {
+  const normalized = content.replace(/\r\n/g, '\n');
+  const lines = normalized.split('\n');
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]?.trim();
+    if (!line) {
+      continue;
+    }
+
+    const atxHeading = line.match(/^#\s+(.+?)\s*#*$/);
+    if (atxHeading?.[1]) {
+      return atxHeading[1].trim();
+    }
+
+    const nextLine = lines[index + 1]?.trim();
+    if (nextLine && (/^=+$/.test(nextLine) || /^-+$/.test(nextLine))) {
+      return line;
+    }
+
+    return null;
+  }
+
+  return null;
 }
 
 async function ensureExistingFile(filePath: string, fallbackMessage: string): Promise<void> {
