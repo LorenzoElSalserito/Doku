@@ -89,6 +89,11 @@ export const fr: Dictionary = {
       recentHeading: 'Récents',
       recentEmpty: 'Aucun document récent',
     },
+    tabs: {
+      label: 'Documents ouverts',
+      close: 'Fermer le document',
+      closeDirtyConfirm: 'Ce document contient des modifications non enregistrées. Le fermer quand même ?',
+    },
     quickActions: {
       toggleShow: 'Afficher les actions rapides',
       toggleHide: 'Masquer les actions rapides',
@@ -199,6 +204,7 @@ export const fr: Dictionary = {
     themeHint: 'Clair, sombre ou aligné sur le système.',
     zoomLabel: 'Zoom de l’app',
     zoomHint: 'Agrandit toute l’interface sans changer la police Doku selectionnee.',
+    restartNotice: 'Redemarrez Doku pour appliquer proprement les changements visuels.',
     fontLabel: 'Typographie',
     fontHint: 'Chaque selecteur utilise le catalogue complet des polices Doku defini dans FONTS.md.',
     fontLoading: 'Chargement des polices système…',
@@ -252,6 +258,7 @@ export const fr: Dictionary = {
     subtitle: 'Doku ouvre seulement les préférences système. Rien ne sera modifié en silence.',
     openPreferences: 'Ouvrir les préférences système',
     notNow: 'Pas maintenant',
+    dontAskAgain: 'Ne plus demander',
     linuxHint: 'Sous Linux, le chemin exact dépend de votre environnement de bureau.',
   },
   exportDialog: {

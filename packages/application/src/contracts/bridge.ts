@@ -63,6 +63,7 @@ export interface DocumentsBridge {
   createWorkspaceFile: (documentPath: string, name: string) => Promise<WorkspaceCreateEntryResult>;
   createWorkspaceFolder: (documentPath: string, name: string) => Promise<WorkspaceCreateEntryResult>;
   watchWorkspaceTree: (documentPath: string, onChange: () => void) => () => void;
+  onOpenFileRequest: (onOpenFile: (filePath: string) => void) => () => void;
 }
 
 export interface ExportsBridge {

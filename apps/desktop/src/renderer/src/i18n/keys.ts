@@ -84,6 +84,11 @@ export interface Dictionary {
       recentHeading: string;
       recentEmpty: string;
     };
+    tabs: {
+      label: string;
+      close: string;
+      closeDirtyConfirm: string;
+    };
     quickActions: {
       toggleShow: string;
       toggleHide: string;
@@ -191,6 +196,7 @@ export interface Dictionary {
     themeHint: string;
     zoomLabel: string;
     zoomHint: string;
+    restartNotice: string;
     fontLabel: string;
     fontHint: string;
     fontLoading: string;
@@ -242,6 +248,7 @@ export interface Dictionary {
     subtitle: string;
     openPreferences: string;
     notNow: string;
+    dontAskAgain: string;
     linuxHint: string;
   };
   exportDialog: {

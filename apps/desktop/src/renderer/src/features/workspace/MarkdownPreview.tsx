@@ -70,6 +70,43 @@ function renderBlocks(markdown: string, sourcePath?: string): ReactNode[] {
       continue;
     }
 
+    if (isMarkdownTableStart(lines, index)) {
+      const tableLines: string[] = [];
+      while (index < lines.length && isTableRow(lines[index] ?? '')) {
+        tableLines.push(lines[index] ?? '');
+        index += 1;
+      }
+
+      const table = parseMarkdownTable(tableLines);
+      if (table) {
+        blocks.push(
+          <div key={`table-${blocks.length}`} className="markdown-preview__table-wrap">
+            <table className="markdown-preview__table">
+              <thead>
+                <tr>
+                  {table.headers.map((cell, cellIndex) => (
+                    <th key={`head-${cellIndex}`}>{renderInline(cell, sourcePath)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {table.rows.map((row, rowIndex) => (
+                  <tr key={`row-${rowIndex}`}>
+                    {table.headers.map((_header, cellIndex) => (
+                      <td key={`cell-${rowIndex}-${cellIndex}`}>
+                        {renderInline(row[cellIndex] ?? '', sourcePath)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>,
+        );
+        continue;
+      }
+    }
+
     if (trimmed.startsWith('>')) {
       const quoteLines: string[] = [];
       while (index < lines.length && (lines[index] ?? '').trim().startsWith('>')) {
@@ -137,6 +174,7 @@ function renderBlocks(markdown: string, sourcePath?: string): ReactNode[] {
         candidateTrimmed.startsWith('>') ||
         /^#{1,6}\s+/.test(candidateTrimmed) ||
         /^[-*_]{3,}$/.test(candidateTrimmed) ||
+        isMarkdownTableStart(lines, index) ||
         /^[-*+]\s+/.test(candidateTrimmed) ||
         /^\d+\.\s+/.test(candidateTrimmed) ||
         /^!\[([^\]]*)\]\(([^)]+)\)$/.test(candidateTrimmed)
@@ -155,6 +193,47 @@ function renderBlocks(markdown: string, sourcePath?: string): ReactNode[] {
   }
 
   return blocks;
+}
+
+function isMarkdownTableStart(lines: string[], index: number): boolean {
+  const header = lines[index] ?? '';
+  const separator = lines[index + 1] ?? '';
+  return isTableRow(header) && isTableSeparatorRow(separator);
+}
+
+function isTableRow(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.startsWith('|') && trimmed.endsWith('|') && splitTableRow(trimmed).length > 0;
+}
+
+function isTableSeparatorRow(line: string): boolean {
+  const cells = splitTableRow(line);
+  return cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()));
+}
+
+function parseMarkdownTable(lines: string[]): { headers: string[]; rows: string[][] } | null {
+  if (lines.length < 2 || !isTableSeparatorRow(lines[1] ?? '')) {
+    return null;
+  }
+
+  const headers = splitTableRow(lines[0] ?? '');
+  if (headers.length === 0) {
+    return null;
+  }
+
+  return {
+    headers,
+    rows: lines.slice(2).map(splitTableRow).filter((row) => row.length > 0),
+  };
+}
+
+function splitTableRow(line: string): string[] {
+  return line
+    .trim()
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map((cell) => cell.trim());
 }
 
 function renderInline(text: string, sourcePath?: string): ReactNode[] {

@@ -37,6 +37,14 @@ type ResizeSide = 'left' | 'right';
 type ViewMode = Settings['workspaceViewMode'];
 type SaveState = 'saved' | 'dirty' | 'saving' | 'error';
 
+interface WorkspaceDocumentTab {
+  id: string;
+  document: DocumentSession | null;
+  saveState: SaveState;
+  loadState: 'loading' | 'ready' | 'error';
+  errorMessage: string | null;
+}
+
 const LEFT_MIN = 220;
 const LEFT_MAX = 420;
 const RIGHT_MIN = 260;
@@ -65,10 +73,8 @@ export function Workspace({
   const [quickActionsVisible, setQuickActionsVisible] = useState(settings.workspaceQuickActionsVisible);
   const [activeSummary, setActiveSummary] = useState<DocumentSummary | null>(initialDocument);
   const [draftToken, setDraftToken] = useState(0);
-  const [document, setDocument] = useState<DocumentSession | null>(null);
-  const [saveState, setSaveState] = useState<SaveState>('saved');
-  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [tabs, setTabs] = useState<WorkspaceDocumentTab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
   const [defaultAppPromptOpen, setDefaultAppPromptOpen] = useState(false);
   const [editorDropActive, setEditorDropActive] = useState(false);
@@ -76,6 +82,7 @@ export function Workspace({
   const [tableColumns, setTableColumns] = useState('3');
   const [workspaceTree, setWorkspaceTree] = useState<WorkspaceNode[]>([]);
   const draftLayoutRef = useRef(layout);
+  const tabsRef = useRef<WorkspaceDocumentTab[]>([]);
   const autosaveTimeoutRef = useRef<number | null>(null);
   const defaultAppPromptRef = useRef(settings.defaultMarkdownAppPrompt);
   const launcherRef = useRef(settings.launcher);
@@ -104,6 +111,83 @@ export function Workspace({
   useEffect(() => {
     setQuickActionsVisible(settings.workspaceQuickActionsVisible);
   }, [settings.workspaceQuickActionsVisible]);
+
+  useEffect(() => {
+    tabsRef.current = tabs;
+  }, [tabs]);
+
+  const activeTab = useMemo(
+    () => tabs.find((tab) => tab.id === activeTabId) ?? null,
+    [activeTabId, tabs],
+  );
+  const document = activeTab?.document ?? null;
+  const saveState = activeTab?.saveState ?? 'saved';
+  const loadState = activeTab?.loadState ?? 'loading';
+  const errorMessage = activeTab?.errorMessage ?? null;
+
+  const updateActiveTab = useCallback(
+    (updater: (tab: WorkspaceDocumentTab) => WorkspaceDocumentTab) => {
+      setTabs((current) =>
+        current.map((tab) => (tab.id === activeTabId ? updater(tab) : tab)),
+      );
+    },
+    [activeTabId],
+  );
+
+  const setActiveTabDocument = useCallback(
+    (updater: DocumentSession | ((current: DocumentSession | null) => DocumentSession | null)) => {
+      updateActiveTab((tab) => ({
+        ...tab,
+        document:
+          typeof updater === 'function'
+            ? updater(tab.document)
+            : updater,
+      }));
+    },
+    [updateActiveTab],
+  );
+
+  const setActiveTabSaveState = useCallback(
+    (nextState: SaveState) => {
+      updateActiveTab((tab) => ({ ...tab, saveState: nextState }));
+    },
+    [updateActiveTab],
+  );
+
+  const setActiveTabLoadState = useCallback(
+    (nextState: 'loading' | 'ready' | 'error') => {
+      updateActiveTab((tab) => ({ ...tab, loadState: nextState }));
+    },
+    [updateActiveTab],
+  );
+
+  const setActiveTabErrorMessage = useCallback(
+    (nextMessage: string | null) => {
+      updateActiveTab((tab) => ({ ...tab, errorMessage: nextMessage }));
+    },
+    [updateActiveTab],
+  );
+
+  const activateDocumentTab = useCallback((nextDocument: DocumentSession, nextSaveState: SaveState = 'saved') => {
+    const tabId = resolveDocumentTabId(nextDocument);
+    setTabs((current) => {
+      const existingIndex = current.findIndex((tab) => tab.id === tabId);
+      const nextTab: WorkspaceDocumentTab = {
+        id: tabId,
+        document: nextDocument,
+        saveState: nextSaveState,
+        loadState: 'ready',
+        errorMessage: null,
+      };
+
+      if (existingIndex === -1) {
+        return [...current, nextTab];
+      }
+
+      return current.map((tab, index) => (index === existingIndex ? nextTab : tab));
+    });
+    setActiveTabId(tabId);
+  }, []);
 
   const refreshWorkspaceTree = useCallback(async () => {
     if (!document?.path) {
@@ -139,8 +223,8 @@ export function Workspace({
         return;
       }
 
-      setSaveState('saving');
-      setErrorMessage(null);
+      setActiveTabSaveState('saving');
+      setActiveTabErrorMessage(null);
       logWorkspaceEvent('document-save-started', {
         mode,
         id: document.id,
@@ -160,12 +244,13 @@ export function Workspace({
           mode,
         });
 
-        setDocument(result.document);
+        activateDocumentTab(result.document, 'saved');
         await onUpdate({ launcher: result.launcher });
         if (
           mode !== 'autosave' &&
           result.document.kind === 'file' &&
-          !defaultAppPromptRef.current.shown
+          !defaultAppPromptRef.current.shown &&
+          !defaultAppPromptRef.current.dismissed
         ) {
           const nextPrompt = {
             ...defaultAppPromptRef.current,
@@ -175,7 +260,6 @@ export function Workspace({
           await onUpdate({ defaultMarkdownAppPrompt: nextPrompt });
           setDefaultAppPromptOpen(true);
         }
-        setSaveState('saved');
         logWorkspaceEvent('document-save-completed', {
           mode,
           id: result.document.id,
@@ -185,35 +269,63 @@ export function Workspace({
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : dict.workspace.editorErrorBody;
         if (message === 'Save operation canceled.') {
-          setSaveState(document.path ? 'saved' : 'dirty');
+          setActiveTabSaveState(document.path ? 'saved' : 'dirty');
           return;
         }
-        setSaveState('error');
-        setErrorMessage(message);
+        setActiveTabSaveState('error');
+        setActiveTabErrorMessage(message);
         logWorkspaceEvent('document-save-failed', { mode, message });
       }
     },
     [
       dict.workspace.editorErrorBody,
+      activateDocumentTab,
       document,
       onUpdate,
+      setActiveTabErrorMessage,
+      setActiveTabSaveState,
     ],
   );
 
   useEffect(() => {
     let cancelled = false;
+    const requestedTabId = activeSummary ? resolveSummaryTabId(activeSummary) : `draft:${draftToken}`;
+
+    const existingTab = tabsRef.current.find((tab) => tab.id === requestedTabId);
+    if (existingTab?.loadState === 'ready') {
+      setActiveTabId(requestedTabId);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setTabs((current) => {
+      if (current.some((tab) => tab.id === requestedTabId)) {
+        return current.map((tab) =>
+          tab.id === requestedTabId
+            ? { ...tab, loadState: 'loading', errorMessage: null }
+            : tab,
+        );
+      }
+
+      return [
+        ...current,
+        {
+          id: requestedTabId,
+          document: null,
+          saveState: 'saved',
+          loadState: 'loading',
+          errorMessage: null,
+        },
+      ];
+    });
+    setActiveTabId(requestedTabId);
 
     const load = async () => {
-      setLoadState('loading');
-      setErrorMessage(null);
-
       try {
         if (!activeSummary) {
           const now = new Date().toISOString();
-          if (cancelled) {
-            return;
-          }
-          setDocument({
+          const draftDocument: DocumentSession = {
             id: `draft:${crypto.randomUUID()}`,
             kind: 'draft',
             title: dict.workspace.untitledDocument,
@@ -221,9 +333,23 @@ export function Workspace({
             snippet: '',
             lastOpenedAt: now,
             lastSavedAt: null,
-          });
-          setSaveState('saved');
-          setLoadState('ready');
+          };
+          if (cancelled) {
+            return;
+          }
+          setTabs((current) =>
+            current.map((tab) =>
+              tab.id === requestedTabId
+                ? {
+                    ...tab,
+                    document: draftDocument,
+                    saveState: 'saved',
+                    loadState: 'ready',
+                    errorMessage: null,
+                  }
+                : tab,
+            ),
+          );
           logWorkspaceEvent('document-draft-created');
           return;
         }
@@ -247,9 +373,19 @@ export function Workspace({
           setDraftToken((token) => token + 1);
           return;
         }
-        setDocument(next);
-        setSaveState('saved');
-        setLoadState('ready');
+        setTabs((current) =>
+          current.map((tab) =>
+            tab.id === requestedTabId
+              ? {
+                  ...tab,
+                  document: next,
+                  saveState: 'saved',
+                  loadState: 'ready',
+                  errorMessage: null,
+                }
+              : tab,
+          ),
+        );
         setNoticeMessage(null);
         logWorkspaceEvent('document-loaded', {
           id: next.id,
@@ -261,8 +397,17 @@ export function Workspace({
         if (cancelled) {
           return;
         }
-        setLoadState('error');
-        setErrorMessage(error instanceof Error ? error.message : dict.workspace.editorErrorBody);
+        setTabs((current) =>
+          current.map((tab) =>
+            tab.id === requestedTabId
+              ? {
+                  ...tab,
+                  loadState: 'error',
+                  errorMessage: error instanceof Error ? error.message : dict.workspace.editorErrorBody,
+                }
+              : tab,
+          ),
+        );
         logWorkspaceEvent('document-load-failed', {
           message: error instanceof Error ? error.message : dict.workspace.editorErrorBody,
         });
@@ -369,15 +514,12 @@ export function Workspace({
   const workspace = layout;
   const leftStyle = workspace.leftPanelCollapsed ? undefined : { width: `${workspace.leftPanelWidth}px` };
   const rightStyle = workspace.rightPanelCollapsed ? undefined : { width: `${workspace.rightPanelWidth}px` };
-  const breadcrumbs = useMemo(
-    () => [dict.workspace.breadcrumbHome, dict.workspace.breadcrumbWorkspace],
-    [dict.workspace],
-  );
   const previewContent = document?.content ?? '';
   const words = useMemo(() => countWords(previewContent), [previewContent]);
   const characters = previewContent.length;
   const exportTitle = resolveDocumentExportTitle(document);
   const documentTitleValue = exportTitle ?? '';
+  const documentHeaderTitle = documentTitleValue || dict.workspace.documentTitlePlaceholder;
   const recentDocuments = useMemo(
     () => settings.launcher.recentDocuments.filter((summary) => summary.id !== document?.id).slice(0, 4),
     [document?.id, settings.launcher.recentDocuments],
@@ -420,8 +562,43 @@ export function Workspace({
     void onUpdate({ workspaceQuickActionsVisible: nextVisible });
   }, [onUpdate, quickActionsVisible]);
 
+  const handleActivateTab = useCallback((tabId: string) => {
+    setActiveTabId(tabId);
+    setNoticeMessage(null);
+    logWorkspaceEvent('document-tab-activated', { tabId });
+  }, []);
+
+  const handleCloseTab = useCallback(
+    (tabId: string) => {
+      const closingTab = tabsRef.current.find((tab) => tab.id === tabId);
+      if (!closingTab) {
+        return;
+      }
+
+      if (
+        closingTab.saveState === 'dirty' &&
+        !window.confirm(dict.workspace.tabs.closeDirtyConfirm)
+      ) {
+        return;
+      }
+
+      const remainingTabs = tabsRef.current.filter((tab) => tab.id !== tabId);
+      if (remainingTabs.length === 0) {
+        setActiveSummary(null);
+        setDraftToken((token) => token + 1);
+      } else if (tabId === activeTabId) {
+        setActiveTabId(remainingTabs.at(-1)?.id ?? null);
+      }
+
+      setTabs(remainingTabs);
+      setNoticeMessage(null);
+      logWorkspaceEvent('document-tab-closed', { tabId });
+    },
+    [activeTabId, dict.workspace.tabs.closeDirtyConfirm],
+  );
+
   const handleContentChange = (nextValue: string) => {
-    setDocument((current) => {
+    setActiveTabDocument((current) => {
       if (!current) {
         return current;
       }
@@ -434,26 +611,7 @@ export function Workspace({
         lastOpenedAt: new Date().toISOString(),
       };
     });
-    setSaveState('dirty');
-  };
-
-  const handleTitleChange = (nextTitle: string) => {
-    setDocument((current) => {
-      if (!current) {
-        return current;
-      }
-
-      const nextContent = updateMarkdownTitle(current.content, nextTitle);
-
-      return {
-        ...current,
-        title: resolveDocumentDisplayTitle(nextContent, current.path, dict.workspace.untitledDocument),
-        content: nextContent,
-        snippet: extractSnippet(nextContent),
-        lastOpenedAt: new Date().toISOString(),
-      };
-    });
-    setSaveState('dirty');
+    setActiveTabSaveState('dirty');
   };
 
   const toggleLeft = () => {
@@ -532,15 +690,8 @@ export function Workspace({
       title: result.document.title,
       path: result.document.path,
     });
-    setActiveSummary({
-      id: result.document.id,
-      kind: result.document.kind,
-      title: result.document.title,
-      path: result.document.path,
-      snippet: result.document.snippet,
-      lastOpenedAt: result.document.lastOpenedAt,
-    });
-  }, [onUpdate]);
+    activateDocumentTab(result.document);
+  }, [activateDocumentTab, onUpdate]);
 
   const handleSelectRecent = useCallback((summary: DocumentSummary) => {
     setNoticeMessage(null);
@@ -556,6 +707,12 @@ export function Workspace({
     async (filePath: string) => {
       setNoticeMessage(null);
       logWorkspaceEvent('workspace-file-open-requested', { filePath });
+      const existingTab = tabsRef.current.find((tab) => tab.document?.path === filePath);
+      if (existingTab) {
+        setActiveTabId(existingTab.id);
+        logWorkspaceEvent('workspace-file-tab-activated', { filePath });
+        return;
+      }
       const result = await window.doku.documents.openDocumentAtPath(filePath);
       if (!result) {
         return;
@@ -566,17 +723,16 @@ export function Workspace({
         title: result.document.title,
         path: result.document.path,
       });
-      setActiveSummary({
-        id: result.document.id,
-        kind: result.document.kind,
-        title: result.document.title,
-        path: result.document.path,
-        snippet: result.document.snippet,
-        lastOpenedAt: result.document.lastOpenedAt,
-      });
+      activateDocumentTab(result.document);
     },
-    [onUpdate],
+    [activateDocumentTab, onUpdate],
   );
+
+  useEffect(() => {
+    return window.doku.documents.onOpenFileRequest((filePath) => {
+      void handleOpenWorkspaceFile(filePath);
+    });
+  }, [handleOpenWorkspaceFile]);
 
   const handleCreateWorkspaceFile = useCallback(async () => {
     if (!document?.path) {
@@ -594,11 +750,11 @@ export function Workspace({
       await handleOpenWorkspaceFile(result.path);
       logWorkspaceEvent('workspace-file-created', { path: result.path });
     } catch {
-      setErrorMessage(dict.workspace.workspaceExplorer.createFileError);
-      setSaveState('error');
+      setActiveTabErrorMessage(dict.workspace.workspaceExplorer.createFileError);
+      setActiveTabSaveState('error');
       logWorkspaceEvent('workspace-file-create-failed', { name });
     }
-  }, [dict.workspace.workspaceExplorer, document?.path, handleOpenWorkspaceFile, refreshWorkspaceTree]);
+  }, [dict.workspace.workspaceExplorer, document?.path, handleOpenWorkspaceFile, refreshWorkspaceTree, setActiveTabErrorMessage, setActiveTabSaveState]);
 
   const handleCreateWorkspaceFolder = useCallback(async () => {
     if (!document?.path) {
@@ -615,11 +771,11 @@ export function Workspace({
       await refreshWorkspaceTree();
       logWorkspaceEvent('workspace-folder-created', { documentPath: document.path, name });
     } catch {
-      setErrorMessage(dict.workspace.workspaceExplorer.createFolderError);
-      setSaveState('error');
+      setActiveTabErrorMessage(dict.workspace.workspaceExplorer.createFolderError);
+      setActiveTabSaveState('error');
       logWorkspaceEvent('workspace-folder-create-failed', { documentPath: document.path, name });
     }
-  }, [dict.workspace.workspaceExplorer, document?.path, refreshWorkspaceTree]);
+  }, [dict.workspace.workspaceExplorer, document?.path, refreshWorkspaceTree, setActiveTabErrorMessage, setActiveTabSaveState]);
 
   const handleMarkdownAction = useCallback(
     (actionId: (typeof MARKDOWN_ACTION_SPECS)[number]['id']) => {
@@ -707,8 +863,8 @@ export function Workspace({
       setNoticeMessage(null);
 
       if (!document?.path) {
-        setErrorMessage(dict.workspace.imageImportSaveFirst);
-        setSaveState('error');
+        setActiveTabErrorMessage(dict.workspace.imageImportSaveFirst);
+        setActiveTabSaveState('error');
         logWorkspaceEvent('image-import-failed', { reason: 'document-not-saved' });
         return;
       }
@@ -719,8 +875,8 @@ export function Workspace({
 
       const sourcePath = imageFile ? getFilePath(imageFile) : null;
       if (!sourcePath) {
-        setErrorMessage(dict.workspace.editorErrorBody);
-        setSaveState('error');
+        setActiveTabErrorMessage(dict.workspace.editorErrorBody);
+        setActiveTabSaveState('error');
         logWorkspaceEvent('image-import-failed', { reason: 'unsupported-source' });
         return;
       }
@@ -741,8 +897,8 @@ export function Workspace({
         setNoticeMessage(
           dict.workspace.imageImportSuccess.replace('{{fileName}}', imported.fileName),
         );
-        setErrorMessage(null);
-        setSaveState('dirty');
+        setActiveTabErrorMessage(null);
+        setActiveTabSaveState('dirty');
         logWorkspaceEvent('image-import-completed', {
           fileName: imported.fileName,
           assetPath: imported.assetPath,
@@ -752,12 +908,12 @@ export function Workspace({
           error instanceof Error
             ? resolveImageImportErrorMessage(error.message, dict.workspace)
             : dict.workspace.editorErrorBody;
-        setErrorMessage(message);
-        setSaveState('error');
+        setActiveTabErrorMessage(message);
+        setActiveTabSaveState('error');
         logWorkspaceEvent('image-import-failed', { message });
       }
     },
-    [dict.workspace, document?.path],
+    [dict.workspace, document?.path, setActiveTabErrorMessage, setActiveTabSaveState],
   );
 
   useEffect(() => {
@@ -791,42 +947,21 @@ export function Workspace({
     <div className="workspace">
       <div className="workspace__topbar">
         <header className="workspace__header">
+          <FileMenu
+            labels={dict.workspace.fileMenu}
+            recents={settings.launcher.recentDocuments.slice(0, 5)}
+            onNew={handleNewDocument}
+            onOpen={() => void handleOpenFile()}
+            onSelectRecent={handleSelectRecent}
+          />
+
           <div className="workspace__header-main">
-            <FileMenu
-              labels={dict.workspace.fileMenu}
-              recents={settings.launcher.recentDocuments.slice(0, 5)}
-              onNew={handleNewDocument}
-              onOpen={() => void handleOpenFile()}
-              onSelectRecent={handleSelectRecent}
-            />
-            <nav className="workspace__breadcrumbs" aria-label={dict.workspace.breadcrumbWorkspace}>
-              {breadcrumbs.map((item, index) => (
-                <span key={`${item}-${index}`} className="workspace__crumb">
-                  {item}
-                </span>
-              ))}
-            </nav>
-            <label className="workspace__document-title">
-              <span className="sr-only">{dict.workspace.documentTitleLabel}</span>
-              <Input
-                value={documentTitleValue}
-                placeholder={dict.workspace.documentTitlePlaceholder}
-                aria-label={dict.workspace.documentTitleLabel}
-                onChange={(event) => handleTitleChange(event.target.value)}
-              />
-            </label>
+            <h1 className="workspace__document-heading" title={documentHeaderTitle}>
+              {documentHeaderTitle}
+            </h1>
           </div>
 
           <div className="workspace__header-side">
-            <div className="workspace__status">
-              <span className="workspace__status-pill" role="status" aria-live="polite">
-                {statusLabel(saveState, dict.workspace)}
-              </span>
-              <span className="workspace__status-pill workspace__status-pill--quiet">
-                {document?.kind === 'file' ? dict.workspace.fileLabel : dict.workspace.draftLabel}
-              </span>
-            </div>
-
             <div className="workspace__header-actions">
               <div className="workspace__action-group workspace__action-group--layout">
                 <IconButton
@@ -907,6 +1042,16 @@ export function Workspace({
                 </IconButton>
               </div>
             </div>
+
+            <span
+              className={`workspace__save-indicator workspace__save-indicator--${saveState}`}
+              role="status"
+              aria-live="polite"
+              aria-label={statusLabel(saveState, dict.workspace)}
+              title={statusLabel(saveState, dict.workspace)}
+            >
+              <SaveStateIcon state={saveState} />
+            </span>
           </div>
         </header>
 
@@ -1005,6 +1150,13 @@ export function Workspace({
 
         <main className="workspace__editor" id="workspace-editor" tabIndex={-1}>
           <Card elevated className="workspace__editor-card">
+            <DocumentTabs
+              tabs={tabs}
+              activeTabId={activeTabId}
+              labels={dict.workspace.tabs}
+              onActivate={handleActivateTab}
+              onClose={handleCloseTab}
+            />
             {loadState === 'loading' ? (
               <div className="workspace__editor-loading">{dict.workspace.editorLoading}</div>
             ) : loadState === 'error' ? (
@@ -1046,7 +1198,11 @@ export function Workspace({
                   )}
 
                   {(viewMode === 'preview' || viewMode === 'split') && (
-                    <section className="workspace__editor-pane workspace__editor-pane--preview">
+                    <section
+                      className={`workspace__editor-pane workspace__editor-pane--preview${
+                        viewMode === 'preview' ? ' workspace__editor-pane--preview-page' : ''
+                      }`}
+                    >
                       <div className="workspace__preview-head">
                         <span className="workspace__panel-eyebrow">{dict.workspace.previewEyebrow}</span>
                       </div>
@@ -1164,19 +1320,21 @@ export function Workspace({
       <DefaultMarkdownAppDialog
         open={defaultAppPromptOpen}
         platform={window.doku.system.platform}
-        onClose={() => {
+        onClose={({ dontAskAgain }) => {
           const nextPrompt = {
             ...defaultAppPromptRef.current,
-            dismissed: true,
+            dismissed: dontAskAgain,
+            shown: true,
           };
           defaultAppPromptRef.current = nextPrompt;
           void onUpdate({ defaultMarkdownAppPrompt: nextPrompt });
           setDefaultAppPromptOpen(false);
         }}
-        onOpenPreferences={() => {
+        onOpenPreferences={({ dontAskAgain }) => {
           const nextPrompt = {
             ...defaultAppPromptRef.current,
-            dismissed: true,
+            dismissed: dontAskAgain,
+            shown: true,
           };
           defaultAppPromptRef.current = nextPrompt;
           void onUpdate({ defaultMarkdownAppPrompt: nextPrompt });
@@ -1228,6 +1386,62 @@ function resolveImageImportErrorMessage(message: string, workspaceDict: Dictiona
     default:
       return message;
   }
+}
+
+interface DocumentTabsProps {
+  tabs: WorkspaceDocumentTab[];
+  activeTabId: string | null;
+  labels: Dictionary['workspace']['tabs'];
+  onActivate: (tabId: string) => void;
+  onClose: (tabId: string) => void;
+}
+
+function DocumentTabs({ tabs, activeTabId, labels, onActivate, onClose }: DocumentTabsProps) {
+  if (tabs.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="workspace-tabs" role="tablist" aria-label={labels.label}>
+      {tabs.map((tab) => {
+        const title = tab.document ? resolveDocumentTabTitle(tab.document) : '...';
+        const isActive = tab.id === activeTabId;
+
+        return (
+          <div
+            key={tab.id}
+            className={`workspace-tabs__item${isActive ? ' workspace-tabs__item--active' : ''}`}
+          >
+            <button
+              type="button"
+              className="workspace-tabs__button"
+              role="tab"
+              aria-selected={isActive}
+              title={title}
+              onClick={() => onActivate(tab.id)}
+            >
+              <span
+                className={`workspace-tabs__state workspace-tabs__state--${tab.saveState}`}
+                aria-hidden="true"
+              />
+              <span className="workspace-tabs__title">{title}</span>
+            </button>
+            <button
+              type="button"
+              className="workspace-tabs__close"
+              aria-label={`${labels.close}: ${title}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onClose(tab.id);
+              }}
+            >
+              <CloseTabIcon />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 interface ResizeHandleProps {
@@ -1314,6 +1528,19 @@ function removeSummaryFromLauncher(
   };
 }
 
+function resolveSummaryTabId(summary: DocumentSummary): string {
+  return summary.path ? `file:${summary.path}` : `document:${summary.id}`;
+}
+
+function resolveDocumentTabId(document: DocumentSession): string {
+  return document.path ? `file:${document.path}` : `document:${document.id}`;
+}
+
+function resolveDocumentTabTitle(document: DocumentSession): string {
+  const title = resolveDocumentDisplayTitle(document.content, document.path, document.title);
+  return title || document.title;
+}
+
 function resolveDocumentExportTitle(
   document: DocumentSession | null,
 ): string | undefined {
@@ -1374,53 +1601,6 @@ function extractMarkdownTitle(content: string): string | null {
   }
 
   return null;
-}
-
-function updateMarkdownTitle(content: string, title: string): string {
-  const nextTitle = title.trim();
-  const normalized = content.replace(/\r\n/g, '\n');
-  const lines = normalized.split('\n');
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index]?.trim();
-    if (!line) {
-      continue;
-    }
-
-    if (/^#\s+(.+?)\s*#*$/.test(line)) {
-      if (nextTitle) {
-        lines[index] = `# ${nextTitle}`;
-      } else {
-        lines.splice(index, 1);
-        if (lines[index] === '') {
-          lines.splice(index, 1);
-        }
-      }
-      return lines.join('\n');
-    }
-
-    const nextLine = lines[index + 1]?.trim();
-    if (nextLine && (/^=+$/.test(nextLine) || /^-+$/.test(nextLine))) {
-      if (nextTitle) {
-        lines[index] = nextTitle;
-        lines[index + 1] = '='.repeat(Math.max(nextTitle.length, 1));
-      } else {
-        lines.splice(index, 2);
-        if (lines[index] === '') {
-          lines.splice(index, 1);
-        }
-      }
-      return lines.join('\n');
-    }
-
-    break;
-  }
-
-  if (!nextTitle) {
-    return content;
-  }
-
-  return normalized.trim().length > 0 ? `# ${nextTitle}\n\n${normalized}` : `# ${nextTitle}\n\n`;
 }
 
 function fileNameWithoutExtension(filePath: string): string {
@@ -1816,6 +1996,43 @@ function SaveAsIcon() {
   );
 }
 
+function SaveStateIcon({ state }: { state: SaveState }) {
+  if (state === 'dirty') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth="1.7" />
+        <path d="M12 7.5v5.2" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+        <circle cx="12" cy="16.2" r="1" fill="currentColor" />
+      </svg>
+    );
+  }
+
+  if (state === 'saving') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path d="M12 5a7 7 0 017 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M19 12a7 7 0 01-7 7 7 7 0 01-7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" opacity="0.42" />
+      </svg>
+    );
+  }
+
+  if (state === 'error') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path d="M12 5l7.5 13H4.5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+        <path d="M12 10v3.4M12 16.4v.1" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M8.4 12.2l2.2 2.2 5-5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function ExportIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -1848,6 +2065,14 @@ function InfoIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
       <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth="1.6" />
       <path d="M12 11v4M12 8.2v.1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CloseTabIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M7 7l10 10M17 7L7 17" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
     </svg>
   );
 }

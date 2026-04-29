@@ -1,8 +1,9 @@
 import { app, BrowserWindow } from 'electron';
 import { promises as fs } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, extname, join, resolve } from 'node:path';
 import {
+  IPC_CHANNELS,
   LatexPdfExportService,
   registerDocumentsChannel,
   registerExportChannel,
@@ -23,6 +24,8 @@ const ORIGINAL_USER_DATA_DIR = app.getPath('userData');
 const DOCUMENTS_DATA_DIR = resolveDocumentsDataDir(ORIGINAL_USER_DATA_DIR);
 const logger = new SessionLogger({ logsDir: join(DOCUMENTS_DATA_DIR, 'logs') });
 const LOG_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const pendingOpenFilePaths = new Set<string>();
+let mainWindow: BrowserWindow | null = null;
 
 if (process.platform === 'linux') {
   app.disableHardwareAcceleration();
@@ -33,6 +36,7 @@ if (process.platform === 'linux') {
 app.setName(PRODUCT_NAME);
 
 registerProcessDiagnostics();
+registerFileOpenHandlers();
 
 async function bootstrap(): Promise<void> {
   logger.info('app:bootstrap-started', {
@@ -84,12 +88,15 @@ async function bootstrap(): Promise<void> {
   const rendererDevUrl = process.env.ELECTRON_RENDERER_URL;
   const rendererFile = join(__dirname, '../renderer/index.html');
 
-  const mainWindow = createMainWindow({ preloadPath, rendererDevUrl, rendererFile });
+  mainWindow = createMainWindow({ preloadPath, rendererDevUrl, rendererFile });
   attachWindowDiagnostics(mainWindow);
+  dispatchPendingOpenFiles(mainWindow);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      attachWindowDiagnostics(createMainWindow({ preloadPath, rendererDevUrl, rendererFile }));
+      mainWindow = createMainWindow({ preloadPath, rendererDevUrl, rendererFile });
+      attachWindowDiagnostics(mainWindow);
+      dispatchPendingOpenFiles(mainWindow);
     }
   });
 
@@ -101,6 +108,107 @@ async function bootstrap(): Promise<void> {
     disposeExport();
     if (process.platform !== 'darwin') app.quit();
   });
+}
+
+function registerFileOpenHandlers(): void {
+  const initialOpenFilePath = findMarkdownFilePath(process.argv);
+  if (initialOpenFilePath) {
+    pendingOpenFilePaths.add(initialOpenFilePath);
+  }
+
+  const hasSingleInstanceLock = app.requestSingleInstanceLock();
+  if (!hasSingleInstanceLock) {
+    logger.info('app:secondary-instance-exit');
+    app.quit();
+    return;
+  }
+
+  app.on('second-instance', (_event, argv) => {
+    const filePath = findMarkdownFilePath(argv);
+    logger.info('app:second-instance', { filePath });
+    if (filePath) {
+      pendingOpenFilePaths.add(filePath);
+      dispatchPendingOpenFiles(resolveMainWindow());
+    }
+  });
+
+  app.on('open-file', (event, filePath) => {
+    event.preventDefault();
+    const markdownPath = findMarkdownFilePath([filePath]);
+    logger.info('app:open-file', { filePath: markdownPath });
+    if (markdownPath) {
+      pendingOpenFilePaths.add(markdownPath);
+      dispatchPendingOpenFiles(resolveMainWindow());
+    }
+  });
+}
+
+function resolveMainWindow(): BrowserWindow | null {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    return mainWindow;
+  }
+
+  const [firstWindow] = BrowserWindow.getAllWindows();
+  mainWindow = firstWindow ?? null;
+  return mainWindow;
+}
+
+function dispatchPendingOpenFiles(window: BrowserWindow | null): void {
+  if (!window || pendingOpenFilePaths.size === 0) {
+    return;
+  }
+
+  if (window.isMinimized()) {
+    window.restore();
+  }
+  window.focus();
+
+  const sendOpenRequests = () => {
+    for (const filePath of pendingOpenFilePaths) {
+      window.webContents.send(IPC_CHANNELS.documentsOpenFileRequest, { filePath });
+      logger.info('app:file-open-request-dispatched', { filePath });
+    }
+    pendingOpenFilePaths.clear();
+  };
+
+  if (window.webContents.isLoadingMainFrame()) {
+    window.webContents.once('did-finish-load', sendOpenRequests);
+    return;
+  }
+
+  sendOpenRequests();
+}
+
+function findMarkdownFilePath(argv: readonly string[]): string | null {
+  for (const arg of argv) {
+    const normalized = normalizeFileArgument(arg);
+    if (!normalized) {
+      continue;
+    }
+
+    const extension = extname(normalized).toLowerCase();
+    if (extension === '.md' || extension === '.markdown' || extension === '.mdown') {
+      return normalized;
+    }
+  }
+
+  return null;
+}
+
+function normalizeFileArgument(arg: string): string | null {
+  if (!arg || arg.startsWith('-')) {
+    return null;
+  }
+
+  try {
+    if (arg.startsWith('file://')) {
+      return fileURLToPath(arg);
+    }
+  } catch {
+    return null;
+  }
+
+  return resolve(arg);
 }
 
 function resolveDocumentsDataDir(fallbackDir: string): string {
@@ -173,8 +281,10 @@ function isNodeError(err: unknown): err is NodeJS.ErrnoException {
   return err instanceof Error && 'code' in err;
 }
 
-bootstrap().catch((err) => {
-  logger.error('app:fatal-bootstrap-error', { error: serializeErrorForLog(err) });
-  console.error(`[${PRODUCT_NAME}] fatal bootstrap error`, err);
-  app.exit(1);
-});
+if (app.hasSingleInstanceLock()) {
+  bootstrap().catch((err) => {
+    logger.error('app:fatal-bootstrap-error', { error: serializeErrorForLog(err) });
+    console.error(`[${PRODUCT_NAME}] fatal bootstrap error`, err);
+    app.exit(1);
+  });
+}

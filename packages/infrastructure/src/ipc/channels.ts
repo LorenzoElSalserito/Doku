@@ -10,6 +10,7 @@ export const IPC_CHANNELS = {
   systemLogEvent: 'system:log-event',
   systemPrepareForUninstall: 'system:prepare-for-uninstall',
   documentsOpenMarkdownFile: 'documents:open-markdown-file',
+  documentsOpenFileRequest: 'documents:open-file-request',
   documentsOpenDocumentAtPath: 'documents:open-document-at-path',
   documentsLoad: 'documents:load',
   documentsSave: 'documents:save',

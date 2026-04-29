@@ -37,6 +37,7 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const changeSubscriptionRef = useRef<monaco.IDisposable | null>(null);
   const scrollSubscriptionRef = useRef<monaco.IDisposable | null>(null);
+  const horizontalScrollSubscriptionRef = useRef<monaco.IDisposable | null>(null);
   const onChangeRef = useRef(onChange);
   const onScrollChangeRef = useRef(onScrollChange);
   const initialValueRef = useRef(value);
@@ -185,6 +186,11 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
       minimap: { enabled: false },
       lineNumbers: 'on',
       wordWrap: 'on',
+      wordWrapOverride1: 'on',
+      wordWrapOverride2: 'on',
+      wrappingIndent: 'none',
+      wrappingStrategy: 'advanced',
+      scrollPredominantAxis: true,
       scrollBeyondLastLine: false,
       automaticLayout: true,
       padding: getEditorPadding(),
@@ -199,8 +205,16 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
       glyphMargin: false,
       folding: false,
       renderLineHighlight: 'gutter',
-      scrollbar: { alwaysConsumeMouseWheel: false },
+      scrollbar: {
+        alwaysConsumeMouseWheel: false,
+        horizontal: 'hidden',
+        horizontalScrollbarSize: 0,
+        horizontalSliderSize: 0,
+        handleMouseWheel: true,
+      },
     });
+
+    lockHorizontalScroll(editorRef.current);
 
     changeSubscriptionRef.current = editorRef.current.onDidChangeModelContent(() => {
       onChangeRef.current(editorRef.current?.getValue() ?? '');
@@ -223,9 +237,13 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
     scrollSubscriptionRef.current = editorRef.current.onDidScrollChange(() => {
       emitScrollSnapshot();
     });
+    horizontalScrollSubscriptionRef.current = editorRef.current.onDidScrollChange(() => {
+      lockHorizontalScroll(editorRef.current);
+    });
 
     const scheduleWheelSync = () => {
       window.requestAnimationFrame(() => {
+        lockHorizontalScroll(editorRef.current);
         emitScrollSnapshot();
       });
     };
@@ -239,9 +257,11 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
       container.removeEventListener('touchmove', scheduleWheelSync);
       changeSubscriptionRef.current?.dispose();
       scrollSubscriptionRef.current?.dispose();
+      horizontalScrollSubscriptionRef.current?.dispose();
       editorRef.current?.dispose();
       changeSubscriptionRef.current = null;
       scrollSubscriptionRef.current = null;
+      horizontalScrollSubscriptionRef.current = null;
       editorRef.current = null;
     };
   }, []);
@@ -255,7 +275,21 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
     editor.updateOptions({
       padding: getEditorPadding(),
       ...getEditorTypography(),
+      wordWrap: 'on',
+      wordWrapOverride1: 'on',
+      wordWrapOverride2: 'on',
+      wrappingIndent: 'none',
+      wrappingStrategy: 'advanced',
+      scrollPredominantAxis: true,
+      scrollbar: {
+        alwaysConsumeMouseWheel: false,
+        horizontal: 'hidden',
+        horizontalScrollbarSize: 0,
+        horizontalSliderSize: 0,
+        handleMouseWheel: true,
+      },
     });
+    lockHorizontalScroll(editor);
   }, [themeKey]);
 
   useEffect(() => {
@@ -266,6 +300,7 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
 
     if (editor.getValue() !== value) {
       editor.setValue(value);
+      lockHorizontalScroll(editor);
     }
   }, [value]);
 
@@ -274,6 +309,19 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
 
 function normalizeColor(value: string): string {
   return value.trim().replace('#', '');
+}
+
+function lockHorizontalScroll(editor: monaco.editor.IStandaloneCodeEditor | null): void {
+  if (!editor) {
+    return;
+  }
+
+  editor.setScrollLeft(0);
+  const domNode = editor.getDomNode();
+  const scrollable = domNode?.querySelector<HTMLElement>('.monaco-scrollable-element');
+  if (scrollable) {
+    scrollable.scrollLeft = 0;
+  }
 }
 
 function getEditorTypography(): { fontFamily: string; fontSize: number; lineHeight: number } {

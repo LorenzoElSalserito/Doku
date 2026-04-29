@@ -2,6 +2,26 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from '../../../../packages/infrastructure/src/ipc/channels.js';
 import type { DokuBridge, Platform } from '@doku/application';
 
+const pendingOpenFileRequests: string[] = [];
+const openFileRequestListeners = new Set<(filePath: string) => void>();
+
+const handleOpenFileRequest = (_event: Electron.IpcRendererEvent, payload: { filePath?: string }) => {
+  if (!payload.filePath) {
+    return;
+  }
+
+  if (openFileRequestListeners.size === 0) {
+    pendingOpenFileRequests.push(payload.filePath);
+    return;
+  }
+
+  for (const listener of openFileRequestListeners) {
+    listener(payload.filePath);
+  }
+};
+
+ipcRenderer.on(IPC_CHANNELS.documentsOpenFileRequest, handleOpenFileRequest);
+
 const bridge: DokuBridge = {
   settings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet),
@@ -53,6 +73,17 @@ const bridge: DokuBridge = {
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.documentsWorkspaceTreeChanged, handler);
         void ipcRenderer.invoke(IPC_CHANNELS.documentsUnwatchWorkspaceTree, watchId);
+      };
+    },
+    onOpenFileRequest: (onOpenFile) => {
+      openFileRequestListeners.add(onOpenFile);
+      const pending = pendingOpenFileRequests.splice(0);
+      for (const filePath of pending) {
+        onOpenFile(filePath);
+      }
+
+      return () => {
+        openFileRequestListeners.delete(onOpenFile);
       };
     },
   },

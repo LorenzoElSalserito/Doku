@@ -90,6 +90,11 @@ export const de: Dictionary = {
       recentHeading: 'Zuletzt',
       recentEmpty: 'Keine zuletzt geöffneten Dokumente',
     },
+    tabs: {
+      label: 'Geöffnete Dokumente',
+      close: 'Dokument schließen',
+      closeDirtyConfirm: 'Dieses Dokument enthält ungespeicherte Änderungen. Trotzdem schließen?',
+    },
     quickActions: {
       toggleShow: 'Schnellaktionen anzeigen',
       toggleHide: 'Schnellaktionen ausblenden',
@@ -200,6 +205,7 @@ export const de: Dictionary = {
     themeHint: 'Hell, dunkel oder nach Systemeinstellung.',
     zoomLabel: 'App-Zoom',
     zoomHint: 'Skaliert die gesamte Oberflache, ohne die gewahlte Doku-Schrift zu andern.',
+    restartNotice: 'Starte Doku neu, um visuelle Anderungen sauber anzuwenden.',
     fontLabel: 'Typografie',
     fontHint: 'Jede Auswahl nutzt den vollstandigen Doku-Fontkatalog aus FONTS.md.',
     fontLoading: 'Systemschriften werden geladen…',
@@ -253,6 +259,7 @@ export const de: Dictionary = {
     subtitle: 'Doku öffnet nur die Systemeinstellungen. Es ändert nichts still im Hintergrund.',
     openPreferences: 'Systemeinstellungen öffnen',
     notNow: 'Jetzt nicht',
+    dontAskAgain: 'Nicht erneut fragen',
     linuxHint: 'Unter Linux hängt der genaue Pfad von deiner Desktop-Umgebung ab.',
   },
   exportDialog: {

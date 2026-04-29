@@ -87,6 +87,11 @@ export const en: Dictionary = {
       recentHeading: 'Recent',
       recentEmpty: 'No recent documents',
     },
+    tabs: {
+      label: 'Open documents',
+      close: 'Close document',
+      closeDirtyConfirm: 'This document has unsaved changes. Close it anyway?',
+    },
     quickActions: {
       toggleShow: 'Show quick actions',
       toggleHide: 'Hide quick actions',
@@ -197,6 +202,7 @@ export const en: Dictionary = {
     themeHint: 'Light, dark, or follow your system.',
     zoomLabel: 'App zoom',
     zoomHint: 'Scales the whole interface without changing the selected Doku font.',
+    restartNotice: 'Restart Doku to apply visual changes cleanly.',
     fontLabel: 'Typography',
     fontHint: 'Every selector uses the complete Doku font catalog from FONTS.md.',
     fontLoading: 'Loading system fonts…',
@@ -250,6 +256,7 @@ export const en: Dictionary = {
     subtitle: 'Doku will only open your system preferences. It will not change anything silently.',
     openPreferences: 'Open system preferences',
     notNow: 'Not now',
+    dontAskAgain: 'Do not ask again',
     linuxHint: 'On Linux, the exact path depends on your desktop environment.',
   },
   exportDialog: {

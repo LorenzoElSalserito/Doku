@@ -90,7 +90,7 @@ describe('preload bridge', () => {
     const onChange = vi.fn();
 
     const dispose = bridge.documents.watchWorkspaceTree('/workspace/chapter.md', onChange);
-    const handler = electronMock.on.mock.calls[0]?.[1] as (
+    const handler = findIpcHandler(IPC_CHANNELS.documentsWorkspaceTreeChanged) as (
       event: unknown,
       payload: { watchId?: string },
     ) => void;
@@ -121,6 +121,49 @@ describe('preload bridge', () => {
       watchPayload.watchId,
     );
   });
+
+  it('subscribes to operating-system markdown open requests and disposes the listener', () => {
+    const bridge = exposedBridge();
+    const onOpenFile = vi.fn();
+
+    const dispose = bridge.documents.onOpenFileRequest(onOpenFile);
+    const handler = findIpcHandler(IPC_CHANNELS.documentsOpenFileRequest) as (
+      event: unknown,
+      payload: { filePath?: string },
+    ) => void;
+
+    expect(electronMock.on).toHaveBeenCalledWith(
+      IPC_CHANNELS.documentsOpenFileRequest,
+      expect.any(Function),
+    );
+
+    handler({}, { filePath: '/workspace/from-os.md' });
+    handler({}, {});
+    expect(onOpenFile).toHaveBeenCalledTimes(1);
+    expect(onOpenFile).toHaveBeenCalledWith('/workspace/from-os.md');
+
+    dispose();
+
+    handler({}, { filePath: '/workspace/after-dispose.md' });
+    expect(onOpenFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('buffers operating-system file requests until the workspace subscribes', () => {
+    const handler = findIpcHandler(IPC_CHANNELS.documentsOpenFileRequest) as (
+      event: unknown,
+      payload: { filePath?: string },
+    ) => void;
+
+    handler({}, { filePath: '/downloads/browser-file.md' });
+
+    const bridge = exposedBridge();
+    const onOpenFile = vi.fn();
+
+    bridge.documents.onOpenFileRequest(onOpenFile);
+
+    expect(onOpenFile).toHaveBeenCalledTimes(1);
+    expect(onOpenFile).toHaveBeenCalledWith('/downloads/browser-file.md');
+  });
 });
 
 function exposedBridge(): DokuBridge {
@@ -130,4 +173,13 @@ function exposedBridge(): DokuBridge {
   }
 
   return call[1] as DokuBridge;
+}
+
+function findIpcHandler(channel: string): unknown {
+  const call = electronMock.on.mock.calls.find(([registeredChannel]) => registeredChannel === channel);
+  if (!call) {
+    throw new Error(`Missing IPC handler for ${channel}`);
+  }
+
+  return call[1];
 }

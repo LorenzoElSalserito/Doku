@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThemeProvider } from '@doku/ui';
@@ -57,11 +57,18 @@ const loadedDocument: DocumentSession = {
 
 describe('Workspace', () => {
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
   });
 
   beforeEach(() => {
     vi.clearAllMocks();
+    HTMLDialogElement.prototype.showModal = vi.fn(function showModal(this: HTMLDialogElement) {
+      this.open = true;
+    });
+    HTMLDialogElement.prototype.close = vi.fn(function close(this: HTMLDialogElement) {
+      this.open = false;
+    });
     Object.defineProperty(window, 'doku', {
       configurable: true,
       value: {
@@ -78,6 +85,7 @@ describe('Workspace', () => {
           saveDocument: vi.fn(),
           openMarkdownFile: vi.fn(),
           openDocumentAtPath: vi.fn(),
+          onOpenFileRequest: vi.fn().mockReturnValue(vi.fn()),
           importAsset: vi.fn(),
           listWorkspaceTree: vi.fn().mockResolvedValue([]),
           createWorkspaceFile: vi.fn(),
@@ -153,6 +161,24 @@ describe('Workspace', () => {
         selectionEndOffset: 10,
       }),
     );
+  });
+
+  it('uses the print-page preview layout without rendering Monaco in preview mode', async () => {
+    const view = renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+        workspaceViewMode: 'preview',
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    expect(within(view.container).queryByLabelText('Markdown editor')).not.toBeInTheDocument();
+    const previewPane = view.container.querySelector('.workspace__editor-pane--preview');
+    expect(previewPane).toHaveClass('workspace__editor-pane--preview-page');
   });
 
   it('imports a dropped image and inserts the markdown snippet', async () => {
@@ -265,6 +291,240 @@ describe('Workspace', () => {
     });
 
     promptSpy.mockRestore();
+  });
+
+  it('opens a markdown file requested by the operating system in a new tab', async () => {
+    const onUpdate = vi.fn<(patch: SettingsPatch) => Promise<void>>().mockResolvedValue(undefined);
+    const openFileRequestHandlers: Array<(filePath: string) => void> = [];
+    const openedDocument: DocumentSession = {
+      id: '/workspace/from-double-click.md',
+      kind: 'file',
+      title: 'from-double-click',
+      path: '/workspace/from-double-click.md',
+      content: '# Opened from OS',
+      snippet: 'Opened from OS',
+      lastOpenedAt: '2026-04-23T10:02:00.000Z',
+      lastSavedAt: '2026-04-23T10:02:00.000Z',
+    };
+    const openDocumentAtPath = vi.fn().mockResolvedValue({
+      document: openedDocument,
+      launcher: {
+        recentDocuments: [
+          {
+            id: openedDocument.id,
+            kind: openedDocument.kind,
+            title: openedDocument.title,
+            path: openedDocument.path,
+            snippet: openedDocument.snippet,
+            lastOpenedAt: openedDocument.lastOpenedAt,
+          },
+        ],
+        quickResumeId: openedDocument.id,
+      },
+    });
+    const loadDocument = vi.fn(async (summary: DocumentSummary) =>
+      summary.path === openedDocument.path ? openedDocument : loadedDocument,
+    );
+
+    Object.defineProperty(window, 'doku', {
+      configurable: true,
+      value: {
+        ...window.doku,
+        documents: {
+          ...window.doku.documents,
+          loadDocument,
+          openDocumentAtPath,
+          onOpenFileRequest: vi.fn((handler: (filePath: string) => void) => {
+            openFileRequestHandlers.push(handler);
+            return vi.fn();
+          }),
+        },
+      },
+    });
+
+    const view = renderWorkspace({
+      onUpdate,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    expect(openFileRequestHandlers).toHaveLength(1);
+    openFileRequestHandlers[0]?.('/workspace/from-double-click.md');
+
+    await waitFor(() => {
+      expect(openDocumentAtPath).toHaveBeenCalledWith('/workspace/from-double-click.md');
+    });
+    await waitFor(() => {
+      expect(within(view.container).getByLabelText('Markdown editor')).toHaveValue('# Opened from OS');
+    });
+    expect(screen.getByRole('tab', { name: /chapter-1/i })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: /Opened from OS/i })).toHaveAttribute('aria-selected', 'true');
+
+    await userEvent.click(screen.getByRole('tab', { name: /chapter-1/i }));
+
+    expect(within(view.container).getByLabelText('Markdown editor')).toHaveValue('Hello world');
+    expect(onUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        launcher: expect.objectContaining({
+          quickResumeId: '/workspace/from-double-click.md',
+        }),
+      }),
+    );
+  });
+
+  it('focuses an already open markdown tab instead of reopening or overwriting it', async () => {
+    const openFileRequestHandlers: Array<(filePath: string) => void> = [];
+    const openedDocument: DocumentSession = {
+      id: '/workspace/reused.md',
+      kind: 'file',
+      title: 'reused',
+      path: '/workspace/reused.md',
+      content: '# Reused',
+      snippet: 'Reused',
+      lastOpenedAt: '2026-04-23T10:02:00.000Z',
+      lastSavedAt: '2026-04-23T10:02:00.000Z',
+    };
+    const openDocumentAtPath = vi.fn().mockResolvedValue({
+      document: openedDocument,
+      launcher: DEFAULT_SETTINGS.launcher,
+    });
+
+    Object.defineProperty(window, 'doku', {
+      configurable: true,
+      value: {
+        ...window.doku,
+        documents: {
+          ...window.doku.documents,
+          openDocumentAtPath,
+          onOpenFileRequest: vi.fn((handler: (filePath: string) => void) => {
+            openFileRequestHandlers.push(handler);
+            return vi.fn();
+          }),
+        },
+      },
+    });
+
+    const view = renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    openFileRequestHandlers[0]?.('/workspace/reused.md');
+    await waitFor(() => {
+      expect(within(view.container).getByLabelText('Markdown editor')).toHaveValue('# Reused');
+    });
+
+    await userEvent.click(screen.getByRole('tab', { name: /chapter-1/i }));
+    expect(within(view.container).getByLabelText('Markdown editor')).toHaveValue('Hello world');
+
+    openFileRequestHandlers[0]?.('/workspace/reused.md');
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /Reused/i })).toHaveAttribute('aria-selected', 'true');
+    });
+    expect(openDocumentAtPath).toHaveBeenCalledTimes(1);
+    expect(within(view.container).getByLabelText('Markdown editor')).toHaveValue('# Reused');
+  });
+
+  it('shows the default-app prompt once with do-not-ask-again enabled by default', async () => {
+    const user = userEvent.setup();
+    const onUpdate = vi.fn<(patch: SettingsPatch) => Promise<void>>().mockResolvedValue(undefined);
+    const saveDocument = vi.fn().mockResolvedValue({
+      document: loadedDocument,
+      launcher: DEFAULT_SETTINGS.launcher,
+    });
+
+    Object.defineProperty(window, 'doku', {
+      configurable: true,
+      value: {
+        ...window.doku,
+        documents: {
+          ...window.doku.documents,
+          saveDocument,
+        },
+      },
+    });
+
+    renderWorkspace({
+      onUpdate,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    await user.click(screen.getAllByRole('button', { name: 'Save' }).at(-1) as HTMLElement);
+
+    const dontAskAgain = await screen.findByRole('checkbox', { name: 'Do not ask again' });
+    expect(dontAskAgain).toBeChecked();
+
+    await user.click(screen.getByRole('button', { name: 'Not now' }));
+
+    expect(onUpdate).toHaveBeenCalledWith({
+      defaultMarkdownAppPrompt: {
+        shown: true,
+        dismissed: true,
+      },
+    });
+  });
+
+  it('does not show the default-app prompt after it has been dismissed', async () => {
+    const user = userEvent.setup();
+    const saveDocument = vi.fn().mockResolvedValue({
+      document: loadedDocument,
+      launcher: DEFAULT_SETTINGS.launcher,
+    });
+
+    Object.defineProperty(window, 'doku', {
+      configurable: true,
+      value: {
+        ...window.doku,
+        documents: {
+          ...window.doku.documents,
+          saveDocument,
+        },
+      },
+    });
+
+    renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+        defaultMarkdownAppPrompt: {
+          shown: true,
+          dismissed: true,
+        },
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    await user.click(screen.getAllByRole('button', { name: 'Save' }).at(-1) as HTMLElement);
+
+    await waitFor(() => {
+      expect(saveDocument).toHaveBeenCalled();
+    });
+    expect(
+      screen.queryByRole('dialog', { name: 'Set Doku as the default app for .md files' }),
+    ).not.toBeInTheDocument();
   });
 
   it('keeps editing the same local draft after autosave updates launcher state', async () => {
@@ -391,7 +651,7 @@ describe('Workspace', () => {
     const user = userEvent.setup();
     const onOpenExport = vi.fn();
 
-    render(
+    const view = render(
       <I18nProvider language="en">
         <ThemeProvider preference="light">
           <Workspace
@@ -424,8 +684,26 @@ describe('Workspace', () => {
     );
   });
 
-  it('uses the document title field as the first markdown heading', async () => {
-    render(
+  it('shows only the full document title in the top navigation', async () => {
+    const longTitle = 'A very long chapter title that should stay readable in the top navigation and wrap before the command area';
+    const longDocument: DocumentSession = {
+      ...loadedDocument,
+      title: longTitle,
+      content: `# ${longTitle}\n\nBody copy`,
+    };
+
+    Object.defineProperty(window, 'doku', {
+      configurable: true,
+      value: {
+        ...window.doku,
+        documents: {
+          ...window.doku.documents,
+          loadDocument: vi.fn().mockResolvedValue(longDocument),
+        },
+      },
+    });
+
+    const view = render(
       <I18nProvider language="en">
         <ThemeProvider preference="light">
           <Workspace
@@ -433,7 +711,10 @@ describe('Workspace', () => {
               ...DEFAULT_SETTINGS,
               firstRunCompleted: true,
             }}
-            initialDocument={null}
+            initialDocument={{
+              ...initialDocument,
+              title: longTitle,
+            }}
             onUpdate={vi.fn().mockResolvedValue(undefined)}
             onOpenSettings={vi.fn()}
             onOpenInfo={vi.fn()}
@@ -444,18 +725,16 @@ describe('Workspace', () => {
       </I18nProvider>,
     );
 
-    const titleInput = (await screen.findAllByLabelText('Document title')).at(-1);
-    if (!titleInput) {
-      throw new Error('Missing document title input');
-    }
-    fireEvent.change(titleInput, { target: { value: 'Editorial Title' } });
-
-    const editor = (await screen.findAllByLabelText('Markdown editor')).at(-1);
-    expect(editor).toHaveValue('# Editorial Title\n\n');
-
-    fireEvent.change(titleInput, { target: { value: 'Revised Title' } });
-
-    expect(editor).toHaveValue('# Revised Title\n\n');
+    await screen.findByRole('tab', { name: longTitle });
+    const titleLabel = view.container.querySelector('.workspace__document-heading');
+    expect(titleLabel).not.toBeNull();
+    expect(titleLabel).toHaveClass('workspace__document-heading');
+    expect(titleLabel).toHaveAttribute('title', longTitle);
+    expect(screen.queryByText('Home')).not.toBeInTheDocument();
+    expect(screen.queryByText('Workspace')).not.toBeInTheDocument();
+    expect(screen.queryByText('Markdown file')).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Saved' })).toHaveClass('workspace__save-indicator');
+    expect(screen.queryByLabelText('Document title')).not.toBeInTheDocument();
   });
 });
 

@@ -32,6 +32,7 @@ export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDi
   const dict = useDict();
   const [customThemeOpen, setCustomThemeOpen] = useState(false);
   const [uninstallPreparing, setUninstallPreparing] = useState(false);
+  const [restartNoticeVisible, setRestartNoticeVisible] = useState(false);
 
   const languageOptions: SegmentedOption<Language>[] = LANGUAGES.map((code) => ({
     value: code,
@@ -54,6 +55,11 @@ export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDi
     { value: '150', label: '150%' },
   ];
 
+  const updateWithRestartNotice = (patch: SettingsPatch) => {
+    setRestartNoticeVisible(true);
+    void onUpdate(patch);
+  };
+
   return (
     <Dialog
       open={open}
@@ -61,9 +67,16 @@ export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDi
       title={dict.settings.title}
       subtitle={dict.settings.subtitle}
       footer={
-        <Button variant="primary" onClick={onClose}>
-          {dict.settings.close}
-        </Button>
+        <div className="settings-dialog__footer">
+          {restartNoticeVisible ? (
+            <div className="settings-restart-notice settings-restart-notice--footer" role="alert">
+              {dict.settings.restartNotice}
+            </div>
+          ) : null}
+          <Button variant="primary" onClick={onClose}>
+            {dict.settings.close}
+          </Button>
+        </div>
       }
     >
       <div className="settings-field">
@@ -87,7 +100,7 @@ export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDi
           value={String(settings.appZoom) as AppZoomOption}
           options={zoomOptions}
           onChange={(appZoom) => {
-            void onUpdate({ appZoom: Number(appZoom) as AppZoom });
+            updateWithRestartNotice({ appZoom: Number(appZoom) as AppZoom });
           }}
           ariaLabel={dict.settings.zoomLabel}
           fullWidth
@@ -102,7 +115,7 @@ export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDi
           value={settings.theme}
           options={themeOptions}
           onChange={(t) => {
-            void onUpdate({ theme: t });
+            updateWithRestartNotice({ theme: t });
           }}
           ariaLabel={dict.settings.themeLabel}
           fullWidth
@@ -123,7 +136,7 @@ export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDi
           label={dict.settings.fontLabel}
           value={settings.typography.uiFontFamily}
           onChange={(fontFamily) => {
-            void onUpdate({
+            updateWithRestartNotice({
               typography: buildUnifiedDokuTypography(fontFamily),
               writingFontFamily: null,
             });
@@ -176,6 +189,7 @@ export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDi
         initialTheme={settings.customTheme}
         onClose={() => setCustomThemeOpen(false)}
         onApply={async (customTheme) => {
+          setRestartNoticeVisible(true);
           await onUpdate({ theme: 'custom', customTheme });
           setCustomThemeOpen(false);
         }}

@@ -21,7 +21,7 @@ The result is a desktop Markdown editor that feels closer to a digital editorial
 - **Local-first by design**: documents, preferences, recent files and autosave data stay on your device.
 - **No account required**: Doku does not need a login, cloud workspace or remote service to support the core writing flow.
 - **Markdown-native**: write in plain `.md`, keep portable files, avoid lock-in.
-- **Editorial workspace**: write, preview and split modes are designed for long-form focus.
+- **Editorial workspace**: write, preview and split modes are designed for long-form focus, with a page-like preview that feels close to the final printed result.
 - **Integrated guidance**: product help and Markdown guidance are available inside the app, so you do not need to leave your writing context.
 - **Beautiful light and dark themes**: Warm Ivory and Deep Slate are treated as two first-class editorial identities.
 - **Bundled typography and app zoom**: Doku ships its font catalog with the app and offers 75%, 100%, 125% and 150% interface zoom without requiring system font installation.
@@ -35,9 +35,17 @@ Doku starts with a short onboarding flow for language, theme and writing font. A
 
 The writing surface is intentionally restrained. It favors readability, keyboard access, persistent preferences and a clear sense of document state over crowded toolbars or technical panels. The selected font is normalized for consistent UI behavior at 100%; the app zoom preference scales the full interface when a user wants a smaller or larger workspace.
 
+Long Markdown lines wrap naturally, so writing remains vertical and predictable even with wide fonts or long prose. Pure Preview mode becomes a centered page-like reading surface, while Split mode keeps a compact side-by-side view for writing and checking the result.
+
+When more than one Markdown file is opened, Doku keeps each document in its own tab. Opening a file from the system while Doku is already running no longer replaces the page you were editing: the requested document appears beside the others, and a file that is already open simply comes back into focus.
+
 Unsaved drafts remain a single continuous working sheet during autosave. Autosave updates the local draft snapshot and recent-document metadata without clearing the editor or creating a new blank document under the user's cursor.
 
 Manual save uses the operating system's native file chooser as a child dialog of the Doku editor window, so the save surface stays visible and foregrounded instead of opening unnoticed behind the workspace.
+
+After the first real file save, Doku can suggest opening the system default-app preferences for Markdown files. The prompt includes a “do not ask again” choice enabled by default and is persisted locally, so it does not keep interrupting future sessions.
+
+Visual preference changes such as zoom, theme and typography show a restart notice, making the application of layout-sensitive changes explicit instead of silently destabilizing the workspace.
 
 The integrated Guide Center includes product help, shortcuts and Markdown reference material with examples, so the app can teach without interrupting.
 
@@ -92,6 +100,8 @@ npm test
 npm run typecheck
 npm run lint
 ```
+
+The current test coverage protects the recent workspace improvements, including document tabs, smoother file opening while Doku is already running, clearer visual-preference feedback and a more reliable preview experience.
 
 Format the codebase:
 

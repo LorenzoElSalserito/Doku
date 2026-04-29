@@ -90,6 +90,11 @@ export const it: Dictionary = {
       recentHeading: 'Recenti',
       recentEmpty: 'Nessun documento recente',
     },
+    tabs: {
+      label: 'Documenti aperti',
+      close: 'Chiudi documento',
+      closeDirtyConfirm: 'Questo documento contiene modifiche non salvate. Chiuderlo comunque?',
+    },
     quickActions: {
       toggleShow: 'Mostra azioni rapide',
       toggleHide: 'Nascondi azioni rapide',
@@ -200,6 +205,7 @@ export const it: Dictionary = {
     themeHint: 'Chiaro, scuro o allineato al sistema.',
     zoomLabel: 'Zoom app',
     zoomHint: 'Scala tutta l’interfaccia senza cambiare il font Doku selezionato.',
+    restartNotice: 'Riavvia Doku per applicare le modifiche visive in modo pulito.',
     fontLabel: 'Tipografia',
     fontHint: 'Ogni selettore usa il catalogo completo dei font Doku definito in FONTS.md.',
     fontLoading: 'Carico i font di sistema…',
@@ -253,6 +259,7 @@ export const it: Dictionary = {
     subtitle: 'Doku apre solo le preferenze di sistema. Non cambia nulla in modo silenzioso.',
     openPreferences: 'Apri preferenze di sistema',
     notNow: 'Non ora',
+    dontAskAgain: 'Non chiedermelo nuovamente',
     linuxHint: 'Su Linux il percorso esatto dipende dall’ambiente desktop in uso.',
   },
   exportDialog: {
