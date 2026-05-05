@@ -1,14 +1,21 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+import editorWorkerUrl from 'monaco-editor/esm/vs/editor/editor.worker?worker&url';
 import '@doku/ui';
 import './styles/app.css';
 import { App } from './app/App.js';
 
 if (!window.doku.system.safeMode) {
-  (globalThis as typeof globalThis & { MonacoEnvironment?: { getWorker: () => Worker } })
+  (globalThis as typeof globalThis & {
+    MonacoEnvironment?: {
+      getWorker: () => Worker;
+      getWorkerUrl: () => string;
+    };
+  })
     .MonacoEnvironment = {
     getWorker: () => new EditorWorker(),
+    getWorkerUrl: () => editorWorkerUrl,
   };
 }
 
@@ -16,11 +23,11 @@ const container = document.getElementById('root');
 if (!container) throw new Error('Root container #root missing in index.html');
 
 const DOKU_FONT_PRELOADS = [
-  '1em Inter',
-  '1em JetBrains Mono',
-  '1em Source Serif 4',
-  '1em OpenDyslexic',
-  '1em Atkinson Hyperlegible',
+  '1em "Inter"',
+  '1em "JetBrains Mono"',
+  '1em "Source Serif 4"',
+  '1em "OpenDyslexic"',
+  '1em "Atkinson Hyperlegible"',
 ];
 
 async function loadDokuFonts(): Promise<void> {
@@ -29,7 +36,7 @@ async function loadDokuFonts(): Promise<void> {
     return;
   }
 
-  await Promise.all(DOKU_FONT_PRELOADS.map((font) => fontSet.load(font)));
+  await Promise.allSettled(DOKU_FONT_PRELOADS.map((font) => fontSet.load(font)));
 }
 
 async function preloadDokuFontsWithTimeout(timeoutMs = 800): Promise<void> {

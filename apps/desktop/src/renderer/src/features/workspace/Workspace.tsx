@@ -779,6 +779,36 @@ export function Workspace({
     [onUpdate, viewMode],
   );
 
+  const handleEditorScrollChange = useCallback(
+    (state: { scrollTop: number; scrollHeight: number; viewportHeight: number }) => {
+      if (viewMode !== 'split') {
+        return;
+      }
+
+      const preview = previewScrollRef.current;
+      if (!preview) {
+        return;
+      }
+
+      const editorScrollableHeight = Math.max(state.scrollHeight - state.viewportHeight, 1);
+      const previewScrollableHeight = Math.max(preview.scrollHeight - preview.clientHeight, 0);
+      preview.scrollTop = (state.scrollTop / editorScrollableHeight) * previewScrollableHeight;
+    },
+    [viewMode],
+  );
+
+  const handlePreviewWheel = useCallback(
+    (event: React.WheelEvent<HTMLDivElement>) => {
+      if (viewMode !== 'split') {
+        return;
+      }
+
+      event.preventDefault();
+      monacoEditorRef.current?.scrollBy(event.deltaY);
+    },
+    [viewMode],
+  );
+
   const toggleQuickActions = useCallback(() => {
     const nextVisible = !quickActionsVisible;
     setQuickActionsVisible(nextVisible);
@@ -1240,33 +1270,6 @@ export function Workspace({
     [dict.workspace, document?.path, setActiveTabErrorMessage, setActiveTabSaveState],
   );
 
-  useEffect(() => {
-    if (viewMode !== 'split') {
-      return;
-    }
-
-    const pane = editorPaneRef.current;
-    if (!pane) {
-      return;
-    }
-
-    const handleWheel = (event: WheelEvent) => {
-      if (event.defaultPrevented) {
-        return;
-      }
-      const preview = previewScrollRef.current;
-      if (!preview) {
-        return;
-      }
-      preview.scrollTop += event.deltaY;
-    };
-
-    pane.addEventListener('wheel', handleWheel, { passive: true });
-    return () => {
-      pane.removeEventListener('wheel', handleWheel);
-    };
-  }, [viewMode, loadState]);
-
   return (
     <div className="workspace">
       <div className="workspace__topbar">
@@ -1519,6 +1522,7 @@ export function Workspace({
                         ref={monacoEditorRef}
                         value={document?.content ?? ''}
                         onChange={handleContentChange}
+                        onScrollChange={handleEditorScrollChange}
                       />
                     </section>
                   )}
@@ -1529,10 +1533,11 @@ export function Workspace({
                         viewMode === 'preview' ? ' workspace__editor-pane--preview-page' : ''
                       }`}
                     >
-                      <div className="workspace__preview-head">
-                        <span className="workspace__panel-eyebrow">{dict.workspace.previewEyebrow}</span>
-                      </div>
-                      <div ref={previewScrollRef} className="workspace__preview-scroll">
+                      <div
+                        ref={previewScrollRef}
+                        className="workspace__preview-scroll"
+                        onWheel={handlePreviewWheel}
+                      >
                         <MarkdownPreview
                           content={previewContent}
                           sourcePath={document?.path}

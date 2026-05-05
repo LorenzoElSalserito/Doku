@@ -18,6 +18,7 @@ interface MonacoEditorProps {
 export interface MonacoEditorHandle {
   focus: () => void;
   layout: () => void;
+  scrollBy: (deltaY: number) => void;
   insertText: (text: string) => void;
   replaceSelection: (
     text: string,
@@ -93,6 +94,14 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
       },
       layout: () => {
         editorRef.current?.layout();
+      },
+      scrollBy: (deltaY) => {
+        const editor = editorRef.current;
+        if (!editor) {
+          return;
+        }
+
+        editor.setScrollTop(editor.getScrollTop() + deltaY);
       },
       insertText: (text: string) => {
         applyReplacement(text);

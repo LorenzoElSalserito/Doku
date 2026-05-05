@@ -1090,15 +1090,15 @@
     var(--color-base);
 }
 
-.workspace__preview-head {
-  margin-bottom: var(--space-5);
-  flex: 0 0 auto;
-}
-
 .workspace__preview-scroll {
   flex: 1;
   min-height: 0;
   overflow: auto;
+}
+
+.workspace__editor-panels--split .workspace__preview-scroll {
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .workspace__editor-pane--preview-page .workspace__preview-scroll {

@@ -15,13 +15,18 @@ const monacoRefState = {
   insertText: vi.fn(),
   focus: vi.fn(),
   layout: vi.fn(),
+  scrollBy: vi.fn(),
 };
 
 vi.mock('./MonacoEditor.js', async () => {
   const react = await import('react');
   return {
     MonacoEditor: react.forwardRef(function MockMonacoEditor(
-      props: { value: string; onChange: (value: string) => void },
+      props: {
+        value: string;
+        onChange: (value: string) => void;
+        onScrollChange?: (state: { scrollTop: number; scrollHeight: number; viewportHeight: number }) => void;
+      },
       ref,
     ) {
       react.useImperativeHandle(ref, () => monacoRefState);

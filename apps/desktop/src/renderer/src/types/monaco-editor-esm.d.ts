@@ -8,3 +8,8 @@ declare module '*?worker' {
   const WorkerCtor: { new (): Worker };
   export default WorkerCtor;
 }
+
+declare module '*?worker&url' {
+  const workerUrl: string;
+  export default workerUrl;
+}

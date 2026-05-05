@@ -58,6 +58,7 @@ async function bootstrap(): Promise<void> {
     electronUserDataDir: ORIGINAL_USER_DATA_DIR,
   });
   logger.info('app:crash-dump-dir', { path: app.getPath('crashDumps') });
+  void logCrashpadPendingDumps();
   void logger.pruneOlderThan(LOG_RETENTION_MS);
 
   await crashState.markBootstrapStarted();
@@ -294,8 +295,15 @@ async function migrateLegacyUserData(sourceDir: string, targetDir: string): Prom
 function attachWindowDiagnostics(window: BrowserWindow): void {
   logger.info('window:created');
   window.webContents.on('did-finish-load', () => logger.info('window:did-finish-load'));
+  window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    logger.error('window:did-fail-load', { errorCode, errorDescription, validatedURL, isMainFrame });
+  });
+  window.webContents.on('preload-error', (_event, preloadPath, error) => {
+    logger.error('window:preload-error', { preloadPath, error: serializeErrorForLog(error) });
+  });
   window.webContents.on('render-process-gone', (_event, details) => {
     logger.error('window:render-process-gone', { ...details });
+    void logCrashpadPendingDumps();
   });
   window.webContents.on('unresponsive', () => logger.warn('window:unresponsive'));
   window.webContents.on('console-message', (_event, level, message, line, sourceId) => {
@@ -312,8 +320,22 @@ function registerProcessDiagnostics(): void {
   });
   app.on('child-process-gone', (_event, details) => {
     logger.error('app:child-process-gone', { ...details });
+    void logCrashpadPendingDumps();
   });
   app.on('before-quit', () => logger.info('app:before-quit'));
+}
+
+async function logCrashpadPendingDumps(): Promise<void> {
+  try {
+    const pendingDir = join(app.getPath('crashDumps'), 'pending');
+    const entries = await fs.readdir(pendingDir);
+    const dumps = entries.filter((entry) => entry.endsWith('.dmp'));
+    logger.info('app:crashpad-pending-dumps', { count: dumps.length });
+  } catch (error: unknown) {
+    if (!isNodeError(error) || error.code !== 'ENOENT') {
+      logger.warn('app:crashpad-pending-dumps-failed', { error: serializeErrorForLog(error) });
+    }
+  }
 }
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {
