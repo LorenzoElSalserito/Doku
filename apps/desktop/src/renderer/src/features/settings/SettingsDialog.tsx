@@ -136,7 +136,7 @@ export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDi
           label={dict.settings.fontLabel}
           value={settings.typography.uiFontFamily}
           onChange={(fontFamily) => {
-            updateWithRestartNotice({
+            void onUpdate({
               typography: buildUnifiedDokuTypography(fontFamily),
               writingFontFamily: null,
             });
@@ -232,9 +232,13 @@ function FontSelect({
           </option>
         ))}
       </select>
-      <span className="font-select-preview" style={{ fontFamily: value }}>
+      <span className="font-select-preview" style={{ fontFamily: quoteFontFamily(value) }}>
         {DOKU_FONT_CATALOG.find((font) => font.family === value)?.previewText ?? value}
       </span>
     </label>
   );
+}
+
+function quoteFontFamily(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }

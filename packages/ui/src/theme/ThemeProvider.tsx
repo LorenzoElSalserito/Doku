@@ -145,6 +145,44 @@ export function ThemeProvider({
     writingFontFamily,
   ]);
 
+  useEffect(() => {
+    const fontSet = document.fonts;
+    if (!fontSet) {
+      return;
+    }
+
+    const readableFamily = accessibilityMode && accessibilityFontFamily ? accessibilityFontFamily : undefined;
+    const families = [
+      readableFamily ?? uiFontFamily ?? writingFontFamily,
+      readableFamily ?? contentFontFamily ?? writingFontFamily,
+      monospaceFontFamily,
+    ].filter((family): family is string => Boolean(family));
+
+    if (families.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    void Promise.allSettled(
+      Array.from(new Set(families)).map((family) => fontSet.load(buildFontLoadSpec(family))),
+    ).then(() => {
+      if (!cancelled) {
+        setFontRevision((revision) => revision + 1);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    accessibilityFontFamily,
+    accessibilityMode,
+    contentFontFamily,
+    monospaceFontFamily,
+    uiFontFamily,
+    writingFontFamily,
+  ]);
+
   const themeKey = useMemo(
     () =>
       [
@@ -208,7 +246,11 @@ function getFontMetricScale(family: string | null | undefined): number {
 }
 
 function quoteFontFamily(value: string): string {
-  return /\s/.test(value) ? `'${value.replace(/'/g, "\\'")}'` : value;
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function buildFontLoadSpec(family: string): string {
+  return `1em ${quoteFontFamily(family)}`;
 }
 
 function setFontVariable(

@@ -169,6 +169,98 @@ describe('Workspace', () => {
     );
   });
 
+  it('keeps a newly created draft in one tab after autosave', async () => {
+    const saveDocument = vi.fn(async (input: {
+      id: string;
+      kind: 'draft' | 'file';
+      title: string;
+      content: string;
+      path?: string;
+    }) => ({
+      document: {
+        id: input.id,
+        kind: input.kind,
+        title: input.title,
+        path: input.path,
+        content: input.content,
+        snippet: input.content,
+        lastOpenedAt: '2026-04-23T10:03:00.000Z',
+        lastSavedAt: null,
+      },
+      launcher: DEFAULT_SETTINGS.launcher,
+    }));
+
+    Object.defineProperty(window, 'doku', {
+      configurable: true,
+      value: {
+        ...window.doku,
+        documents: {
+          ...window.doku.documents,
+          saveDocument,
+        },
+      },
+    });
+
+    const view = renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'File' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'New document' }));
+
+    await screen.findByRole('tab', { name: 'Untitled document' });
+    const tablist = screen.getByRole('tablist', { name: 'Open documents' });
+    expect(within(tablist).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'chapter-1',
+      'Untitled document',
+    ]);
+
+    fireEvent.change(within(view.container).getByLabelText('Markdown editor'), {
+      target: { value: 'body without heading' },
+    });
+
+    await waitFor(() => {
+      expect(saveDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'draft',
+          title: 'Untitled document',
+          mode: 'autosave',
+        }),
+      );
+    }, { timeout: 2000 });
+    expect(within(tablist).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'chapter-1',
+      'Untitled document',
+    ]);
+    expect(screen.queryByRole('tab', { name: 'document' })).not.toBeInTheDocument();
+  });
+
+  it('creates a new empty document with the primary-modifier N shortcut', async () => {
+    renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    fireEvent.keyDown(window, { key: 'n', ctrlKey: true });
+
+    await screen.findByRole('tab', { name: 'Untitled document' });
+    expect(screen.getByRole('tab', { name: 'Untitled document' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByLabelText('Markdown editor')).toHaveValue('');
+  });
+
   it('uses the print-page preview layout without rendering Monaco in preview mode', async () => {
     const view = renderWorkspace({
       settings: {

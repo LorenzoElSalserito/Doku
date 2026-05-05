@@ -75,7 +75,9 @@ export function Workspace({
   const [viewMode, setViewMode] = useState<ViewMode>(persistedViewMode);
   const [quickActionsVisible, setQuickActionsVisible] = useState(settings.workspaceQuickActionsVisible);
   const [activeSummary, setActiveSummary] = useState<DocumentSummary | null>(null);
-  const [draftToken, setDraftToken] = useState(0);
+  const [draftRequestId, setDraftRequestId] = useState<string | null>(() =>
+    initialTabs.length === 0 ? createDraftDocumentId() : null,
+  );
   const [tabs, setTabs] = useState<WorkspaceDocumentTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [sessionRestoreComplete, setSessionRestoreComplete] = useState(initialTabs.length === 0);
@@ -209,6 +211,39 @@ export function Workspace({
     });
     setActiveTabId(tabId);
   }, []);
+
+  const replaceActiveTabWithDocument = useCallback(
+    (nextDocument: DocumentSession, nextSaveState: SaveState = 'saved') => {
+      const nextTabId = resolveDocumentTabId(nextDocument);
+      const nextTab: WorkspaceDocumentTab = {
+        id: nextTabId,
+        document: nextDocument,
+        summary: toDocumentSummary(nextDocument),
+        saveState: nextSaveState,
+        loadState: 'ready',
+        errorMessage: null,
+      };
+
+      setTabs((current) => {
+        const activeIndex = current.findIndex((tab) => tab.id === activeTabId);
+        const existingIndex = current.findIndex((tab) => tab.id === nextTabId);
+
+        if (existingIndex !== -1) {
+          return current
+            .map((tab, index) => (index === existingIndex ? nextTab : tab))
+            .filter((tab, index) => index !== activeIndex || tab.id === nextTabId);
+        }
+
+        if (activeIndex !== -1) {
+          return current.map((tab, index) => (index === activeIndex ? nextTab : tab));
+        }
+
+        return [...current, nextTab];
+      });
+      setActiveTabId(nextTabId);
+    },
+    [activeTabId],
+  );
 
   const refreshWorkspaceTree = useCallback(async () => {
     if (!document?.path) {
@@ -380,13 +415,13 @@ export function Workspace({
         const result = await window.doku.documents.saveDocument({
           id: document.id,
           kind: document.kind,
-          title: resolveDocumentSaveTitle(document),
+          title: mode === 'autosave' ? document.title : resolveDocumentSaveTitle(document),
           path: document.path,
           content: document.content,
           mode,
         });
 
-        activateDocumentTab(result.document, 'saved');
+        replaceActiveTabWithDocument(result.document, 'saved');
         await onUpdate({ launcher: result.launcher });
         if (
           mode !== 'autosave' &&
@@ -421,9 +456,9 @@ export function Workspace({
     },
     [
       dict.workspace.editorErrorBody,
-      activateDocumentTab,
       document,
       onUpdate,
+      replaceActiveTabWithDocument,
       setActiveTabErrorMessage,
       setActiveTabSaveState,
     ],
@@ -434,12 +469,13 @@ export function Workspace({
       return undefined;
     }
 
-    if (!activeSummary && tabsRef.current.length > 0 && draftToken === 0) {
+    if (!activeSummary && tabsRef.current.length > 0 && !draftRequestId) {
       return undefined;
     }
 
     let cancelled = false;
-    const requestedTabId = activeSummary ? resolveSummaryTabId(activeSummary) : `draft:${draftToken}`;
+    const requestedDraftId = draftRequestId ?? createDraftDocumentId();
+    const requestedTabId = activeSummary ? resolveSummaryTabId(activeSummary) : resolveDraftTabId(requestedDraftId);
 
     const existingTab = tabsRef.current.find((tab) => tab.id === requestedTabId);
     if (existingTab?.loadState === 'ready') {
@@ -477,7 +513,7 @@ export function Workspace({
         if (!activeSummary) {
           const now = new Date().toISOString();
           const draftDocument: DocumentSession = {
-            id: `draft:${crypto.randomUUID()}`,
+            id: requestedDraftId,
             kind: 'draft',
             title: dict.workspace.untitledDocument,
             content: '',
@@ -584,7 +620,7 @@ export function Workspace({
     };
   }, [
     activeSummary,
-    draftToken,
+    draftRequestId,
     dict.workspace.editorErrorBody,
     dict.workspace.missingDocumentNotice,
     dict.workspace.tabs.missingDocumentFile,
@@ -839,7 +875,7 @@ export function Workspace({
       const remainingTabs = tabsRef.current.filter((tab) => tab.id !== tabId);
       if (remainingTabs.length === 0) {
         setActiveSummary(null);
-        setDraftToken((token) => token + 1);
+        setDraftRequestId(createDraftDocumentId());
       } else if (tabId === activeTabId) {
         setActiveTabId(remainingTabs.at(-1)?.id ?? null);
       }
@@ -988,8 +1024,25 @@ export function Workspace({
     setNoticeMessage(null);
     logWorkspaceEvent('document-new-requested');
     setActiveSummary(null);
-    setDraftToken((token) => token + 1);
+    setDraftRequestId(createDraftDocumentId());
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      const usesPrimaryModifier = event.metaKey || event.ctrlKey;
+      if (!usesPrimaryModifier || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'n') {
+        return;
+      }
+
+      event.preventDefault();
+      handleNewDocument();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleNewDocument]);
 
   const handleOpenFile = useCallback(async () => {
     setNoticeMessage(null);
@@ -2017,6 +2070,14 @@ function resolveSummaryTabId(summary: DocumentSummary): string {
 
 function resolveDocumentTabId(document: DocumentSession): string {
   return document.path ? `file:${document.path}` : `document:${document.id}`;
+}
+
+function resolveDraftTabId(draftId: string): string {
+  return `document:${draftId}`;
+}
+
+function createDraftDocumentId(): string {
+  return `draft:${crypto.randomUUID()}`;
 }
 
 function resolveDocumentTabTitle(document: DocumentSession): string {

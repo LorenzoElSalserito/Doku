@@ -75,18 +75,18 @@ describe('SettingsDialog', () => {
     expect(onUpdate).toHaveBeenCalledWith({ theme: 'dark' });
   });
 
-  it('shows a restart alert after font changes', () => {
+  it('applies font changes without requiring restart', () => {
     const onUpdate = vi.fn().mockResolvedValue(undefined);
 
     renderSettingsDialog({ onUpdate });
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByRole('combobox', { name: /typography/i }), {
       target: { value: 'Roboto' },
     });
 
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Restart Doku to apply visual changes cleanly.',
-    );
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(onUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         writingFontFamily: null,
