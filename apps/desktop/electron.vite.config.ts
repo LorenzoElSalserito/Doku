@@ -44,6 +44,7 @@ export default defineConfig({
   renderer: {
     root: resolve(HERE, 'src/renderer'),
     plugins: [react()],
+    worker: { format: 'es' },
     build: {
       outDir: resolve(HERE, 'out/renderer'),
       emptyOutDir: true,

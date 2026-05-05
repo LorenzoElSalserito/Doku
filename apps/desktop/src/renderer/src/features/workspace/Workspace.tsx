@@ -25,7 +25,8 @@ import { WorkspaceExplorer } from './WorkspaceExplorer.js';
 
 interface WorkspaceProps {
   settings: Settings;
-  initialDocument: DocumentSummary | null;
+  initialTabs: DocumentSummary[];
+  initialActiveTabId: string | null;
   onUpdate: (patch: SettingsPatch) => Promise<void>;
   onOpenSettings: () => void;
   onOpenInfo: () => void;
@@ -40,6 +41,7 @@ type SaveState = 'saved' | 'dirty' | 'saving' | 'error';
 interface WorkspaceDocumentTab {
   id: string;
   document: DocumentSession | null;
+  summary: DocumentSummary | null;
   saveState: SaveState;
   loadState: 'loading' | 'ready' | 'error';
   errorMessage: string | null;
@@ -58,7 +60,8 @@ function logWorkspaceEvent(event: string, context?: Record<string, unknown>): vo
 
 export function Workspace({
   settings,
-  initialDocument,
+  initialTabs,
+  initialActiveTabId,
   onUpdate,
   onOpenSettings,
   onOpenInfo,
@@ -71,19 +74,35 @@ export function Workspace({
   const [dragState, setDragState] = useState<ResizeSide | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(persistedViewMode);
   const [quickActionsVisible, setQuickActionsVisible] = useState(settings.workspaceQuickActionsVisible);
-  const [activeSummary, setActiveSummary] = useState<DocumentSummary | null>(initialDocument);
+  const [activeSummary, setActiveSummary] = useState<DocumentSummary | null>(null);
   const [draftToken, setDraftToken] = useState(0);
   const [tabs, setTabs] = useState<WorkspaceDocumentTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [sessionRestoreComplete, setSessionRestoreComplete] = useState(initialTabs.length === 0);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
   const [defaultAppPromptOpen, setDefaultAppPromptOpen] = useState(false);
   const [editorDropActive, setEditorDropActive] = useState(false);
   const [tableRows, setTableRows] = useState('2');
   const [tableColumns, setTableColumns] = useState('3');
   const [workspaceTree, setWorkspaceTree] = useState<WorkspaceNode[]>([]);
+  const initialTabsRef = useRef(initialTabs);
+  const initialActiveTabIdRef = useRef(initialActiveTabId);
+  const restoreMessagesRef = useRef({
+    editorErrorBody: dict.workspace.editorErrorBody,
+    missingDocumentFile: dict.workspace.tabs.missingDocumentFile,
+    missingDocumentNotice: dict.workspace.missingDocumentNotice,
+  });
+  const initialOnUpdateRef = useRef(onUpdate);
   const draftLayoutRef = useRef(layout);
   const tabsRef = useRef<WorkspaceDocumentTab[]>([]);
   const autosaveTimeoutRef = useRef<number | null>(null);
+  const sessionPersistTimeoutRef = useRef<number | null>(null);
+  const lastPersistedSessionRef = useRef<string>(
+    JSON.stringify({
+      tabs: settings.sessionTabs,
+      active: settings.activeSessionTabId,
+    }),
+  );
   const defaultAppPromptRef = useRef(settings.defaultMarkdownAppPrompt);
   const launcherRef = useRef(settings.launcher);
   const previewScrollRef = useRef<HTMLDivElement | null>(null);
@@ -136,13 +155,14 @@ export function Workspace({
 
   const setActiveTabDocument = useCallback(
     (updater: DocumentSession | ((current: DocumentSession | null) => DocumentSession | null)) => {
-      updateActiveTab((tab) => ({
-        ...tab,
-        document:
-          typeof updater === 'function'
-            ? updater(tab.document)
-            : updater,
-      }));
+      updateActiveTab((tab) => {
+        const nextDocument = typeof updater === 'function' ? updater(tab.document) : updater;
+        return {
+          ...tab,
+          document: nextDocument,
+          summary: toDocumentSummary(nextDocument),
+        };
+      });
     },
     [updateActiveTab],
   );
@@ -175,6 +195,7 @@ export function Workspace({
       const nextTab: WorkspaceDocumentTab = {
         id: tabId,
         document: nextDocument,
+        summary: toDocumentSummary(nextDocument),
         saveState: nextSaveState,
         loadState: 'ready',
         errorMessage: null,
@@ -216,6 +237,127 @@ export function Workspace({
       void refreshWorkspaceTree();
     });
   }, [document?.path, refreshWorkspaceTree]);
+
+  useEffect(() => {
+    const initialSessionTabs = initialTabsRef.current;
+    const initialSessionActiveTabId = initialActiveTabIdRef.current;
+    const restoreMessages = restoreMessagesRef.current;
+
+    if (initialSessionTabs.length === 0) {
+      setSessionRestoreComplete(true);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const summaries = dedupeDocumentSummaries(initialSessionTabs).slice(0, 40);
+    const tabIds = summaries.map(resolveSummaryTabId);
+    const initialActiveId =
+      initialSessionActiveTabId && tabIds.includes(initialSessionActiveTabId)
+        ? initialSessionActiveTabId
+        : tabIds[0] ?? null;
+
+    setSessionRestoreComplete(false);
+    setTabs(
+      summaries.map((summary) => ({
+        id: resolveSummaryTabId(summary),
+        document: null,
+        summary,
+        saveState: 'saved',
+        loadState: 'loading',
+        errorMessage: null,
+      })),
+    );
+    setActiveTabId(initialActiveId);
+
+    const restore = async () => {
+      await Promise.all(
+        summaries.map(async (summary) => {
+          const tabId = resolveSummaryTabId(summary);
+          try {
+            const next = await window.doku.documents.loadDocument(summary);
+            if (cancelled) {
+              return;
+            }
+
+            if (!next) {
+              const nextLauncher = removeSummaryFromLauncher(launcherRef.current, summary);
+              await initialOnUpdateRef.current({ launcher: nextLauncher });
+              if (cancelled) {
+                return;
+              }
+              setTabs((current) =>
+                current.map((tab) =>
+                  tab.id === tabId
+                    ? {
+                        ...tab,
+                        loadState: 'error',
+                        errorMessage: restoreMessages.missingDocumentFile,
+                      }
+                    : tab,
+                ),
+              );
+              logWorkspaceEvent('document-session-tab-missing', {
+                id: summary.id,
+                path: summary.path,
+              });
+              return;
+            }
+
+            setTabs((current) =>
+              current.map((tab) =>
+                tab.id === tabId
+                  ? {
+                      ...tab,
+                      document: next,
+                      summary: toDocumentSummary(next),
+                      saveState: 'saved',
+                      loadState: 'ready',
+                      errorMessage: null,
+                    }
+                  : tab,
+              ),
+            );
+            logWorkspaceEvent('document-session-tab-restored', {
+              id: next.id,
+              kind: next.kind,
+              title: next.title,
+              path: next.path,
+            });
+          } catch (error: unknown) {
+            if (cancelled) {
+              return;
+            }
+            setTabs((current) =>
+              current.map((tab) =>
+                tab.id === tabId
+                  ? {
+                      ...tab,
+                      loadState: 'error',
+                      errorMessage:
+                        error instanceof Error ? error.message : restoreMessages.editorErrorBody,
+                    }
+                  : tab,
+              ),
+            );
+            logWorkspaceEvent('document-session-tab-restore-failed', {
+              message: error instanceof Error ? error.message : restoreMessages.editorErrorBody,
+            });
+          }
+        }),
+      );
+
+      if (!cancelled) {
+        setNoticeMessage(null);
+        setSessionRestoreComplete(true);
+      }
+    };
+
+    void restore();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const saveDocument = useCallback(
     async (mode: 'save' | 'saveAs' | 'autosave') => {
@@ -288,6 +430,14 @@ export function Workspace({
   );
 
   useEffect(() => {
+    if (!sessionRestoreComplete) {
+      return undefined;
+    }
+
+    if (!activeSummary && tabsRef.current.length > 0 && draftToken === 0) {
+      return undefined;
+    }
+
     let cancelled = false;
     const requestedTabId = activeSummary ? resolveSummaryTabId(activeSummary) : `draft:${draftToken}`;
 
@@ -313,6 +463,7 @@ export function Workspace({
         {
           id: requestedTabId,
           document: null,
+          summary: activeSummary,
           saveState: 'saved',
           loadState: 'loading',
           errorMessage: null,
@@ -343,6 +494,7 @@ export function Workspace({
                 ? {
                     ...tab,
                     document: draftDocument,
+                    summary: toDocumentSummary(draftDocument),
                     saveState: 'saved',
                     loadState: 'ready',
                     errorMessage: null,
@@ -369,8 +521,18 @@ export function Workspace({
             id: activeSummary.id,
             path: activeSummary.path,
           });
-          setActiveSummary(null);
-          setDraftToken((token) => token + 1);
+          setTabs((current) =>
+            current.map((tab) =>
+              tab.id === requestedTabId
+                ? {
+                    ...tab,
+                    summary: activeSummary,
+                    loadState: 'error',
+                    errorMessage: dict.workspace.tabs.missingDocumentFile,
+                  }
+                : tab,
+            ),
+          );
           return;
         }
         setTabs((current) =>
@@ -379,6 +541,7 @@ export function Workspace({
               ? {
                   ...tab,
                   document: next,
+                  summary: toDocumentSummary(next),
                   saveState: 'saved',
                   loadState: 'ready',
                   errorMessage: null,
@@ -424,8 +587,10 @@ export function Workspace({
     draftToken,
     dict.workspace.editorErrorBody,
     dict.workspace.missingDocumentNotice,
+    dict.workspace.tabs.missingDocumentFile,
     dict.workspace.untitledDocument,
     onUpdate,
+    sessionRestoreComplete,
   ]);
 
   useEffect(() => {
@@ -447,6 +612,54 @@ export function Workspace({
       }
     };
   }, [document, saveDocument, saveState]);
+
+  useEffect(() => {
+    if (!sessionRestoreComplete) {
+      return;
+    }
+
+    const summaries: DocumentSummary[] = tabs
+      .filter(
+        (tab): tab is WorkspaceDocumentTab & { document: DocumentSession } =>
+          tab.loadState === 'ready' &&
+          tab.document !== null &&
+          tab.document.kind === 'file' &&
+          typeof tab.document.path === 'string' &&
+          tab.document.path.length > 0,
+      )
+      .map((tab) => ({
+        id: tab.document.id,
+        kind: tab.document.kind,
+        title: tab.document.title,
+        path: tab.document.path,
+        snippet: tab.document.snippet,
+        lastOpenedAt: tab.document.lastOpenedAt,
+      }));
+
+    const signature = JSON.stringify({
+      tabs: summaries,
+      active: activeTabId,
+    });
+
+    if (signature === lastPersistedSessionRef.current) {
+      return;
+    }
+
+    if (sessionPersistTimeoutRef.current) {
+      window.clearTimeout(sessionPersistTimeoutRef.current);
+    }
+
+    sessionPersistTimeoutRef.current = window.setTimeout(() => {
+      lastPersistedSessionRef.current = signature;
+      void onUpdate({ sessionTabs: summaries, activeSessionTabId: activeTabId });
+    }, 500);
+
+    return () => {
+      if (sessionPersistTimeoutRef.current) {
+        window.clearTimeout(sessionPersistTimeoutRef.current);
+      }
+    };
+  }, [activeTabId, onUpdate, sessionRestoreComplete, tabs]);
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -548,11 +761,22 @@ export function Workspace({
 
   const handleViewModeChange = useCallback(
     (nextMode: ViewMode) => {
+      const shouldRestoreEditorScroll = viewMode !== 'write' && nextMode === 'write';
       setViewMode(nextMode);
+      if (shouldRestoreEditorScroll) {
+        if (previewScrollRef.current) {
+          previewScrollRef.current.scrollTop = 0;
+        }
+
+        window.requestAnimationFrame(() => {
+          monacoEditorRef.current?.layout();
+          monacoEditorRef.current?.focus();
+        });
+      }
       logWorkspaceEvent('workspace-view-mode-changed', { viewMode: nextMode });
       void onUpdate({ workspaceViewMode: nextMode });
     },
-    [onUpdate],
+    [onUpdate, viewMode],
   );
 
   const toggleQuickActions = useCallback(() => {
@@ -596,6 +820,66 @@ export function Workspace({
     },
     [activeTabId, dict.workspace.tabs.closeDirtyConfirm],
   );
+
+  const handleReorderTabs = useCallback((fromId: string, toId: string) => {
+    if (fromId === toId) {
+      return;
+    }
+
+    setTabs((current) => reorderTabs(current, fromId, toId));
+    logWorkspaceEvent('document-tabs-reordered', { fromId, toId });
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      const usesPrimaryModifier = event.metaKey || event.ctrlKey;
+      if (!usesPrimaryModifier || event.altKey || tabsRef.current.length === 0) {
+        return;
+      }
+
+      const currentTabs = tabsRef.current;
+      const activeIndex = currentTabs.findIndex((tab) => tab.id === activeTabId);
+      const normalizedKey = event.key.toLowerCase();
+
+      if (normalizedKey === 'tab') {
+        event.preventDefault();
+        const direction = event.shiftKey ? -1 : 1;
+        const baseIndex = activeIndex === -1 ? 0 : activeIndex;
+        const nextIndex = (baseIndex + direction + currentTabs.length) % currentTabs.length;
+        const nextTab = currentTabs[nextIndex];
+        if (nextTab) {
+          handleActivateTab(nextTab.id);
+        }
+        return;
+      }
+
+      if (normalizedKey === 'w') {
+        if (!activeTabId) {
+          return;
+        }
+
+        event.preventDefault();
+        handleCloseTab(activeTabId);
+        return;
+      }
+
+      if (!event.shiftKey && /^[1-9]$/.test(event.key)) {
+        const tabIndex = Number.parseInt(event.key, 10) - 1;
+        const nextTab = currentTabs[tabIndex];
+        if (!nextTab) {
+          return;
+        }
+
+        event.preventDefault();
+        handleActivateTab(nextTab.id);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeTabId, handleActivateTab, handleCloseTab]);
 
   const handleContentChange = (nextValue: string) => {
     setActiveTabDocument((current) => {
@@ -692,6 +976,46 @@ export function Workspace({
     });
     activateDocumentTab(result.document);
   }, [activateDocumentTab, onUpdate]);
+
+  const handleReopenTabFromDisk = useCallback(
+    async (tabId: string) => {
+      setActiveTabId(tabId);
+      setNoticeMessage(null);
+      logWorkspaceEvent('document-tab-reopen-dialog-requested', { tabId });
+      const result = await window.doku.documents.openMarkdownFile();
+      if (!result) {
+        return;
+      }
+
+      await onUpdate({ launcher: result.launcher });
+      const nextTabId = resolveDocumentTabId(result.document);
+      setTabs((current) => {
+        const withoutDuplicate = current.filter(
+          (tab) => tab.id === tabId || tab.id !== nextTabId,
+        );
+
+        return withoutDuplicate.map((tab) =>
+          tab.id === tabId
+            ? {
+                id: nextTabId,
+                document: result.document,
+                summary: toDocumentSummary(result.document),
+                saveState: 'saved',
+                loadState: 'ready',
+                errorMessage: null,
+              }
+            : tab,
+        );
+      });
+      setActiveTabId(nextTabId);
+      logWorkspaceEvent('document-tab-reopened-from-disk', {
+        previousTabId: tabId,
+        nextTabId,
+        path: result.document.path,
+      });
+    },
+    [onUpdate],
+  );
 
   const handleSelectRecent = useCallback((summary: DocumentSummary) => {
     setNoticeMessage(null);
@@ -1156,6 +1480,8 @@ export function Workspace({
               labels={dict.workspace.tabs}
               onActivate={handleActivateTab}
               onClose={handleCloseTab}
+              onReorder={handleReorderTabs}
+              onReopenFromDisk={handleReopenTabFromDisk}
             />
             {loadState === 'loading' ? (
               <div className="workspace__editor-loading">{dict.workspace.editorLoading}</div>
@@ -1394,9 +1720,40 @@ interface DocumentTabsProps {
   labels: Dictionary['workspace']['tabs'];
   onActivate: (tabId: string) => void;
   onClose: (tabId: string) => void;
+  onReorder: (fromId: string, toId: string) => void;
+  onReopenFromDisk: (tabId: string) => void;
 }
 
-function DocumentTabs({ tabs, activeTabId, labels, onActivate, onClose }: DocumentTabsProps) {
+function DocumentTabs({
+  tabs,
+  activeTabId,
+  labels,
+  onActivate,
+  onClose,
+  onReorder,
+  onReopenFromDisk,
+}: DocumentTabsProps) {
+  const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
+  const [dropTargetTabId, setDropTargetTabId] = useState<string | null>(null);
+  const tabRefs = useRef(new Map<string, HTMLDivElement>());
+
+  useEffect(() => {
+    if (!activeTabId) {
+      return;
+    }
+
+    const activeTabElement = tabRefs.current.get(activeTabId);
+    if (typeof activeTabElement?.scrollIntoView !== 'function') {
+      return;
+    }
+
+    activeTabElement.scrollIntoView({
+      block: 'nearest',
+      inline: 'nearest',
+      behavior: 'smooth',
+    });
+  }, [activeTabId]);
+
   if (tabs.length === 0) {
     return null;
   }
@@ -1404,13 +1761,61 @@ function DocumentTabs({ tabs, activeTabId, labels, onActivate, onClose }: Docume
   return (
     <div className="workspace-tabs" role="tablist" aria-label={labels.label}>
       {tabs.map((tab) => {
-        const title = tab.document ? resolveDocumentTabTitle(tab.document) : '...';
+        const title = tab.document
+          ? resolveDocumentTabTitle(tab.document)
+          : tab.summary?.title ?? '...';
         const isActive = tab.id === activeTabId;
+        const isDragging = tab.id === draggingTabId;
+        const isDropTarget = tab.id === dropTargetTabId && tab.id !== draggingTabId;
+        const isErrored = tab.loadState === 'error';
+        const errorLabel = tab.errorMessage ?? labels.missingDocumentFile;
 
         return (
           <div
             key={tab.id}
-            className={`workspace-tabs__item${isActive ? ' workspace-tabs__item--active' : ''}`}
+            ref={(element) => {
+              if (element) {
+                tabRefs.current.set(tab.id, element);
+              } else {
+                tabRefs.current.delete(tab.id);
+              }
+            }}
+            className={[
+              'workspace-tabs__item',
+              isActive ? 'workspace-tabs__item--active' : '',
+              isDragging ? 'workspace-tabs__item--dragging' : '',
+              isDropTarget ? 'workspace-tabs__item--drop-target' : '',
+            ].filter(Boolean).join(' ')}
+            draggable
+            onDragStart={(event) => {
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/x-doku-tab-id', tab.id);
+              setDraggingTabId(tab.id);
+            }}
+            onDragOver={(event) => {
+              if (!draggingTabId || draggingTabId === tab.id) {
+                return;
+              }
+              event.preventDefault();
+              event.dataTransfer.dropEffect = 'move';
+              setDropTargetTabId(tab.id);
+            }}
+            onDragLeave={() => {
+              setDropTargetTabId((current) => (current === tab.id ? null : current));
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              const fromId = event.dataTransfer.getData('text/x-doku-tab-id') || draggingTabId;
+              setDraggingTabId(null);
+              setDropTargetTabId(null);
+              if (fromId) {
+                onReorder(fromId, tab.id);
+              }
+            }}
+            onDragEnd={() => {
+              setDraggingTabId(null);
+              setDropTargetTabId(null);
+            }}
           >
             <button
               type="button"
@@ -1424,8 +1829,27 @@ function DocumentTabs({ tabs, activeTabId, labels, onActivate, onClose }: Docume
                 className={`workspace-tabs__state workspace-tabs__state--${tab.saveState}`}
                 aria-hidden="true"
               />
+              {isErrored ? (
+                <span className="workspace-tabs__warning" title={errorLabel} aria-label={errorLabel}>
+                  <WarningIcon />
+                </span>
+              ) : null}
               <span className="workspace-tabs__title">{title}</span>
             </button>
+            {isErrored ? (
+              <button
+                type="button"
+                className="workspace-tabs__reopen"
+                aria-label={`${labels.reopenFromDisk}: ${title}`}
+                title={labels.reopenFromDisk}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onReopenFromDisk(tab.id);
+                }}
+              >
+                <ReopenIcon />
+              </button>
+            ) : null}
             <button
               type="button"
               className="workspace-tabs__close"
@@ -1526,6 +1950,60 @@ function removeSummaryFromLauncher(
     quickResumeId:
       launcher.quickResumeId === summary.id ? (recentDocuments[0]?.id ?? null) : launcher.quickResumeId,
   };
+}
+
+function toDocumentSummary(document: DocumentSession | null): DocumentSummary | null {
+  if (!document) {
+    return null;
+  }
+
+  return {
+    id: document.id,
+    kind: document.kind,
+    title: document.title,
+    path: document.path,
+    snippet: document.snippet,
+    lastOpenedAt: document.lastOpenedAt,
+  };
+}
+
+function dedupeDocumentSummaries(summaries: DocumentSummary[]): DocumentSummary[] {
+  const seen = new Set<string>();
+  const nextSummaries: DocumentSummary[] = [];
+
+  for (const summary of summaries) {
+    const tabId = resolveSummaryTabId(summary);
+    if (seen.has(tabId)) {
+      continue;
+    }
+
+    seen.add(tabId);
+    nextSummaries.push(summary);
+  }
+
+  return nextSummaries;
+}
+
+function reorderTabs(
+  tabs: WorkspaceDocumentTab[],
+  fromId: string,
+  toId: string,
+): WorkspaceDocumentTab[] {
+  const fromIndex = tabs.findIndex((tab) => tab.id === fromId);
+  const toIndex = tabs.findIndex((tab) => tab.id === toId);
+
+  if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
+    return tabs;
+  }
+
+  const nextTabs = [...tabs];
+  const [movedTab] = nextTabs.splice(fromIndex, 1);
+  if (!movedTab) {
+    return tabs;
+  }
+
+  nextTabs.splice(toIndex, 0, movedTab);
+  return nextTabs;
 }
 
 function resolveSummaryTabId(summary: DocumentSummary): string {
@@ -2073,6 +2551,35 @@ function CloseTabIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M7 7l10 10M17 7L7 17" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function WarningIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 4l8 15H4L12 4z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path d="M12 9v4M12 16.5v.1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ReopenIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M8 7h8a4 4 0 010 8h-5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M11 11l-4 4 4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

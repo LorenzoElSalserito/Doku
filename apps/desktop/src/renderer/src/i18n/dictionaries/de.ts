@@ -94,6 +94,8 @@ export const de: Dictionary = {
       label: 'Geöffnete Dokumente',
       close: 'Dokument schließen',
       closeDirtyConfirm: 'Dieses Dokument enthält ungespeicherte Änderungen. Trotzdem schließen?',
+      missingDocumentFile: 'Die Datei ist auf dem Datenträger nicht mehr verfügbar.',
+      reopenFromDisk: 'Vom Datenträger erneut öffnen',
     },
     quickActions: {
       toggleShow: 'Schnellaktionen anzeigen',
@@ -154,7 +156,7 @@ export const de: Dictionary = {
     editorErrorTitle: 'Das Dokument konnte nicht geladen werden',
     editorErrorBody: 'Prüfe den Dateipfad oder öffne es erneut aus dem Launcher.',
     missingDocumentNotice:
-      'Das gewählte Dokument ist nicht mehr verfügbar. Doku hat einen neuen lokalen Entwurf geöffnet und den veralteten Eintrag aus den zuletzt verwendeten Dokumenten entfernt.',
+      'Das gewählte Dokument ist nicht mehr verfügbar. Doku hat den Tab geöffnet gelassen und den veralteten Eintrag aus den zuletzt verwendeten Dokumenten entfernt.',
     save: 'Speichern',
     saveAs: 'Speichern unter',
     writeMode: 'Schreiben',

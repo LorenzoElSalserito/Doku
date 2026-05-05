@@ -68,6 +68,7 @@ export function ThemeProvider({
     if (typeof window === 'undefined' || !window.matchMedia) return false;
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
+  const [fontRevision, setFontRevision] = useState(0);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
@@ -75,6 +76,30 @@ export function ThemeProvider({
     const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches);
     media.addEventListener('change', handler);
     return () => media.removeEventListener('change', handler);
+  }, []);
+
+  useEffect(() => {
+    const fontSet = document.fonts;
+    if (!fontSet) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const markFontsReady = () => {
+      if (!cancelled) {
+        setFontRevision((revision) => revision + 1);
+      }
+    };
+
+    void fontSet.ready.then(markFontsReady);
+    fontSet.addEventListener('loadingdone', markFontsReady);
+    fontSet.addEventListener('loadingerror', markFontsReady);
+
+    return () => {
+      cancelled = true;
+      fontSet.removeEventListener('loadingdone', markFontsReady);
+      fontSet.removeEventListener('loadingerror', markFontsReady);
+    };
   }, []);
 
   const resolved: ResolvedTheme = useMemo(() => {
@@ -131,6 +156,7 @@ export function ThemeProvider({
         `content:${contentFontFamily ?? writingFontFamily ?? ''}`,
         `mono:${monospaceFontFamily ?? ''}`,
         `access:${accessibilityMode ? accessibilityFontFamily ?? '' : ''}`,
+        `fonts:${fontRevision}`,
       ].join('|'),
     [
       accessibilityFontFamily,
@@ -138,6 +164,7 @@ export function ThemeProvider({
       appZoom,
       contentFontFamily,
       customTheme,
+      fontRevision,
       monospaceFontFamily,
       preference,
       resolved,

@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, crashReporter } from 'electron';
 import { promises as fs } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, extname, join, resolve } from 'node:path';
@@ -17,23 +17,35 @@ import {
 import { PRODUCT_NAME } from '@doku/application';
 import { resolveExportRuntimePaths } from './exportRuntime.js';
 import { createMainWindow } from './window.js';
+import { CrashStateManager } from './crashState.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ORIGINAL_USER_DATA_DIR = app.getPath('userData');
 const DOCUMENTS_DATA_DIR = resolveDocumentsDataDir(ORIGINAL_USER_DATA_DIR);
 const logger = new SessionLogger({ logsDir: join(DOCUMENTS_DATA_DIR, 'logs') });
+const crashState = new CrashStateManager(DOCUMENTS_DATA_DIR);
 const LOG_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const pendingOpenFilePaths = new Set<string>();
 let mainWindow: BrowserWindow | null = null;
+let healthyBootstrapTimer: NodeJS.Timeout | null = null;
 
 if (process.platform === 'linux') {
   app.disableHardwareAcceleration();
   app.commandLine.appendSwitch('disable-gpu');
   app.commandLine.appendSwitch('disable-gpu-compositing');
+  app.commandLine.appendSwitch('disable-software-rasterizer');
+  app.commandLine.appendSwitch('disable-features', 'UseChromeOSDirectVideoDecoder');
 }
 
 app.setName(PRODUCT_NAME);
+
+crashReporter.start({
+  submitURL: '',
+  uploadToServer: false,
+  compress: true,
+  productName: PRODUCT_NAME,
+});
 
 registerProcessDiagnostics();
 registerFileOpenHandlers();
@@ -45,7 +57,12 @@ async function bootstrap(): Promise<void> {
     appDataDir: DOCUMENTS_DATA_DIR,
     electronUserDataDir: ORIGINAL_USER_DATA_DIR,
   });
+  logger.info('app:crash-dump-dir', { path: app.getPath('crashDumps') });
   void logger.pruneOlderThan(LOG_RETENTION_MS);
+
+  await crashState.markBootstrapStarted();
+  const safeMode = crashState.isInSafeMode();
+  logger.info('app:bootstrap-safe-mode', { safeMode, ...crashState.snapshot });
 
   await app.whenReady();
 
@@ -88,13 +105,14 @@ async function bootstrap(): Promise<void> {
   const rendererDevUrl = process.env.ELECTRON_RENDERER_URL;
   const rendererFile = join(__dirname, '../renderer/index.html');
 
-  mainWindow = createMainWindow({ preloadPath, rendererDevUrl, rendererFile });
+  mainWindow = createMainWindow({ preloadPath, rendererDevUrl, rendererFile, safeMode });
   attachWindowDiagnostics(mainWindow);
   dispatchPendingOpenFiles(mainWindow);
+  scheduleHealthyBootstrap();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      mainWindow = createMainWindow({ preloadPath, rendererDevUrl, rendererFile });
+      mainWindow = createMainWindow({ preloadPath, rendererDevUrl, rendererFile, safeMode });
       attachWindowDiagnostics(mainWindow);
       dispatchPendingOpenFiles(mainWindow);
     }
@@ -102,12 +120,29 @@ async function bootstrap(): Promise<void> {
 
   app.on('window-all-closed', () => {
     logger.info('app:window-all-closed');
+    if (healthyBootstrapTimer) {
+      clearTimeout(healthyBootstrapTimer);
+      healthyBootstrapTimer = null;
+    }
     disposeSettings();
     disposeSystem();
     disposeDocuments();
     disposeExport();
     if (process.platform !== 'darwin') app.quit();
   });
+}
+
+function scheduleHealthyBootstrap(): void {
+  if (healthyBootstrapTimer) {
+    clearTimeout(healthyBootstrapTimer);
+  }
+  healthyBootstrapTimer = setTimeout(() => {
+    healthyBootstrapTimer = null;
+    void crashState
+      .markBootstrapHealthy()
+      .then(() => logger.info('app:bootstrap-healthy', { ...crashState.snapshot }))
+      .catch((err) => logger.warn('app:bootstrap-healthy-failed', { error: serializeErrorForLog(err) }));
+  }, crashState.healthyBootstrapDelayMs);
 }
 
 function registerFileOpenHandlers(): void {
@@ -212,6 +247,10 @@ function normalizeFileArgument(arg: string): string | null {
 }
 
 function resolveDocumentsDataDir(fallbackDir: string): string {
+  if (process.env.DOKU_DATA_DIR) {
+    return resolve(process.env.DOKU_DATA_DIR);
+  }
+
   try {
     return join(app.getPath('documents'), PRODUCT_NAME);
   } catch {

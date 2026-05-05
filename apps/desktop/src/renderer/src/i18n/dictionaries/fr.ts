@@ -93,6 +93,8 @@ export const fr: Dictionary = {
       label: 'Documents ouverts',
       close: 'Fermer le document',
       closeDirtyConfirm: 'Ce document contient des modifications non enregistrées. Le fermer quand même ?',
+      missingDocumentFile: 'Le fichier n’est plus disponible sur le disque.',
+      reopenFromDisk: 'Rouvrir depuis le disque',
     },
     quickActions: {
       toggleShow: 'Afficher les actions rapides',
@@ -153,7 +155,7 @@ export const fr: Dictionary = {
     editorErrorTitle: 'Impossible de charger le document',
     editorErrorBody: 'Vérifiez le chemin du fichier ou rouvrez-le depuis le launcher.',
     missingDocumentNotice:
-      'Le document sélectionné n’est plus disponible. Doku a ouvert un nouveau brouillon local et supprimé l’entrée obsolète des récents.',
+      'Le document sélectionné n’est plus disponible. Doku a gardé l’onglet ouvert et supprimé l’entrée obsolète des récents.',
     save: 'Enregistrer',
     saveAs: 'Enregistrer sous',
     writeMode: 'Écrire',

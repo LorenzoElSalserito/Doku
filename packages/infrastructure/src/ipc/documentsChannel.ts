@@ -91,7 +91,7 @@ export function registerDocumentsChannel(
       return null;
     }
 
-    const document = await loadFileDocument(filePath, autosaveDir);
+    const document = await loadFileDocument(filePath, autosaveDir, logger);
     const launcher = await persistOpenedDocument(repo, document);
     logger?.info('documents:opened-markdown-file', summarizeDocument(document));
     return { document, launcher };
@@ -105,7 +105,7 @@ export function registerDocumentsChannel(
     logger?.info('documents:load-requested', summarizeSummary(summary));
     if (summary.kind === 'file' && summary.path) {
       try {
-        const document = await loadFileDocument(summary.path, autosaveDir);
+        const document = await loadFileDocument(summary.path, autosaveDir, logger);
         logger?.info('documents:loaded-file', summarizeDocument(document));
         return document;
       } catch (error: unknown) {
@@ -117,7 +117,7 @@ export function registerDocumentsChannel(
       }
     }
 
-    const document = await loadDraftDocument(summary, autosaveDir);
+    const document = await loadDraftDocument(summary, autosaveDir, logger);
     if (document) {
       logger?.info('documents:loaded-draft', summarizeDocument(document));
     } else {
@@ -135,7 +135,7 @@ export function registerDocumentsChannel(
       return null;
     }
 
-    const document = await loadFileDocument(filePath, autosaveDir);
+    const document = await loadFileDocument(filePath, autosaveDir, logger);
     const launcher = await persistOpenedDocument(repo, document);
     logger?.info('documents:opened-workspace-file', summarizeDocument(document));
     return { document, launcher };
@@ -256,9 +256,13 @@ export function registerDocumentsChannel(
   };
 }
 
-async function loadFileDocument(filePath: string, autosaveDir: string): Promise<DocumentSession> {
+async function loadFileDocument(
+  filePath: string,
+  autosaveDir: string,
+  logger?: SessionLogger,
+): Promise<DocumentSession> {
   const diskContent = await fs.readFile(filePath, 'utf-8');
-  const autosave = await readAutosaveForDocument(filePath, autosaveDir);
+  const autosave = await readAutosaveForDocument(filePath, autosaveDir, logger);
   const content = autosave?.content ?? diskContent;
   const title = resolveDocumentTitle(content, filePath, basename(filePath).replace(/\.[^.]+$/, '') || basename(filePath));
 
@@ -277,8 +281,9 @@ async function loadFileDocument(filePath: string, autosaveDir: string): Promise<
 async function loadDraftDocument(
   summary: DocumentSummary,
   autosaveDir: string,
+  logger?: SessionLogger,
 ): Promise<DocumentSession | null> {
-  const autosave = await readAutosaveForDocument(summary.id, autosaveDir);
+  const autosave = await readAutosaveForDocument(summary.id, autosaveDir, logger);
   if (!autosave) {
     return null;
   }
@@ -496,45 +501,64 @@ function mergeLauncherState(settings: Settings, summary: DocumentSummary): Setti
 
 async function writeAutosaveSnapshot(document: DocumentSession, autosaveDir: string): Promise<void> {
   const filePath = autosaveFilePath(document.id, autosaveDir);
+  const tmpPath = `${filePath}.tmp`;
   await fs.mkdir(autosaveDir, { recursive: true });
-  await fs.writeFile(
-    filePath,
-    JSON.stringify(
-      {
-        id: document.id,
-        title: document.title,
-        content: document.content,
-        lastSavedAt: document.lastSavedAt,
-      },
-      null,
-      2,
-    ),
-    'utf-8',
+  const payload = JSON.stringify(
+    {
+      id: document.id,
+      title: document.title,
+      content: document.content,
+      lastSavedAt: document.lastSavedAt,
+    },
+    null,
+    2,
   );
+  await fs.writeFile(tmpPath, payload, 'utf-8');
+  await fs.rename(tmpPath, filePath);
 }
 
 async function readAutosaveForDocument(
   documentId: string,
   autosaveDir: string,
+  logger?: SessionLogger,
 ): Promise<{ title: string; content: string; lastSavedAt: string | null } | null> {
-  try {
-    const raw = await fs.readFile(autosaveFilePath(documentId, autosaveDir), 'utf-8');
+  const filePath = autosaveFilePath(documentId, autosaveDir);
+  const tmpPath = `${filePath}.tmp`;
+
+  const tryRead = async (path: string) => {
+    const raw = await fs.readFile(path, 'utf-8');
     const parsed = JSON.parse(raw) as {
       title?: string;
       content?: string;
       lastSavedAt?: string | null;
     };
-
     return {
       title: parsed.title ?? '',
       content: parsed.content ?? '',
       lastSavedAt: parsed.lastSavedAt ?? null,
     };
+  };
+
+  try {
+    return await tryRead(filePath);
   } catch (error: unknown) {
-    if (isNodeError(error) && error.code === 'ENOENT') {
-      return null;
+    const isMissing = isNodeError(error) && error.code === 'ENOENT';
+    if (!isMissing && !(error instanceof SyntaxError)) {
+      throw error;
     }
-    throw error;
+
+    try {
+      const recovered = await tryRead(tmpPath);
+      logger?.warn('documents:autosave-recovered-from-tmp', {
+        reason: isMissing ? 'main-missing' : 'main-corrupted',
+      });
+      return recovered;
+    } catch (tmpError: unknown) {
+      if (isNodeError(tmpError) && tmpError.code === 'ENOENT') {
+        return isMissing ? null : (() => { throw error; })();
+      }
+      throw tmpError;
+    }
   }
 }
 

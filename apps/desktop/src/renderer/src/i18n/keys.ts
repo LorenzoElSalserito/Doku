@@ -88,6 +88,8 @@ export interface Dictionary {
       label: string;
       close: string;
       closeDirtyConfirm: string;
+      missingDocumentFile: string;
+      reopenFromDisk: string;
     };
     quickActions: {
       toggleShow: string;

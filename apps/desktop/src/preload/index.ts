@@ -2,6 +2,9 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from '../../../../packages/infrastructure/src/ipc/channels.js';
 import type { DokuBridge, Platform } from '@doku/application';
 
+const SAFE_MODE_ARG_PREFIX = '--doku-safe-mode=';
+const safeMode = process.argv.some((arg) => arg === `${SAFE_MODE_ARG_PREFIX}1`);
+
 const pendingOpenFileRequests: string[] = [];
 const openFileRequestListeners = new Set<(filePath: string) => void>();
 
@@ -29,6 +32,7 @@ const bridge: DokuBridge = {
   },
   system: {
     platform: process.platform as Platform,
+    safeMode,
     appInfo: () => ipcRenderer.invoke(IPC_CHANNELS.systemAppInfo),
     prefersDark: () => ipcRenderer.invoke(IPC_CHANNELS.systemPrefersDark),
     openExternal: (url) => ipcRenderer.invoke(IPC_CHANNELS.systemOpenExternal, url),

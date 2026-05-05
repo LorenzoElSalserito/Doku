@@ -33,6 +33,7 @@ export interface SettingsBridge {
 
 export interface SystemBridge {
   platform: Platform;
+  safeMode: boolean;
   appInfo: () => Promise<{
     name: string;
     version: string;

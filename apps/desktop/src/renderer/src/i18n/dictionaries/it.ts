@@ -94,6 +94,8 @@ export const it: Dictionary = {
       label: 'Documenti aperti',
       close: 'Chiudi documento',
       closeDirtyConfirm: 'Questo documento contiene modifiche non salvate. Chiuderlo comunque?',
+      missingDocumentFile: 'Il file non è più disponibile sul disco.',
+      reopenFromDisk: 'Riapri da disco',
     },
     quickActions: {
       toggleShow: 'Mostra azioni rapide',
@@ -154,7 +156,7 @@ export const it: Dictionary = {
     editorErrorTitle: 'Impossibile caricare il documento',
     editorErrorBody: 'Controlla il percorso del file o riaprilo dal launcher.',
     missingDocumentNotice:
-      'Il documento selezionato non è più disponibile. Doku ha aperto una nuova bozza locale e ha rimosso il riferimento non valido dai recenti.',
+      'Il documento selezionato non è più disponibile. Doku ha mantenuto aperta la tab e ha rimosso il riferimento non valido dai recenti.',
     save: 'Salva',
     saveAs: 'Salva con nome',
     writeMode: 'Scrivi',

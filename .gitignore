@@ -4,6 +4,8 @@ out
 build
 .vite
 coverage
+test-results
+playwright-report
 *.log
 *.tsbuildinfo
 
@@ -19,4 +21,5 @@ PLAN.md
 Doku_PRD.md
 CHANGELOG.md
 FONTS.md
+BUG.md
 docs/

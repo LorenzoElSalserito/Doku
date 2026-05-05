@@ -93,6 +93,8 @@ export const pt: Dictionary = {
       label: 'Documentos abertos',
       close: 'Fechar documento',
       closeDirtyConfirm: 'Este documento tem alterações não salvas. Fechar mesmo assim?',
+      missingDocumentFile: 'O ficheiro já não está disponível no disco.',
+      reopenFromDisk: 'Reabrir do disco',
     },
     quickActions: {
       toggleShow: 'Mostrar ações rápidas',
@@ -153,7 +155,7 @@ export const pt: Dictionary = {
     editorErrorTitle: 'Não foi possível carregar o documento',
     editorErrorBody: 'Verifique o caminho do ficheiro ou volte a abri-lo a partir do launcher.',
     missingDocumentNotice:
-      'O documento selecionado já não está disponível. O Doku abriu um novo rascunho local e removeu a entrada obsoleta dos recentes.',
+      'O documento selecionado já não está disponível. O Doku manteve a aba aberta e removeu a entrada obsoleta dos recentes.',
     save: 'Guardar',
     saveAs: 'Guardar como',
     writeMode: 'Escrever',

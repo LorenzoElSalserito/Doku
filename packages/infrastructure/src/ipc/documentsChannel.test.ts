@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, type Settings, type SettingsPatch } from '@doku/schemas';
 import { IPC_CHANNELS } from './channels.js';
@@ -150,6 +151,90 @@ describe('documents channel', () => {
         content: 'second edit',
       }),
     );
+  });
+
+  it('recovers a draft autosave from the tmp file when the main snapshot was lost mid-write', async () => {
+    const documentId = 'draft:lost-mid-write';
+    const autosaveDir = join(userDataDir, 'autosave-documents');
+    await fs.mkdir(autosaveDir, { recursive: true });
+    const hash = createHash('sha256').update(documentId).digest('hex');
+    const tmpPath = join(autosaveDir, `${hash}.json.tmp`);
+    await fs.writeFile(
+      tmpPath,
+      JSON.stringify({
+        id: documentId,
+        title: 'Recovered draft',
+        content: 'partial content saved before crash',
+        lastSavedAt: '2026-05-05T00:00:00.000Z',
+      }),
+      'utf-8',
+    );
+
+    const loaded = await invokeDocumentsLoad({
+      id: documentId,
+      kind: 'draft',
+      title: 'Recovered draft',
+      snippet: '',
+      lastOpenedAt: '2026-05-05T00:00:00.000Z',
+    });
+
+    expect(loaded).toEqual(
+      expect.objectContaining({
+        id: documentId,
+        kind: 'draft',
+        content: 'partial content saved before crash',
+      }),
+    );
+  });
+
+  it('falls back to the tmp autosave when the main snapshot file is corrupted JSON', async () => {
+    const documentId = 'draft:corrupted-main';
+    const autosaveDir = join(userDataDir, 'autosave-documents');
+    await fs.mkdir(autosaveDir, { recursive: true });
+    const hash = createHash('sha256').update(documentId).digest('hex');
+    const mainPath = join(autosaveDir, `${hash}.json`);
+    const tmpPath = join(autosaveDir, `${hash}.json.tmp`);
+    await fs.writeFile(mainPath, '{ "broken": ', 'utf-8');
+    await fs.writeFile(
+      tmpPath,
+      JSON.stringify({
+        id: documentId,
+        title: 'Recovered draft',
+        content: 'rescued from tmp',
+        lastSavedAt: '2026-05-05T01:00:00.000Z',
+      }),
+      'utf-8',
+    );
+
+    const loaded = await invokeDocumentsLoad({
+      id: documentId,
+      kind: 'draft',
+      title: 'Recovered draft',
+      snippet: '',
+      lastOpenedAt: '2026-05-05T01:00:00.000Z',
+    });
+
+    expect(loaded).toEqual(
+      expect.objectContaining({
+        id: documentId,
+        content: 'rescued from tmp',
+      }),
+    );
+  });
+
+  it('writes autosaves atomically by renaming a tmp file into place', async () => {
+    await invokeDocumentsSave({
+      id: 'draft:atomic',
+      kind: 'draft',
+      title: 'Atomic draft',
+      content: 'atomic body',
+      mode: 'autosave',
+    });
+
+    const autosaveFiles = await fs.readdir(join(userDataDir, 'autosave-documents'));
+    expect(autosaveFiles).toHaveLength(1);
+    expect(autosaveFiles[0]?.endsWith('.json')).toBe(true);
+    expect(autosaveFiles.some((name) => name.endsWith('.tmp'))).toBe(false);
   });
 
   it('derives the saved document title from the markdown heading instead of the untitled placeholder', async () => {

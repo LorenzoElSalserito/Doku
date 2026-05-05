@@ -91,6 +91,8 @@ export const en: Dictionary = {
       label: 'Open documents',
       close: 'Close document',
       closeDirtyConfirm: 'This document has unsaved changes. Close it anyway?',
+      missingDocumentFile: 'The file is no longer available on disk.',
+      reopenFromDisk: 'Reopen from disk',
     },
     quickActions: {
       toggleShow: 'Show quick actions',
@@ -151,7 +153,7 @@ export const en: Dictionary = {
     editorErrorTitle: 'The document could not be loaded',
     editorErrorBody: 'Check the file path or reopen it from the launcher.',
     missingDocumentNotice:
-      'The selected document is no longer available. Doku opened a new local draft and removed the stale entry from recents.',
+      'The selected document is no longer available. Doku kept the tab open and removed the stale entry from recents.',
     save: 'Save',
     saveAs: 'Save as',
     writeMode: 'Write',

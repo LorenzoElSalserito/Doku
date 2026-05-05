@@ -93,6 +93,8 @@ export const es: Dictionary = {
       label: 'Documentos abiertos',
       close: 'Cerrar documento',
       closeDirtyConfirm: 'Este documento tiene cambios sin guardar. ¿Cerrar de todos modos?',
+      missingDocumentFile: 'El archivo ya no está disponible en el disco.',
+      reopenFromDisk: 'Reabrir desde disco',
     },
     quickActions: {
       toggleShow: 'Mostrar acciones rápidas',
@@ -153,7 +155,7 @@ export const es: Dictionary = {
     editorErrorTitle: 'No se pudo cargar el documento',
     editorErrorBody: 'Comprueba la ruta del archivo o vuelve a abrirlo desde el launcher.',
     missingDocumentNotice:
-      'El documento seleccionado ya no está disponible. Doku abrió un nuevo borrador local y eliminó la referencia obsoleta de los recientes.',
+      'El documento seleccionado ya no está disponible. Doku mantuvo la pestaña abierta y eliminó la referencia obsoleta de los recientes.',
     save: 'Guardar',
     saveAs: 'Guardar como',
     writeMode: 'Escribir',

@@ -1,7 +1,7 @@
 {
   "name": "doku-desktop",
   "productName": "Doku",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "icon": "src/assets/icon.png",
   "description": "Doku desktop shell (Electron + Vite + React)",

@@ -210,6 +210,8 @@ export const SettingsSchema = z.object({
   launcher: LauncherStateSchema,
   workspace: WorkspaceLayoutSchema,
   workspaceViewMode: WorkspaceViewModeSchema,
+  sessionTabs: z.array(DocumentSummarySchema).max(40).default([]),
+  activeSessionTabId: z.string().nullable().default(null),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 
@@ -232,6 +234,8 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   workspace: DEFAULT_WORKSPACE_LAYOUT,
   workspaceViewMode: 'split',
+  sessionTabs: [],
+  activeSessionTabId: null,
 };
 
 export const SettingsPatchSchema = SettingsSchema.partial();

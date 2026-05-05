@@ -11,7 +11,10 @@ export interface CreateWindowOptions {
   preloadPath: string;
   rendererDevUrl?: string;
   rendererFile: string;
+  safeMode?: boolean;
 }
+
+export const SAFE_MODE_ARG_PREFIX = '--doku-safe-mode=';
 
 export function createMainWindow(options: CreateWindowOptions): BrowserWindow {
   const window = new BrowserWindow({
@@ -32,6 +35,7 @@ export function createMainWindow(options: CreateWindowOptions): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      additionalArguments: [`${SAFE_MODE_ARG_PREFIX}${options.safeMode ? '1' : '0'}`],
     },
   });
 

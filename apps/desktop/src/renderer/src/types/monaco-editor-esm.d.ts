@@ -3,3 +3,8 @@ declare module 'monaco-editor/esm/vs/editor/editor.api' {
 }
 
 declare module 'monaco-editor/esm/vs/basic-languages/markdown/markdown.contribution';
+
+declare module '*?worker' {
+  const WorkerCtor: { new (): Worker };
+  export default WorkerCtor;
+}

@@ -17,6 +17,7 @@ interface MonacoEditorProps {
 
 export interface MonacoEditorHandle {
   focus: () => void;
+  layout: () => void;
   insertText: (text: string) => void;
   replaceSelection: (
     text: string,
@@ -90,6 +91,9 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
       focus: () => {
         editorRef.current?.focus();
       },
+      layout: () => {
+        editorRef.current?.layout();
+      },
       insertText: (text: string) => {
         applyReplacement(text);
       },
@@ -140,34 +144,40 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
       base: 'vs',
       inherit: true,
       rules: [
-        { token: 'comment', foreground: normalizeColor(styles.getPropertyValue('--color-text-muted')) },
-        { token: 'string', foreground: normalizeColor(styles.getPropertyValue('--color-accent-strong')) },
+        { token: 'comment', foreground: toMonacoTokenColor(styles.getPropertyValue('--color-text-muted')) },
+        { token: 'string', foreground: toMonacoTokenColor(styles.getPropertyValue('--color-accent-strong')) },
       ],
       colors: {
-        'editor.background': styles.getPropertyValue('--color-surface').trim(),
-        'editor.foreground': styles.getPropertyValue('--color-text-primary').trim(),
-        'editorLineNumber.foreground': styles.getPropertyValue('--color-text-muted').trim(),
-        'editorLineNumber.activeForeground': styles.getPropertyValue('--color-text-secondary').trim(),
-        'editorCursor.foreground': styles.getPropertyValue('--color-accent').trim(),
-        'editor.selectionBackground': styles.getPropertyValue('--color-accent-soft').trim(),
-        'editor.inactiveSelectionBackground': styles.getPropertyValue('--color-border-subtle').trim(),
+        'editor.background': toMonacoColor(styles.getPropertyValue('--color-surface'), '#ffffff'),
+        'editor.foreground': toMonacoColor(styles.getPropertyValue('--color-text-primary'), '#1a1816'),
+        'editorLineNumber.foreground': toMonacoColor(styles.getPropertyValue('--color-text-muted'), '#8d8580'),
+        'editorLineNumber.activeForeground': toMonacoColor(styles.getPropertyValue('--color-text-secondary'), '#5f5a55'),
+        'editorCursor.foreground': toMonacoColor(styles.getPropertyValue('--color-accent'), '#00a3ee'),
+        'editor.selectionBackground': toMonacoColor(styles.getPropertyValue('--color-accent-soft')),
+        'editor.inactiveSelectionBackground': toMonacoColor(
+          styles.getPropertyValue('--color-border-subtle'),
+          '#e8e0d8',
+        ),
       },
     });
     monaco.editor.defineTheme('doku-dark', {
       base: 'vs-dark',
       inherit: true,
       rules: [
-        { token: 'comment', foreground: normalizeColor(styles.getPropertyValue('--color-text-muted')) },
-        { token: 'string', foreground: normalizeColor(styles.getPropertyValue('--color-accent-strong')) },
+        { token: 'comment', foreground: toMonacoTokenColor(styles.getPropertyValue('--color-text-muted')) },
+        { token: 'string', foreground: toMonacoTokenColor(styles.getPropertyValue('--color-accent-strong')) },
       ],
       colors: {
-        'editor.background': styles.getPropertyValue('--color-surface').trim(),
-        'editor.foreground': styles.getPropertyValue('--color-text-primary').trim(),
-        'editorLineNumber.foreground': styles.getPropertyValue('--color-text-muted').trim(),
-        'editorLineNumber.activeForeground': styles.getPropertyValue('--color-text-secondary').trim(),
-        'editorCursor.foreground': styles.getPropertyValue('--color-accent').trim(),
-        'editor.selectionBackground': styles.getPropertyValue('--color-accent-soft').trim(),
-        'editor.inactiveSelectionBackground': styles.getPropertyValue('--color-border-subtle').trim(),
+        'editor.background': toMonacoColor(styles.getPropertyValue('--color-surface'), '#1a1a1e'),
+        'editor.foreground': toMonacoColor(styles.getPropertyValue('--color-text-primary'), '#e8e6e2'),
+        'editorLineNumber.foreground': toMonacoColor(styles.getPropertyValue('--color-text-muted'), '#6f6a66'),
+        'editorLineNumber.activeForeground': toMonacoColor(styles.getPropertyValue('--color-text-secondary'), '#9a9590'),
+        'editorCursor.foreground': toMonacoColor(styles.getPropertyValue('--color-accent'), '#00a3ee'),
+        'editor.selectionBackground': toMonacoColor(styles.getPropertyValue('--color-accent-soft')),
+        'editor.inactiveSelectionBackground': toMonacoColor(
+          styles.getPropertyValue('--color-border-subtle'),
+          '#232328',
+        ),
       },
     });
 
@@ -272,25 +282,47 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
       return;
     }
 
-    editor.updateOptions({
-      padding: getEditorPadding(),
-      ...getEditorTypography(),
-      wordWrap: 'on',
-      wordWrapOverride1: 'on',
-      wordWrapOverride2: 'on',
-      wrappingIndent: 'none',
-      wrappingStrategy: 'advanced',
-      scrollPredominantAxis: true,
-      scrollbar: {
-        alwaysConsumeMouseWheel: false,
-        horizontal: 'hidden',
-        horizontalScrollbarSize: 0,
-        horizontalSliderSize: 0,
-        handleMouseWheel: true,
-      },
-    });
-    lockHorizontalScroll(editor);
+    updateEditorTypography(editor);
   }, [themeKey]);
+
+  useEffect(() => {
+    const fontSet = document.fonts;
+    if (!fontSet) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const refreshEditorFonts = () => {
+      if (cancelled) {
+        return;
+      }
+
+      const editor = editorRef.current;
+      if (!editor) {
+        return;
+      }
+
+      updateEditorTypography(editor);
+    };
+
+    void fontSet.ready.then(refreshEditorFonts);
+    fontSet.addEventListener('loadingdone', refreshEditorFonts);
+    fontSet.addEventListener('loadingerror', refreshEditorFonts);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshEditorFonts();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      fontSet.removeEventListener('loadingdone', refreshEditorFonts);
+      fontSet.removeEventListener('loadingerror', refreshEditorFonts);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -307,8 +339,87 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
   return <div ref={containerRef} className="monaco-editor-host" />;
 });
 
-function normalizeColor(value: string): string {
-  return value.trim().replace('#', '');
+function updateEditorTypography(editor: monaco.editor.IStandaloneCodeEditor): void {
+  editor.updateOptions({
+    padding: getEditorPadding(),
+    ...getEditorTypography(),
+    wordWrap: 'on',
+    wordWrapOverride1: 'on',
+    wordWrapOverride2: 'on',
+    wrappingIndent: 'none',
+    wrappingStrategy: 'advanced',
+    scrollPredominantAxis: true,
+    scrollbar: {
+      alwaysConsumeMouseWheel: false,
+      horizontal: 'hidden',
+      horizontalScrollbarSize: 0,
+      horizontalSliderSize: 0,
+      handleMouseWheel: true,
+    },
+  });
+  lockHorizontalScroll(editor);
+  editor.layout();
+}
+
+function toMonacoTokenColor(value: string, fallback = '#00a3ee33'): string {
+  return toMonacoColor(value, fallback).replace(/^#/, '');
+}
+
+function toMonacoColor(value: string, fallback = '#00a3ee33'): string {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return fallback;
+  }
+
+  const hexMatch = normalized.match(/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
+  if (hexMatch?.[1]) {
+    const hex = hexMatch[1];
+    if (hex.length === 3) {
+      return `#${hex.split('').map((char) => `${char}${char}`).join('')}`;
+    }
+    return `#${hex}`;
+  }
+
+  const rgbaMatch = normalized.match(/^rgba?\((.+)\)$/);
+  if (!rgbaMatch?.[1]) {
+    return fallback;
+  }
+
+  const parts = rgbaMatch[1].split(',').map((part) => part.trim());
+  if (parts.length < 3 || parts.length > 4) {
+    return fallback;
+  }
+
+  const [red, green, blue] = parts.slice(0, 3).map(parseColorChannel);
+  const alpha = parts[3] === undefined ? null : parseAlphaChannel(parts[3]);
+  if (red === null || green === null || blue === null || alpha === false) {
+    return fallback;
+  }
+
+  const rgbHex = [red, green, blue].map((channel) => channel.toString(16).padStart(2, '0')).join('');
+  if (alpha === null) {
+    return `#${rgbHex}`;
+  }
+
+  return `#${rgbHex}${alpha.toString(16).padStart(2, '0')}`;
+}
+
+function parseColorChannel(value: string): number | null {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  return clamp(Math.round(parsed), 0, 255);
+}
+
+function parseAlphaChannel(value: string): number | false {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) {
+    return false;
+  }
+
+  return clamp(Math.round(parsed * 255), 0, 255);
 }
 
 function lockHorizontalScroll(editor: monaco.editor.IStandaloneCodeEditor | null): void {

@@ -73,18 +73,21 @@ export function App() {
     );
   }
 
+  const safeMode = window.doku.system.safeMode;
+  const typography = normalizeUnifiedTypography(settings.typography);
+
   return (
     <I18nProvider language={settings.language}>
       <ThemeProvider
         preference={settings.theme}
         customTheme={settings.customTheme}
         appZoom={settings.appZoom}
-        writingFontFamily={settings.writingFontFamily}
-        uiFontFamily={normalizeUnifiedTypography(settings.typography).uiFontFamily}
-        contentFontFamily={normalizeUnifiedTypography(settings.typography).pdfFontFamily}
-        monospaceFontFamily={normalizeUnifiedTypography(settings.typography).monospaceFontFamily}
-        accessibilityFontFamily={normalizeUnifiedTypography(settings.typography).accessibilityFontFamily}
-        accessibilityMode={normalizeUnifiedTypography(settings.typography).accessibilityMode}
+        writingFontFamily={safeMode ? null : settings.writingFontFamily}
+        uiFontFamily={safeMode ? undefined : typography.uiFontFamily}
+        contentFontFamily={safeMode ? undefined : typography.pdfFontFamily}
+        monospaceFontFamily={safeMode ? undefined : typography.monospaceFontFamily}
+        accessibilityFontFamily={safeMode ? undefined : typography.accessibilityFontFamily}
+        accessibilityMode={!safeMode && typography.accessibilityMode}
         onPreferenceChange={handleThemeChange}
       >
         <AppShell
@@ -171,6 +174,16 @@ function AppShell({
       null,
     [settings.launcher],
   );
+  const initialTabs = useMemo(
+    () =>
+      settings.sessionTabs.length > 0
+        ? settings.sessionTabs
+        : quickResumeDocument
+          ? [quickResumeDocument]
+          : [],
+    [quickResumeDocument, settings.sessionTabs],
+  );
+  const initialActiveTabId = settings.sessionTabs.length > 0 ? settings.activeSessionTabId : null;
 
   if (!settings.firstRunCompleted) {
     return <SetupWizard initialSettings={settings} onComplete={onUpdate} />;
@@ -184,7 +197,8 @@ function AppShell({
 
       <Workspace
         settings={settings}
-        initialDocument={quickResumeDocument}
+        initialTabs={initialTabs}
+        initialActiveTabId={initialActiveTabId}
         onUpdate={onUpdate}
         onOpenSettings={onOpenSettings}
         onOpenInfo={onOpenInfo}

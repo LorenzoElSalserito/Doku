@@ -14,6 +14,7 @@ const monacoRefState = {
   replaceSelection: vi.fn(),
   insertText: vi.fn(),
   focus: vi.fn(),
+  layout: vi.fn(),
 };
 
 vi.mock('./MonacoEditor.js', async () => {
@@ -179,6 +180,41 @@ describe('Workspace', () => {
     expect(within(view.container).queryByLabelText('Markdown editor')).not.toBeInTheDocument();
     const previewPane = view.container.querySelector('.workspace__editor-pane--preview');
     expect(previewPane).toHaveClass('workspace__editor-pane--preview-page');
+  });
+
+  it('resets preview scroll and relayouts Monaco when switching from split to write mode', async () => {
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        callback(0);
+        return 1;
+      });
+
+    const view = renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+        workspaceViewMode: 'split',
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    const previewScroll = view.container.querySelector<HTMLElement>('.workspace__preview-scroll');
+    expect(previewScroll).not.toBeNull();
+    if (previewScroll) {
+      previewScroll.scrollTop = 120;
+    }
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Write' }));
+
+    expect(previewScroll?.scrollTop).toBe(0);
+    expect(monacoRefState.layout).toHaveBeenCalled();
+    expect(monacoRefState.focus).toHaveBeenCalled();
+
+    requestAnimationFrameSpy.mockRestore();
   });
 
   it('imports a dropped image and inserts the markdown snippet', async () => {
@@ -438,6 +474,60 @@ describe('Workspace', () => {
     expect(within(view.container).getByLabelText('Markdown editor')).toHaveValue('# Reused');
   });
 
+  it('keeps a missing document as an errored tab until it is reopened or closed', async () => {
+    const user = userEvent.setup();
+    const onUpdate = vi.fn<(patch: SettingsPatch) => Promise<void>>().mockResolvedValue(undefined);
+    const loadDocument = vi.fn().mockResolvedValue(null);
+    const openMarkdownFile = vi.fn().mockResolvedValue({
+      document: loadedDocument,
+      launcher: DEFAULT_SETTINGS.launcher,
+    });
+
+    Object.defineProperty(window, 'doku', {
+      configurable: true,
+      value: {
+        ...window.doku,
+        documents: {
+          ...window.doku.documents,
+          loadDocument,
+          openMarkdownFile,
+        },
+      },
+    });
+
+    renderWorkspace({
+      onUpdate,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+        launcher: {
+          recentDocuments: [initialDocument],
+          quickResumeId: initialDocument.id,
+        },
+      },
+      initialDocument,
+    });
+
+    await screen.findByRole('tab', { name: /chapter-1/i });
+    expect(screen.getByRole('alert')).toHaveTextContent('The file is no longer available on disk.');
+    expect(screen.queryByLabelText('Markdown editor')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Reopen from disk: chapter-1/i })).toBeInTheDocument();
+    expect(onUpdate).toHaveBeenCalledWith({
+      launcher: {
+        recentDocuments: [],
+        quickResumeId: null,
+      },
+    });
+
+    await user.click(screen.getByRole('button', { name: /Reopen from disk: chapter-1/i }));
+
+    await waitFor(() => {
+      expect(openMarkdownFile).toHaveBeenCalled();
+    });
+    expect(await screen.findByLabelText('Markdown editor')).toHaveValue('Hello world');
+    expect(screen.getByRole('tab', { name: /chapter-1/i })).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('shows the default-app prompt once with do-not-ask-again enabled by default', async () => {
     const user = userEvent.setup();
     const onUpdate = vi.fn<(patch: SettingsPatch) => Promise<void>>().mockResolvedValue(undefined);
@@ -616,7 +706,8 @@ describe('Workspace', () => {
                 quickResumeId: firstAutosaveInput.id,
               },
             }}
-            initialDocument={null}
+            initialTabs={[]}
+            initialActiveTabId={null}
             onUpdate={onUpdate}
             onOpenSettings={vi.fn()}
             onOpenInfo={vi.fn()}
@@ -659,7 +750,8 @@ describe('Workspace', () => {
               ...DEFAULT_SETTINGS,
               firstRunCompleted: true,
             }}
-            initialDocument={null}
+            initialTabs={[]}
+            initialActiveTabId={null}
             onUpdate={vi.fn().mockResolvedValue(undefined)}
             onOpenSettings={vi.fn()}
             onOpenInfo={vi.fn()}
@@ -711,10 +803,11 @@ describe('Workspace', () => {
               ...DEFAULT_SETTINGS,
               firstRunCompleted: true,
             }}
-            initialDocument={{
+            initialTabs={[{
               ...initialDocument,
               title: longTitle,
-            }}
+            }]}
+            initialActiveTabId={null}
             onUpdate={vi.fn().mockResolvedValue(undefined)}
             onOpenSettings={vi.fn()}
             onOpenInfo={vi.fn()}
@@ -752,7 +845,8 @@ function renderWorkspace({
       <ThemeProvider preference="light">
         <Workspace
           settings={settings}
-          initialDocument={initialDocumentOverride}
+          initialTabs={initialDocumentOverride ? [initialDocumentOverride] : []}
+          initialActiveTabId={null}
           onUpdate={onUpdate}
           onOpenSettings={vi.fn()}
           onOpenInfo={vi.fn()}
