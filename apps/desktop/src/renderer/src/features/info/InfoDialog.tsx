@@ -5,7 +5,7 @@ import { PRODUCT_ICON_URL } from '../../branding.js';
 
 const APP_LICENSE = 'AGPL-3.0-only';
 const DONATE_URL = 'https://www.paypal.me/lorenzodemarco92';
-const FALLBACK_APP_VERSION = '0.1.0';
+const FALLBACK_APP_VERSION = __DOKU_APP_VERSION__;
 const BUG_REPORT_EMAIL = 'commercial.lorenzodm@gmail.com';
 
 interface InfoDialogProps {

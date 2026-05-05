@@ -1,8 +1,12 @@
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 
 const HERE = __dirname;
+const ROOT_PACKAGE = JSON.parse(readFileSync(resolve(HERE, '../../package.json'), 'utf8')) as {
+  version: string;
+};
 
 const aliases = {
   '@doku/schemas': resolve(HERE, '../../packages/schemas/src/index.ts'),
@@ -44,6 +48,9 @@ export default defineConfig({
   renderer: {
     root: resolve(HERE, 'src/renderer'),
     plugins: [react()],
+    define: {
+      __DOKU_APP_VERSION__: JSON.stringify(ROOT_PACKAGE.version),
+    },
     worker: { format: 'es' },
     build: {
       outDir: resolve(HERE, 'out/renderer'),

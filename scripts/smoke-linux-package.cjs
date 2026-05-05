@@ -5,7 +5,9 @@ const { execFileSync } = require('node:child_process');
 const { join } = require('node:path');
 
 const rootDir = process.cwd();
-const debPath = join(rootDir, 'build/desktop/Doku-0.1.0-linux-amd64.deb');
+const packageJson = JSON.parse(readFileSync(join(rootDir, 'package.json'), 'utf8'));
+const appVersion = packageJson.version;
+const debPath = join(rootDir, `build/desktop/Doku-${appVersion}-linux-amd64.deb`);
 const unpackedDir = join(rootDir, 'build/desktop/linux-unpacked');
 
 const requiredUnpackedFiles = [
@@ -51,7 +53,7 @@ function main() {
 
   const controlOutput = exec('dpkg-deb', ['-I', debPath]);
   assertIncludes(controlOutput, 'Package: doku', 'Debian control metadata contains package name');
-  assertIncludes(controlOutput, 'Version: 0.1.0', 'Debian control metadata contains version');
+  assertIncludes(controlOutput, `Version: ${appVersion}`, 'Debian control metadata contains version');
   assertIncludes(
     controlOutput,
     'Maintainer: Lorenzo DM <commercial.lorenzodm@gmail.com>',
