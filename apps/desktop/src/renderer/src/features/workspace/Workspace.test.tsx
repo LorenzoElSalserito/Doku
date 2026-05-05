@@ -829,6 +829,7 @@ describe('Workspace', () => {
     expect(screen.getByRole('status', { name: 'Saved' })).toHaveClass('workspace__save-indicator');
     expect(screen.queryByLabelText('Document title')).not.toBeInTheDocument();
   });
+
 });
 
 function renderWorkspace({

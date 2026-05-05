@@ -77,6 +77,21 @@ test.describe('tab persistence', () => {
     );
     await expect(secondRun.page.locator('.view-lines')).toContainText('Second file');
 
+    await expect
+      .poll(async () =>
+        secondRun.page.locator('.workspace-tabs').evaluate((element) => {
+          const styles = window.getComputedStyle(element);
+          return {
+            position: styles.position,
+            top: styles.top,
+          };
+        }),
+      )
+      .toEqual({
+        position: 'sticky',
+        top: '0px',
+      });
+
     await closeDokuApp(secondRun.app);
   });
 });

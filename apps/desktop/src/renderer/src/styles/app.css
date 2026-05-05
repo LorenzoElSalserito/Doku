@@ -332,9 +332,11 @@
 
 /* Workspace shell */
 .workspace {
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   background:
     radial-gradient(820px 240px at 20% 0%, var(--color-accent-soft), transparent 60%),
     var(--color-base);
@@ -632,6 +634,9 @@
 }
 
 .workspace-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
   flex: 0 0 auto;
   align-items: center;
@@ -973,6 +978,8 @@
 
 .workspace__editor {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
