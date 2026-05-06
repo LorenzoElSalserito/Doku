@@ -38,6 +38,9 @@ describe('markdownActions', () => {
       'inline-code',
       'code-block',
       'divider',
+      'mermaid-diagram',
+      'markmap-mindmap',
+      'chart-block',
     ]);
 
     for (const action of MARKDOWN_ACTION_SPECS) {

@@ -99,9 +99,13 @@
     "@doku/infrastructure": "*",
     "@doku/schemas": "*",
     "@doku/ui": "*",
+    "markmap-lib": "^0.18.12",
+    "markmap-view": "^0.18.12",
+    "mermaid": "^11.14.0",
     "monaco-editor": "^0.55.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "recharts": "^2.15.4",
     "zod": "^3.22.4"
   },
   "devDependencies": {

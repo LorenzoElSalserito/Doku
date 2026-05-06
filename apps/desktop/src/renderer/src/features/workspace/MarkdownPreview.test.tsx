@@ -47,4 +47,59 @@ describe('MarkdownPreview', () => {
     expect(within(table).getAllByRole('row')).toHaveLength(3);
     expect(within(table).getAllByRole('cell', { name: 'Value 1' })).toHaveLength(2);
   });
+
+  const visualLabels = {
+    loading: 'Loading visual block…',
+    fallback: 'Visual block',
+    errorTitle: 'Invalid visual block',
+  };
+
+  it('routes mermaid fences to the visual block view (lazy fallback visible synchronously)', () => {
+    render(
+      <MarkdownPreview
+        emptyLabel="Empty"
+        visualLabels={visualLabels}
+        content={['```mermaid', 'flowchart TD', '  A --> B', '```'].join('\n')}
+      />,
+    );
+
+    expect(screen.getByTestId('visual-block-loading-mermaid')).toBeInTheDocument();
+    // The plain code block renderer must NOT be used for mermaid fences.
+    expect(screen.queryByText('flowchart TD')).not.toBeInTheDocument();
+  });
+
+  it('routes markmap fences to the visual block view', () => {
+    render(
+      <MarkdownPreview
+        emptyLabel="Empty"
+        visualLabels={visualLabels}
+        content={['```markmap', '# Root', '## Child', '```'].join('\n')}
+      />,
+    );
+    expect(screen.getByTestId('visual-block-loading-markmap')).toBeInTheDocument();
+  });
+
+  it('renders an inline error for invalid chart payloads instead of crashing the preview', () => {
+    render(
+      <MarkdownPreview
+        emptyLabel="Empty"
+        visualLabels={visualLabels}
+        content={['```chart', '{ not json', '```'].join('\n')}
+      />,
+    );
+
+    const error = screen.getByRole('alert');
+    expect(error).toHaveTextContent('Invalid visual block');
+  });
+
+  it('keeps generic code fences (e.g. ts) untouched as <pre><code>', () => {
+    render(
+      <MarkdownPreview
+        emptyLabel="Empty"
+        visualLabels={visualLabels}
+        content={['```ts', 'const x = 1;', '```'].join('\n')}
+      />,
+    );
+    expect(screen.getByText('const x = 1;')).toBeInTheDocument();
+  });
 });

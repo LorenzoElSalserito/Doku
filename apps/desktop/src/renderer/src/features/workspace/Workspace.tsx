@@ -1595,6 +1595,11 @@ export function Workspace({
                           content={previewContent}
                           sourcePath={document?.path}
                           emptyLabel={dict.workspace.previewEmpty}
+                          visualLabels={{
+                            loading: dict.workspace.visualBlocks.loading,
+                            fallback: dict.workspace.visualBlocks.fallback,
+                            errorTitle: dict.workspace.visualBlocks.errorTitle,
+                          }}
                         />
                       </div>
                     </section>
@@ -2678,7 +2683,47 @@ function MarkdownActionIcon({ actionId }: { actionId: MarkdownActionId }) {
       return <CodeBlockIcon />;
     case 'divider':
       return <DividerIcon />;
+    case 'mermaid-diagram':
+      return <MermaidIcon />;
+    case 'markmap-mindmap':
+      return <MarkmapIcon />;
+    case 'chart-block':
+      return <ChartIcon />;
   }
+}
+
+function MermaidIcon() {
+  return (
+    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="3" y="3" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="15" y="3" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="9" y="17" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M6 7v4h12V7M12 11v6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function MarkmapIcon() {
+  return (
+    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="5" cy="12" r="2" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="18" cy="6" r="2" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="18" cy="12" r="2" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="18" cy="18" r="2" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M7 12c4 0 4-6 9-6M7 12h9M7 12c4 0 4 6 9 6" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
+function ChartIcon() {
+  return (
+    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M4 20h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <rect x="6" y="11" width="3" height="7" rx="0.5" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="11" y="6" width="3" height="12" rx="0.5" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="16" y="14" width="3" height="4" rx="0.5" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
 }
 
 function TextHeadingIcon({ level }: { level: '1' | '2' }) {

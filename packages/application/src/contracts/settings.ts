@@ -18,6 +18,12 @@ export type {
   WorkspaceViewMode,
   DokuTypography,
   DokuFontFamily,
+  ChartBlock,
+  ChartType,
+  VisualBlockKind,
+  VisualBlockCapability,
+  VisualBlockCapabilityId,
+  ChartParseResult,
 } from '@doku/schemas';
 
 export {
@@ -27,4 +33,9 @@ export {
   DOKU_FONT_PROFILES,
   DEFAULT_DOKU_TYPOGRAPHY,
   buildUnifiedDokuTypography,
+  VISUAL_BLOCK_CAPABILITIES,
+  VISUAL_BLOCK_KINDS,
+  ChartBlockSchema,
+  parseChartBlockSource,
+  isVisualBlockFence,
 } from '@doku/schemas';

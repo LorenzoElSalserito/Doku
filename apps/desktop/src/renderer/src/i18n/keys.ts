@@ -112,6 +112,17 @@ export interface Dictionary {
       inlineCode: string;
       codeBlock: string;
       divider: string;
+      mermaidDiagram: string;
+      markmapMindmap: string;
+      chartBlock: string;
+    };
+    visualBlocks: {
+      loading: string;
+      fallback: string;
+      errorTitle: string;
+      mermaidLabel: string;
+      markmapLabel: string;
+      chartLabel: string;
     };
     workspaceExplorer: {
       title: string;

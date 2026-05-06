@@ -118,6 +118,17 @@ export const de: Dictionary = {
       inlineCode: 'Inline-Code',
       codeBlock: 'Codeblock',
       divider: 'Trenner',
+      mermaidDiagram: 'Diagramm',
+      markmapMindmap: 'Mindmap',
+      chartBlock: 'Diagramm',
+    },
+    visualBlocks: {
+      loading: 'Visueller Block lädt…',
+      fallback: 'Visueller Block',
+      errorTitle: 'Ungültiger visueller Block',
+      mermaidLabel: 'Mermaid-Diagramm',
+      markmapLabel: 'Markmap-Mindmap',
+      chartLabel: 'Recharts-Diagramm',
     },
     workspaceExplorer: {
       title: 'Workspace',

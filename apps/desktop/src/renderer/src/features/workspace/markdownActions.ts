@@ -1,3 +1,4 @@
+import { VISUAL_BLOCK_CAPABILITIES } from '@doku/application';
 import type { Dictionary } from '../../i18n/keys.js';
 
 export type MarkdownActionId =
@@ -13,7 +14,10 @@ export type MarkdownActionId =
   | 'quote'
   | 'inline-code'
   | 'code-block'
-  | 'divider';
+  | 'divider'
+  | 'mermaid-diagram'
+  | 'markmap-mindmap'
+  | 'chart-block';
 
 export type MarkdownActionSpec = {
   id: MarkdownActionId;
@@ -121,6 +125,24 @@ export const MARKDOWN_ACTION_SPECS: MarkdownActionSpec[] = [
     label: (dict) => dict.divider,
     kind: 'replace',
     text: '\n---\n',
+  },
+  {
+    id: 'mermaid-diagram',
+    label: (dict) => dict.mermaidDiagram,
+    kind: 'replace',
+    text: `\n\`\`\`mermaid\n${VISUAL_BLOCK_CAPABILITIES.mermaidDiagram.templateFactory()}\n\`\`\`\n`,
+  },
+  {
+    id: 'markmap-mindmap',
+    label: (dict) => dict.markmapMindmap,
+    kind: 'replace',
+    text: `\n\`\`\`markmap\n${VISUAL_BLOCK_CAPABILITIES.markmapMindmap.templateFactory()}\n\`\`\`\n`,
+  },
+  {
+    id: 'chart-block',
+    label: (dict) => dict.chartBlock,
+    kind: 'replace',
+    text: `\n\`\`\`chart\n${VISUAL_BLOCK_CAPABILITIES.rechartsStats.templateFactory()}\n\`\`\`\n`,
   },
 ];
 

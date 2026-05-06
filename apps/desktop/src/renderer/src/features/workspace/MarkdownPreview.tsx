@@ -1,20 +1,45 @@
 import { Fragment, type ReactNode } from 'react';
+import { classifyCodeFence } from './visualBlocks/visualBlockParser.js';
+import { VisualBlockView } from './visualBlocks/VisualBlockView.js';
+
+export interface MarkdownPreviewVisualLabels {
+  loading: string;
+  fallback: string;
+  errorTitle: string;
+}
 
 interface MarkdownPreviewProps {
   content: string;
   emptyLabel: string;
   sourcePath?: string;
+  visualLabels?: MarkdownPreviewVisualLabels;
 }
 
-export function MarkdownPreview({ content, emptyLabel, sourcePath }: MarkdownPreviewProps) {
+const DEFAULT_VISUAL_LABELS: MarkdownPreviewVisualLabels = {
+  loading: 'Loading visual block…',
+  fallback: 'Visual block',
+  errorTitle: 'Visual block error',
+};
+
+export function MarkdownPreview({
+  content,
+  emptyLabel,
+  sourcePath,
+  visualLabels,
+}: MarkdownPreviewProps) {
   if (!content.trim()) {
     return <p className="markdown-preview__empty">{emptyLabel}</p>;
   }
 
-  return <div className="markdown-preview">{renderBlocks(content, sourcePath)}</div>;
+  const labels = visualLabels ?? DEFAULT_VISUAL_LABELS;
+  return <div className="markdown-preview">{renderBlocks(content, sourcePath, labels)}</div>;
 }
 
-function renderBlocks(markdown: string, sourcePath?: string): ReactNode[] {
+function renderBlocks(
+  markdown: string,
+  sourcePath: string | undefined,
+  visualLabels: MarkdownPreviewVisualLabels,
+): ReactNode[] {
   const lines = markdown.replace(/\r\n/g, '\n').split('\n');
   const blocks: ReactNode[] = [];
   let index = 0;
@@ -29,6 +54,7 @@ function renderBlocks(markdown: string, sourcePath?: string): ReactNode[] {
     }
 
     if (trimmed.startsWith('```')) {
+      const fenceLanguage = trimmed.replace(/^```/, '').trim() || null;
       const codeLines: string[] = [];
       index += 1;
       while (index < lines.length && !(lines[index] ?? '').trim().startsWith('```')) {
@@ -36,9 +62,27 @@ function renderBlocks(markdown: string, sourcePath?: string): ReactNode[] {
         index += 1;
       }
       index += 1;
+      const codeSource = codeLines.join('\n');
+      const visualBlock = classifyCodeFence({ language: fenceLanguage, source: codeSource });
+      if (visualBlock) {
+        blocks.push(
+          <div
+            key={`visual-${blocks.length}`}
+            className={`markdown-preview__visual markdown-preview__visual--${visualBlock.kind}`}
+          >
+            <VisualBlockView
+              block={visualBlock}
+              loadingLabel={visualLabels.loading}
+              fallbackLabel={visualLabels.fallback}
+              errorTitle={visualLabels.errorTitle}
+            />
+          </div>,
+        );
+        continue;
+      }
       blocks.push(
         <pre key={`code-${blocks.length}`} className="markdown-preview__code">
-          <code>{codeLines.join('\n')}</code>
+          <code>{codeSource}</code>
         </pre>,
       );
       continue;
@@ -115,7 +159,7 @@ function renderBlocks(markdown: string, sourcePath?: string): ReactNode[] {
       }
       blocks.push(
         <blockquote key={`quote-${blocks.length}`} className="markdown-preview__quote">
-          {renderBlocks(quoteLines.join('\n'), sourcePath)}
+          {renderBlocks(quoteLines.join('\n'), sourcePath, visualLabels)}
         </blockquote>,
       );
       continue;

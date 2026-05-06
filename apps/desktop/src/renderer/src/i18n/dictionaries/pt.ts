@@ -117,6 +117,17 @@ export const pt: Dictionary = {
       inlineCode: 'Código inline',
       codeBlock: 'Bloco código',
       divider: 'Separador',
+      mermaidDiagram: 'Diagrama',
+      markmapMindmap: 'Mapa mental',
+      chartBlock: 'Gráfico',
+    },
+    visualBlocks: {
+      loading: 'A carregar bloco visual…',
+      fallback: 'Bloco visual',
+      errorTitle: 'Bloco visual inválido',
+      mermaidLabel: 'Diagrama Mermaid',
+      markmapLabel: 'Mapa mental Markmap',
+      chartLabel: 'Gráfico Recharts',
     },
     workspaceExplorer: {
       title: 'Workspace',

@@ -115,6 +115,17 @@ export const en: Dictionary = {
       inlineCode: 'Inline code',
       codeBlock: 'Code block',
       divider: 'Divider',
+      mermaidDiagram: 'Diagram',
+      markmapMindmap: 'Mind map',
+      chartBlock: 'Chart',
+    },
+    visualBlocks: {
+      loading: 'Loading visual block…',
+      fallback: 'Visual block',
+      errorTitle: 'Invalid visual block',
+      mermaidLabel: 'Mermaid diagram',
+      markmapLabel: 'Markmap mind map',
+      chartLabel: 'Recharts chart',
     },
     workspaceExplorer: {
       title: 'Workspace',
