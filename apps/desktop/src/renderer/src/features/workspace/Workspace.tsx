@@ -1,9 +1,13 @@
 import {
   useCallback,
   useEffect,
+  useImperativeHandle,
+  lazy,
   useMemo,
   useRef,
   useState,
+  Suspense,
+  forwardRef,
   type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
@@ -18,10 +22,17 @@ import type {
 import { useDict } from '../../i18n/I18nProvider.js';
 import type { Dictionary } from '../../i18n/keys.js';
 import { MarkdownPreview } from './MarkdownPreview.js';
-import { MonacoEditor, type MonacoEditorHandle } from './MonacoEditor.js';
+import type { MonacoEditorHandle } from './MonacoEditor.js';
 import { DefaultMarkdownAppDialog } from './DefaultMarkdownAppDialog.js';
 import { MARKDOWN_ACTION_SPECS, buildMarkdownTable, type MarkdownActionId } from './markdownActions.js';
 import { WorkspaceExplorer } from './WorkspaceExplorer.js';
+
+const MonacoEditor = lazy(async () => {
+  logWorkspaceEvent('monaco-module-load-started');
+  const module = await import('./MonacoEditor.js');
+  logWorkspaceEvent('monaco-module-load-finished');
+  return { default: module.MonacoEditor };
+});
 
 interface WorkspaceProps {
   settings: Settings;
@@ -32,6 +43,7 @@ interface WorkspaceProps {
   onOpenInfo: () => void;
   onOpenGuide: () => void;
   onOpenExport: (document: { title: string; content: string; path?: string }) => void;
+  onReady?: (context?: Record<string, unknown>) => void;
 }
 
 type ResizeSide = 'left' | 'right';
@@ -67,6 +79,7 @@ export function Workspace({
   onOpenInfo,
   onOpenGuide,
   onOpenExport,
+  onReady,
 }: WorkspaceProps) {
   const dict = useDict();
   const { workspace: persistedWorkspace, workspaceViewMode: persistedViewMode } = settings;
@@ -111,6 +124,8 @@ export function Workspace({
   const editorPaneRef = useRef<HTMLElement | null>(null);
   const monacoEditorRef = useRef<MonacoEditorHandle | null>(null);
   const dropDepthRef = useRef(0);
+  const readinessLoggedRef = useRef(false);
+  const safeMode = window.doku.system.safeMode;
 
   useEffect(() => {
     launcherRef.current = settings.launcher;
@@ -136,6 +151,30 @@ export function Workspace({
   useEffect(() => {
     tabsRef.current = tabs;
   }, [tabs]);
+
+  useEffect(() => {
+    if (readinessLoggedRef.current || !sessionRestoreComplete || tabs.length === 0) {
+      return;
+    }
+
+    const loadingTabs = tabs.filter((tab) => tab.loadState === 'loading').length;
+    if (loadingTabs > 0) {
+      return;
+    }
+
+    const readyTabs = tabs.filter((tab) => tab.loadState === 'ready').length;
+    const erroredTabs = tabs.filter((tab) => tab.loadState === 'error').length;
+    readinessLoggedRef.current = true;
+    const context = {
+      route: 'workspace',
+      tabs: tabs.length,
+      readyTabs,
+      erroredTabs,
+      activeTabId,
+    };
+    logWorkspaceEvent('workspace-ready', context);
+    onReady?.(context);
+  }, [activeTabId, onReady, sessionRestoreComplete, tabs]);
 
   const activeTab = useMemo(
     () => tabs.find((tab) => tab.id === activeTabId) ?? null,
@@ -279,6 +318,7 @@ export function Workspace({
     const restoreMessages = restoreMessagesRef.current;
 
     if (initialSessionTabs.length === 0) {
+      logWorkspaceEvent('workspace-restore-skipped', { reason: 'no-session-tabs' });
       setSessionRestoreComplete(true);
       return undefined;
     }
@@ -292,6 +332,11 @@ export function Workspace({
         : tabIds[0] ?? null;
 
     setSessionRestoreComplete(false);
+    logWorkspaceEvent('workspace-restore-started', {
+      tabs: summaries.length,
+      requestedActiveTabId: initialSessionActiveTabId,
+      resolvedActiveTabId: initialActiveId,
+    });
     setTabs(
       summaries.map((summary) => ({
         id: resolveSummaryTabId(summary),
@@ -384,6 +429,9 @@ export function Workspace({
       if (!cancelled) {
         setNoticeMessage(null);
         setSessionRestoreComplete(true);
+        logWorkspaceEvent('workspace-restore-completed', {
+          tabs: summaries.length,
+        });
       }
     };
 
@@ -1571,12 +1619,23 @@ export function Workspace({
                           </strong>
                         </div>
                       ) : null}
-                      <MonacoEditor
-                        ref={monacoEditorRef}
-                        value={document?.content ?? ''}
-                        onChange={handleContentChange}
-                        onScrollChange={handleEditorScrollChange}
-                      />
+                      {safeMode ? (
+                        <PlainTextEditor
+                          ref={monacoEditorRef}
+                          value={document?.content ?? ''}
+                          onChange={handleContentChange}
+                          onScrollChange={handleEditorScrollChange}
+                        />
+                      ) : (
+                        <Suspense fallback={<div className="workspace__editor-loading">{dict.workspace.editorLoading}</div>}>
+                          <MonacoEditor
+                            ref={monacoEditorRef}
+                            value={document?.content ?? ''}
+                            onChange={handleContentChange}
+                            onScrollChange={handleEditorScrollChange}
+                          />
+                        </Suspense>
+                      )}
                     </section>
                   )}
 
@@ -1734,6 +1793,104 @@ export function Workspace({
     </div>
   );
 }
+
+interface TextEditorProps {
+  value: string;
+  onChange: (value: string) => void;
+  onScrollChange?: (state: { scrollTop: number; scrollHeight: number; viewportHeight: number }) => void;
+}
+
+const PlainTextEditor = forwardRef<MonacoEditorHandle, TextEditorProps>(function PlainTextEditor(
+  { value, onChange, onScrollChange },
+  ref,
+) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const emitScrollSnapshot = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return;
+    }
+    onScrollChange?.({
+      scrollTop: textarea.scrollTop,
+      scrollHeight: textarea.scrollHeight,
+      viewportHeight: textarea.clientHeight,
+    });
+  }, [onScrollChange]);
+
+  const replaceSelection = useCallback(
+    (
+      text: string,
+      options?: {
+        selectionStartOffset?: number;
+        selectionEndOffset?: number;
+      },
+    ) => {
+      const textarea = textareaRef.current;
+      if (!textarea) {
+        return;
+      }
+
+      const selectionStart = textarea.selectionStart;
+      const selectionEnd = textarea.selectionEnd;
+      const nextValue = `${value.slice(0, selectionStart)}${text}${value.slice(selectionEnd)}`;
+      onChange(nextValue);
+
+      requestAnimationFrame(() => {
+        const nextTextarea = textareaRef.current;
+        if (!nextTextarea) {
+          return;
+        }
+        const startOffset = options?.selectionStartOffset ?? text.length;
+        const endOffset = options?.selectionEndOffset ?? startOffset;
+        nextTextarea.selectionStart = selectionStart + startOffset;
+        nextTextarea.selectionEnd = selectionStart + endOffset;
+        nextTextarea.focus();
+      });
+    },
+    [onChange, value],
+  );
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => textareaRef.current?.focus(),
+      layout: () => undefined,
+      scrollBy: (deltaY) => {
+        if (textareaRef.current) {
+          textareaRef.current.scrollTop += deltaY;
+          emitScrollSnapshot();
+        }
+      },
+      insertText: (text) => replaceSelection(text),
+      replaceSelection,
+      surroundSelection: ({ before, after, placeholder }) => {
+        const textarea = textareaRef.current;
+        if (!textarea) {
+          return;
+        }
+        const selectedText = value.slice(textarea.selectionStart, textarea.selectionEnd);
+        const innerText = selectedText || placeholder;
+        replaceSelection(`${before}${innerText}${after}`, {
+          selectionStartOffset: before.length,
+          selectionEndOffset: before.length + innerText.length,
+        });
+      },
+    }),
+    [emitScrollSnapshot, replaceSelection, value],
+  );
+
+  return (
+    <textarea
+      ref={textareaRef}
+      className="workspace__plain-editor"
+      value={value}
+      spellCheck={false}
+      onChange={(event) => onChange(event.currentTarget.value)}
+      onScroll={emitScrollSnapshot}
+    />
+  );
+});
 
 function hasImageFiles(event: ReactDragEvent<HTMLElement>): boolean {
   const { items, files } = event.dataTransfer;

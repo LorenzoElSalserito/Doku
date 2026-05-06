@@ -10,18 +10,31 @@ export interface SessionLoggerInfo {
   startedAt: string;
 }
 
+interface SessionLoggerOptions {
+  logsDir: string;
+  sessionId?: string;
+  startedAt?: Date;
+  processName?: string;
+  appVersion?: string;
+}
+
 export class SessionLogger {
   private readonly filePath: string;
   private readonly logsDir: string;
   private readonly sessionId: string;
   private readonly startedAt: string;
+  private readonly processName: string;
+  private readonly appVersion?: string;
+  private sequence = 0;
   private writeQueue: Promise<void> = Promise.resolve();
 
-  constructor(options: { logsDir: string; sessionId?: string; startedAt?: Date }) {
+  constructor(options: SessionLoggerOptions) {
     const startedAt = options.startedAt ?? new Date();
     this.logsDir = options.logsDir;
     this.sessionId = options.sessionId ?? formatSessionId(startedAt);
     this.startedAt = startedAt.toISOString();
+    this.processName = options.processName ?? process.type ?? 'node';
+    this.appVersion = options.appVersion;
     this.filePath = join(options.logsDir, `session-${this.sessionId}.log`);
   }
 
@@ -86,9 +99,21 @@ export class SessionLogger {
   private write(level: LogLevel, event: string, context: LogContext = {}): void {
     const entry = {
       timestamp: new Date().toISOString(),
+      sequence: ++this.sequence,
       level,
       event,
       sessionId: this.sessionId,
+      process: {
+        name: this.processName,
+        pid: process.pid,
+        platform: process.platform,
+        arch: process.arch,
+        node: process.versions.node,
+        electron: process.versions.electron,
+        chrome: process.versions.chrome,
+        appVersion: this.appVersion,
+        uptimeMs: Math.round(process.uptime() * 1000),
+      },
       context: sanitizeForLog(context),
     };
     const payload = `${JSON.stringify(entry)}\n`;

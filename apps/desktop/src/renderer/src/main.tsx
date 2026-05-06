@@ -4,7 +4,32 @@ import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import editorWorkerUrl from 'monaco-editor/esm/vs/editor/editor.worker?worker&url';
 import '@doku/ui';
 import './styles/app.css';
-import { App } from './app/App.js';
+import { BootstrapRoot } from './app/BootstrapRoot.js';
+
+function logRendererBootstrap(event: string, context?: Record<string, unknown>): void {
+  void window.doku.system.logEvent(event, context);
+}
+
+window.addEventListener('error', (event) => {
+  logRendererBootstrap('renderer-global-error', {
+    message: event.message,
+    filename: event.filename,
+    lineno: event.lineno,
+    colno: event.colno,
+    error: event.error instanceof Error
+      ? { name: event.error.name, message: event.error.message, stack: event.error.stack }
+      : String(event.error),
+  });
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason;
+  logRendererBootstrap('renderer-unhandled-rejection', {
+    reason: reason instanceof Error
+      ? { name: reason.name, message: reason.message, stack: reason.stack }
+      : String(reason),
+  });
+});
 
 if (!window.doku.system.safeMode) {
   (globalThis as typeof globalThis & {
@@ -22,42 +47,10 @@ if (!window.doku.system.safeMode) {
 const container = document.getElementById('root');
 if (!container) throw new Error('Root container #root missing in index.html');
 
-const DOKU_FONT_PRELOADS = [
-  '1em "Inter"',
-  '1em "JetBrains Mono"',
-  '1em "Source Serif 4"',
-  '1em "OpenDyslexic"',
-  '1em "Atkinson Hyperlegible"',
-];
+logRendererBootstrap('renderer-entry', { safeMode: window.doku.system.safeMode });
 
-async function loadDokuFonts(): Promise<void> {
-  const fontSet = document.fonts;
-  if (!fontSet || window.doku.system.safeMode) {
-    return;
-  }
-
-  await Promise.allSettled(DOKU_FONT_PRELOADS.map((font) => fontSet.load(font)));
-}
-
-async function preloadDokuFontsWithTimeout(timeoutMs = 800): Promise<void> {
-  await Promise.race([
-    loadDokuFonts(),
-    new Promise<void>((resolve) => {
-      window.setTimeout(resolve, timeoutMs);
-    }),
-  ]);
-}
-
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    void loadDokuFonts();
-  }
-});
-
-void preloadDokuFontsWithTimeout().finally(() => {
-  createRoot(container).render(
-    <StrictMode>
-      <App />
-    </StrictMode>,
-  );
-});
+createRoot(container).render(
+  <StrictMode>
+    <BootstrapRoot />
+  </StrictMode>,
+);

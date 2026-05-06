@@ -16,25 +16,33 @@ import {
 } from '@doku/infrastructure';
 import { PRODUCT_NAME } from '@doku/application';
 import { resolveExportRuntimePaths } from './exportRuntime.js';
-import { createMainWindow } from './window.js';
+import { createMainWindow, showMainWindow } from './window.js';
 import { CrashStateManager } from './crashState.js';
+import { closeSplashWindow, createSplashWindow } from './splash.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ORIGINAL_USER_DATA_DIR = app.getPath('userData');
 const DOCUMENTS_DATA_DIR = resolveDocumentsDataDir(ORIGINAL_USER_DATA_DIR);
-const logger = new SessionLogger({ logsDir: join(DOCUMENTS_DATA_DIR, 'logs') });
+const bootstrapStartedAtMs = Date.now();
+const logger = new SessionLogger({
+  logsDir: join(DOCUMENTS_DATA_DIR, 'logs'),
+  processName: 'main',
+  appVersion: app.getVersion(),
+});
 const crashState = new CrashStateManager(DOCUMENTS_DATA_DIR);
 const LOG_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const pendingOpenFilePaths = new Set<string>();
 let mainWindow: BrowserWindow | null = null;
 let healthyBootstrapTimer: NodeJS.Timeout | null = null;
+let mainWindowShowTimer: NodeJS.Timeout | null = null;
+let splashWindow: BrowserWindow | null = null;
+let bootstrapMarkedHealthy = false;
 
 if (process.platform === 'linux') {
   app.disableHardwareAcceleration();
   app.commandLine.appendSwitch('disable-gpu');
   app.commandLine.appendSwitch('disable-gpu-compositing');
-  app.commandLine.appendSwitch('disable-software-rasterizer');
   app.commandLine.appendSwitch('disable-features', 'UseChromeOSDirectVideoDecoder');
 }
 
@@ -51,44 +59,84 @@ registerProcessDiagnostics();
 registerFileOpenHandlers();
 
 async function bootstrap(): Promise<void> {
-  logger.info('app:bootstrap-started', {
+  logStartup('process-created', {
     platform: process.platform,
     version: app.getVersion(),
     appDataDir: DOCUMENTS_DATA_DIR,
     electronUserDataDir: ORIGINAL_USER_DATA_DIR,
+    argv: process.argv,
+    isPackaged: app.isPackaged,
   });
-  logger.info('app:crash-dump-dir', { path: app.getPath('crashDumps') });
+  logStartup('crash-reporter-started', { crashDumpDir: app.getPath('crashDumps') });
   void logCrashpadPendingDumps();
   void logger.pruneOlderThan(LOG_RETENTION_MS);
 
+  logStartup('crash-state-mark-starting');
   await crashState.markBootstrapStarted();
   const safeMode = crashState.isInSafeMode();
-  logger.info('app:bootstrap-safe-mode', { safeMode, ...crashState.snapshot });
+  logStartup('crash-state-loaded', { safeMode, ...crashState.snapshot });
 
+  logStartup('electron-when-ready-waiting');
   await app.whenReady();
+  logStartup('electron-ready', {
+    electronUserDataDir: app.getPath('userData'),
+    locale: app.getLocale(),
+  });
+  splashWindow = createSplashWindow();
+  attachSplashDiagnostics(splashWindow);
+  logStartup('splash-window-created', {
+    id: splashWindow.id,
+    bounds: splashWindow.getBounds(),
+  });
 
   const electronUserDataDir = app.getPath('userData');
+  logStartup('legacy-user-data-migration-started', {
+    sourceDir: ORIGINAL_USER_DATA_DIR,
+    targetDir: DOCUMENTS_DATA_DIR,
+  });
   await migrateLegacyUserData(ORIGINAL_USER_DATA_DIR, DOCUMENTS_DATA_DIR);
+  logStartup('legacy-user-data-migration-finished');
   const repo = new SettingsRepository({
     userDataDir: DOCUMENTS_DATA_DIR,
     legacyFilePaths: [join(ORIGINAL_USER_DATA_DIR, 'settings.json')],
     logger,
   });
   // Ensure defaults exist on disk (idempotent).
+  logStartup('settings-read-started');
   await repo.read();
+  logStartup('settings-read-finished');
 
+  logStartup('ipc-registration-started');
   const disposeSettings = registerSettingsChannel(repo, logger);
   const disposeSystem = registerSystemChannel({
     appDataDir: DOCUMENTS_DATA_DIR,
     electronUserDataDir,
     cleanupDirs: [DOCUMENTS_DATA_DIR, electronUserDataDir],
     logger,
+    onRendererEvent: (event) => {
+      if (event === 'first-frame-ready') {
+        logger.info('window:first-frame-ready-ignored-until-bootstrap');
+      }
+      if (event === 'splash-ready') {
+        logger.info('window:renderer-splash-ready-main-window-still-hidden');
+      }
+      if (event === 'app-ready') {
+        revealMainWindowAfterReady('renderer-app-ready');
+      }
+    },
   });
   const disposeDocuments = registerDocumentsChannel(repo, {
     userDataDir: DOCUMENTS_DATA_DIR,
     logger,
   });
+  logStartup('ipc-registration-finished');
+  logStartup('export-runtime-resolve-started');
   const exportRuntime = resolveExportRuntimePaths(__dirname);
+  logStartup('export-runtime-resolved', {
+    hasPandoc: Boolean(exportRuntime.pandocPath),
+    hasLuaLatex: Boolean(exportRuntime.lualatexPath),
+    hasWeasyPython: Boolean(exportRuntime.weasyPythonPath),
+  });
   const disposeExport = registerExportChannel({
     lualatex: new LatexPdfExportService({
       pandocPath: exportRuntime.pandocPath,
@@ -106,16 +154,26 @@ async function bootstrap(): Promise<void> {
   const rendererDevUrl = process.env.ELECTRON_RENDERER_URL;
   const rendererFile = join(__dirname, '../renderer/index.html');
 
+  logStartup('main-window-create-started', {
+    preloadPath,
+    rendererMode: rendererDevUrl ? 'dev-url' : 'file',
+  });
   mainWindow = createMainWindow({ preloadPath, rendererDevUrl, rendererFile, safeMode });
   attachWindowDiagnostics(mainWindow);
+  armMainWindowRevealFallback(mainWindow);
   dispatchPendingOpenFiles(mainWindow);
   scheduleHealthyBootstrap();
+  logStartup('main-window-create-finished', { safeMode });
 
   app.on('activate', () => {
+    logger.info('app:activate', { windowCount: BrowserWindow.getAllWindows().length });
     if (BrowserWindow.getAllWindows().length === 0) {
+      logStartup('main-window-recreate-started');
       mainWindow = createMainWindow({ preloadPath, rendererDevUrl, rendererFile, safeMode });
       attachWindowDiagnostics(mainWindow);
+      armMainWindowRevealFallback(mainWindow);
       dispatchPendingOpenFiles(mainWindow);
+      logStartup('main-window-recreate-finished');
     }
   });
 
@@ -125,11 +183,79 @@ async function bootstrap(): Promise<void> {
       clearTimeout(healthyBootstrapTimer);
       healthyBootstrapTimer = null;
     }
+    if (mainWindowShowTimer) {
+      clearTimeout(mainWindowShowTimer);
+      mainWindowShowTimer = null;
+    }
     disposeSettings();
     disposeSystem();
     disposeDocuments();
     disposeExport();
     if (process.platform !== 'darwin') app.quit();
+  });
+
+  logStartup('bootstrap-completed');
+}
+
+function armMainWindowRevealFallback(window: BrowserWindow): void {
+  if (mainWindowShowTimer) {
+    clearTimeout(mainWindowShowTimer);
+    mainWindowShowTimer = null;
+  }
+
+  window.once('ready-to-show', () => {
+    mainWindowShowTimer = setTimeout(() => {
+      logger.warn('window:main-window-ready-without-app-ready', {
+        id: window.id,
+        elapsedSinceProcessStartMs: Date.now() - bootstrapStartedAtMs,
+      });
+    }, 7_500);
+  });
+}
+
+function revealMainWindowAfterReady(reason: string): void {
+  if (mainWindowShowTimer) {
+    clearTimeout(mainWindowShowTimer);
+    mainWindowShowTimer = null;
+  }
+
+  setTimeout(() => {
+    revealMainWindow(reason);
+    closeSplashWindow(splashWindow);
+    splashWindow = null;
+    markBootstrapHealthy(reason);
+  }, 2);
+}
+
+function revealMainWindow(reason: string): void {
+  const window = resolveMainWindow();
+  if (!window || window.isDestroyed() || window.isVisible()) {
+    return;
+  }
+
+  if (mainWindowShowTimer) {
+    clearTimeout(mainWindowShowTimer);
+    mainWindowShowTimer = null;
+  }
+  logger.info('window:show-requested', {
+    id: window.id,
+    reason,
+    elapsedSinceProcessStartMs: Date.now() - bootstrapStartedAtMs,
+  });
+  showMainWindow(window);
+}
+
+function attachSplashDiagnostics(window: BrowserWindow): void {
+  logger.info('splash:created', {
+    id: window.id,
+    bounds: window.getBounds(),
+  });
+  window.once('ready-to-show', () => logger.info('splash:ready-to-show', { id: window.id }));
+  window.on('show', () => logger.info('splash:show', { id: window.id }));
+  window.on('closed', () => logger.info('splash:closed', { id: window.id }));
+  window.webContents.on('did-finish-load', () => logger.info('splash:did-finish-load', { id: window.id }));
+  window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    logger.error('splash:did-fail-load', { id: window.id, errorCode, errorDescription, validatedURL, isMainFrame });
   });
 }
 
@@ -138,12 +264,26 @@ function scheduleHealthyBootstrap(): void {
     clearTimeout(healthyBootstrapTimer);
   }
   healthyBootstrapTimer = setTimeout(() => {
-    healthyBootstrapTimer = null;
-    void crashState
-      .markBootstrapHealthy()
-      .then(() => logger.info('app:bootstrap-healthy', { ...crashState.snapshot }))
-      .catch((err) => logger.warn('app:bootstrap-healthy-failed', { error: serializeErrorForLog(err) }));
+    markBootstrapHealthy('timer');
   }, crashState.healthyBootstrapDelayMs);
+}
+
+function markBootstrapHealthy(reason: string): void {
+  if (bootstrapMarkedHealthy) {
+    return;
+  }
+  bootstrapMarkedHealthy = true;
+  if (healthyBootstrapTimer) {
+    clearTimeout(healthyBootstrapTimer);
+    healthyBootstrapTimer = null;
+  }
+  void crashState
+    .markBootstrapHealthy()
+    .then(() => logStartup('healthy', { reason, ...crashState.snapshot }))
+    .catch((err) => logger.warn('app:bootstrap-healthy-failed', {
+      reason,
+      error: serializeErrorForLog(err),
+    }));
 }
 
 function registerFileOpenHandlers(): void {
@@ -194,6 +334,7 @@ function dispatchPendingOpenFiles(window: BrowserWindow | null): void {
     return;
   }
 
+  logger.info('app:file-open-dispatch-started', { count: pendingOpenFilePaths.size });
   if (window.isMinimized()) {
     window.restore();
   }
@@ -293,36 +434,68 @@ async function migrateLegacyUserData(sourceDir: string, targetDir: string): Prom
 }
 
 function attachWindowDiagnostics(window: BrowserWindow): void {
-  logger.info('window:created');
-  window.webContents.on('did-finish-load', () => logger.info('window:did-finish-load'));
+  logger.info('window:created', {
+    id: window.id,
+    bounds: window.getBounds(),
+  });
+  window.once('ready-to-show', () => {
+    logger.info('window:ready-to-show', {
+      id: window.id,
+      elapsedSinceProcessStartMs: Date.now() - bootstrapStartedAtMs,
+    });
+  });
+  window.on('show', () => logger.info('window:show', { id: window.id }));
+  window.on('closed', () => logger.info('window:closed', { id: window.id }));
+  window.webContents.on('did-start-loading', () => logger.info('window:did-start-loading', { id: window.id }));
+  window.webContents.on('dom-ready', () => logger.info('window:dom-ready', { id: window.id }));
+  window.webContents.on('did-finish-load', () => logger.info('window:did-finish-load', { id: window.id }));
   window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-    logger.error('window:did-fail-load', { errorCode, errorDescription, validatedURL, isMainFrame });
+    logger.error('window:did-fail-load', { id: window.id, errorCode, errorDescription, validatedURL, isMainFrame });
   });
   window.webContents.on('preload-error', (_event, preloadPath, error) => {
-    logger.error('window:preload-error', { preloadPath, error: serializeErrorForLog(error) });
+    logger.error('window:preload-error', { id: window.id, preloadPath, error: serializeErrorForLog(error) });
   });
   window.webContents.on('render-process-gone', (_event, details) => {
-    logger.error('window:render-process-gone', { ...details });
+    logger.error('window:render-process-gone', { id: window.id, ...details });
     void logCrashpadPendingDumps();
   });
-  window.webContents.on('unresponsive', () => logger.warn('window:unresponsive'));
+  window.webContents.on('unresponsive', () => logger.warn('window:unresponsive', { id: window.id }));
+  window.webContents.on('responsive', () => logger.info('window:responsive', { id: window.id }));
   window.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-    logger.debug('renderer:console-message', { level, message, line, sourceId });
+    logger.debug('renderer:console-message', { id: window.id, level, message, line, sourceId });
   });
 }
 
 function registerProcessDiagnostics(): void {
   process.on('uncaughtException', (error) => {
     logger.error('process:uncaught-exception', { error: serializeErrorForLog(error) });
+    void logger.flush();
   });
   process.on('unhandledRejection', (reason) => {
     logger.error('process:unhandled-rejection', { reason: serializeErrorForLog(reason) });
+    void logger.flush();
   });
   app.on('child-process-gone', (_event, details) => {
     logger.error('app:child-process-gone', { ...details });
     void logCrashpadPendingDumps();
   });
-  app.on('before-quit', () => logger.info('app:before-quit'));
+  app.on('render-process-gone', (_event, webContents, details) => {
+    logger.error('app:render-process-gone', {
+      webContentsId: webContents.id,
+      ...details,
+    });
+  });
+  app.on('gpu-info-update', () => logger.info('app:gpu-info-update'));
+  app.on('will-quit', () => {
+    logger.info('app:will-quit');
+    markBootstrapHealthy('will-quit');
+    void logger.flush();
+  });
+  app.on('before-quit', () => {
+    logger.info('app:before-quit');
+    markBootstrapHealthy('before-quit');
+    void logger.flush();
+  });
 }
 
 async function logCrashpadPendingDumps(): Promise<void> {
@@ -346,6 +519,14 @@ if (app.hasSingleInstanceLock()) {
   bootstrap().catch((err) => {
     logger.error('app:fatal-bootstrap-error', { error: serializeErrorForLog(err) });
     console.error(`[${PRODUCT_NAME}] fatal bootstrap error`, err);
-    app.exit(1);
+    void logger.flush().finally(() => app.exit(1));
+  });
+}
+
+function logStartup(event: string, context: Record<string, unknown> = {}): void {
+  logger.info(`startup:${event}`, {
+    elapsedSinceProcessStartMs: Date.now() - bootstrapStartedAtMs,
+    rssBytes: process.memoryUsage().rss,
+    ...context,
   });
 }

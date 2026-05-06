@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ThemeProvider } from '@doku/ui';
 import type { DokuTypography, Settings, SettingsPatch, ThemePreference } from '@doku/application';
 import { useSettings } from '../hooks/useSettings.js';
@@ -31,8 +31,12 @@ function logAppEvent(event: string, context?: Record<string, unknown>): void {
     .logEvent?.(event, context);
 }
 
-export function App() {
-  const { status, settings, error, update } = useSettings();
+interface AppProps {
+  initialSettings?: Settings;
+}
+
+export function App({ initialSettings }: AppProps) {
+  const { status, settings, error, update } = useSettings(initialSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
@@ -42,13 +46,25 @@ export function App() {
     content: string;
     path?: string;
   } | null>(null);
+  const appShellLoggedRef = useRef(false);
+  const appReadyLoggedRef = useRef(false);
   const bootstrapLanguage = settings?.language ?? resolvePreferredLanguage();
 
   useEffect(() => {
-    if (status === 'ready') {
-      logAppEvent('app-ready');
+    if (status === 'ready' && !appShellLoggedRef.current) {
+      appShellLoggedRef.current = true;
+      logAppEvent('renderer-app-mounted');
+      logAppEvent('app-shell-ready');
     }
   }, [status]);
+
+  const handleOperationalReady = useCallback((context?: Record<string, unknown>) => {
+    if (appReadyLoggedRef.current) {
+      return;
+    }
+    appReadyLoggedRef.current = true;
+    logAppEvent('app-ready', context);
+  }, []);
 
   const handleThemeChange = useCallback(
     (next: ThemePreference) => {
@@ -82,10 +98,10 @@ export function App() {
         preference={settings.theme}
         customTheme={settings.customTheme}
         appZoom={settings.appZoom}
-        writingFontFamily={safeMode ? null : settings.writingFontFamily}
-        uiFontFamily={safeMode ? undefined : typography.uiFontFamily}
-        contentFontFamily={safeMode ? undefined : typography.pdfFontFamily}
-        monospaceFontFamily={safeMode ? undefined : typography.monospaceFontFamily}
+        writingFontFamily={settings.writingFontFamily}
+        uiFontFamily={typography.uiFontFamily}
+        contentFontFamily={typography.pdfFontFamily}
+        monospaceFontFamily={typography.monospaceFontFamily}
         accessibilityFontFamily={safeMode ? undefined : typography.accessibilityFontFamily}
         accessibilityMode={!safeMode && typography.accessibilityMode}
         onPreferenceChange={handleThemeChange}
@@ -123,6 +139,7 @@ export function App() {
           }}
           onCloseExport={() => setExportOpen(false)}
           exportDraft={exportDraft}
+          onOperationalReady={handleOperationalReady}
         />
       </ThemeProvider>
     </I18nProvider>
@@ -145,6 +162,7 @@ interface AppShellProps {
   onCloseGuide: () => void;
   onOpenExport: (document: { title?: string; content: string; path?: string }) => void;
   onCloseExport: () => void;
+  onOperationalReady: (context?: Record<string, unknown>) => void;
 }
 
 function AppShell({
@@ -163,6 +181,7 @@ function AppShell({
   onCloseGuide,
   onOpenExport,
   onCloseExport,
+  onOperationalReady,
 }: AppShellProps) {
   const dict = useDict();
   const quickResumeDocument = useMemo(
@@ -185,8 +204,22 @@ function AppShell({
   );
   const initialActiveTabId = settings.sessionTabs.length > 0 ? settings.activeSessionTabId : null;
 
+  useEffect(() => {
+    logAppEvent('app-route-selected', {
+      route: settings.firstRunCompleted ? 'workspace' : 'wizard',
+      sessionTabs: settings.sessionTabs.length,
+      hasQuickResume: Boolean(quickResumeDocument),
+      activeSessionTabId: settings.activeSessionTabId,
+    });
+  }, [
+    quickResumeDocument,
+    settings.activeSessionTabId,
+    settings.firstRunCompleted,
+    settings.sessionTabs.length,
+  ]);
+
   if (!settings.firstRunCompleted) {
-    return <SetupWizard initialSettings={settings} onComplete={onUpdate} />;
+    return <SetupWizardReady initialSettings={settings} onComplete={onUpdate} onReady={onOperationalReady} />;
   }
 
   return (
@@ -204,6 +237,7 @@ function AppShell({
         onOpenInfo={onOpenInfo}
         onOpenGuide={onOpenGuide}
         onOpenExport={onOpenExport}
+        onReady={onOperationalReady}
       />
 
       <Suspense fallback={null}>
@@ -239,6 +273,23 @@ function AppShell({
   );
 }
 
+function SetupWizardReady({
+  initialSettings,
+  onComplete,
+  onReady,
+}: {
+  initialSettings: Settings;
+  onComplete: (patch: SettingsPatch) => Promise<void>;
+  onReady: (context?: Record<string, unknown>) => void;
+}) {
+  useEffect(() => {
+    logAppEvent('wizard-ready');
+    onReady({ route: 'wizard' });
+  }, [onReady]);
+
+  return <SetupWizard initialSettings={initialSettings} onComplete={onComplete} />;
+}
+
 function normalizeUnifiedTypography(typography: DokuTypography): DokuTypography {
   const fontFamily = typography.uiFontFamily;
 
@@ -251,7 +302,7 @@ function normalizeUnifiedTypography(typography: DokuTypography): DokuTypography 
   };
 }
 
-function resolvePreferredLanguage(): LanguageCode {
+export function resolvePreferredLanguage(): LanguageCode {
   if (typeof navigator === 'undefined') {
     return 'en';
   }

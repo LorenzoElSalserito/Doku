@@ -7,6 +7,7 @@ const HERE = __dirname;
 const ROOT_PACKAGE = JSON.parse(readFileSync(resolve(HERE, '../../package.json'), 'utf8')) as {
   version: string;
 };
+const SPLASH_ICON_BASE64 = readFileSync(resolve(HERE, 'src/assets/icon.png')).toString('base64');
 
 const aliases = {
   '@doku/schemas': resolve(HERE, '../../packages/schemas/src/index.ts'),
@@ -26,6 +27,9 @@ export default defineConfig({
   main: {
     root: HERE,
     plugins: [externalizeDepsPlugin({ exclude: WORKSPACE_PACKAGES })],
+    define: {
+      __DOKU_SPLASH_ICON_BASE64__: JSON.stringify(SPLASH_ICON_BASE64),
+    },
     build: {
       outDir: resolve(HERE, 'out/main'),
       rollupOptions: {

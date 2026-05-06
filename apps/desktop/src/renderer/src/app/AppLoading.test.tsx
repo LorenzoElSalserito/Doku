@@ -14,6 +14,6 @@ describe('AppLoading', () => {
     );
 
     expect(screen.getByRole('status')).toHaveTextContent('Doku');
-    expect(screen.getByRole('status')).toHaveTextContent('Preparing your studio');
+    expect(screen.getByRole('status')).toHaveTextContent('NOW LOADING');
   });
 });

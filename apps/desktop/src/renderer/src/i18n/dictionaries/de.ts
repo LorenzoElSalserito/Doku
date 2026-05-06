@@ -3,7 +3,7 @@ import type { Dictionary } from '../keys.js';
 export const de: Dictionary = {
   app: {
     name: 'Doku',
-    loading: 'Dein Studio wird vorbereitet…',
+    loading: 'Arbeitsbereich wird geöffnet…',
     errorTitle: 'Etwas ist schiefgelaufen.',
     unknownError: 'Unbekannter Fehler',
     skipToEditor: 'Direkt zum Editor springen',

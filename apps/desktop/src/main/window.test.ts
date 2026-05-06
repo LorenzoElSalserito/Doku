@@ -6,6 +6,8 @@ interface FakeBrowserWindow {
   options: Record<string, unknown>;
   show: ReturnType<typeof vi.fn>;
   maximize: ReturnType<typeof vi.fn>;
+  isDestroyed: ReturnType<typeof vi.fn>;
+  isMaximized: ReturnType<typeof vi.fn>;
   setFullScreen: ReturnType<typeof vi.fn>;
   loadURL: ReturnType<typeof vi.fn>;
   loadFile: ReturnType<typeof vi.fn>;
@@ -28,6 +30,8 @@ const electronMock = vi.hoisted(() => {
         options: opts,
         show: vi.fn(),
         maximize: vi.fn(),
+        isDestroyed: vi.fn(() => false),
+        isMaximized: vi.fn(() => false),
         setFullScreen: vi.fn(),
         loadURL: vi.fn().mockResolvedValue(undefined),
         loadFile: vi.fn().mockResolvedValue(undefined),
@@ -91,19 +95,29 @@ function withPlatform(platform: NodeJS.Platform, block: () => Promise<void> | vo
   });
 }
 
-describe('createMainWindow — fullscreen startup & OS snap compatibility', () => {
+describe('createMainWindow — startup visibility & OS snap compatibility', () => {
   beforeEach(() => {
     vi.resetModules();
     electronMock.instances.length = 0;
   });
 
-  it('maximizes the window on ready-to-show so it fills the screen at startup', async () => {
+  it('keeps the window hidden on ready-to-show so the renderer can reveal a stable first frame', async () => {
     const instance = await buildWindow();
 
     expect(instance.maximize).not.toHaveBeenCalled();
     expect(instance.show).not.toHaveBeenCalled();
 
     instance.emit('ready-to-show');
+
+    expect(instance.maximize).not.toHaveBeenCalled();
+    expect(instance.show).not.toHaveBeenCalled();
+  });
+
+  it('maximizes before showing the window when explicitly revealed', async () => {
+    const instance = await buildWindow();
+    const { showMainWindow } = await import('./window.js');
+
+    showMainWindow(instance as unknown as import('electron').BrowserWindow);
 
     expect(instance.maximize).toHaveBeenCalledTimes(1);
     expect(instance.show).toHaveBeenCalledTimes(1);
@@ -114,7 +128,6 @@ describe('createMainWindow — fullscreen startup & OS snap compatibility', () =
 
   it('does not force real fullscreen on startup (would break OS snap gestures)', async () => {
     const instance = await buildWindow();
-    instance.emit('ready-to-show');
 
     expect(instance.setFullScreen).not.toHaveBeenCalled();
     expect(instance.options.fullscreen).not.toBe(true);

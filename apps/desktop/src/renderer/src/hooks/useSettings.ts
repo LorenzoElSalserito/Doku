@@ -15,12 +15,15 @@ function logSettingsEvent(event: string, context?: Record<string, unknown>): voi
     .logEvent?.(event, context);
 }
 
-export function useSettings(): UseSettingsResult {
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [status, setStatus] = useState<Status>('loading');
+export function useSettings(initialSettings?: Settings): UseSettingsResult {
+  const [settings, setSettings] = useState<Settings | null>(initialSettings ?? null);
+  const [status, setStatus] = useState<Status>(initialSettings ? 'ready' : 'loading');
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    if (initialSettings) {
+      return;
+    }
     let cancelled = false;
     window.doku.settings
       .get()
@@ -44,7 +47,7 @@ export function useSettings(): UseSettingsResult {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialSettings]);
 
   const update = useCallback(async (patch: SettingsPatch) => {
     const next = await window.doku.settings.set(patch);

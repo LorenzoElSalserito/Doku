@@ -68,38 +68,12 @@ export function ThemeProvider({
     if (typeof window === 'undefined' || !window.matchMedia) return false;
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
-  const [fontRevision, setFontRevision] = useState(0);
-
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches);
     media.addEventListener('change', handler);
     return () => media.removeEventListener('change', handler);
-  }, []);
-
-  useEffect(() => {
-    const fontSet = document.fonts;
-    if (!fontSet) {
-      return undefined;
-    }
-
-    let cancelled = false;
-    const markFontsReady = () => {
-      if (!cancelled) {
-        setFontRevision((revision) => revision + 1);
-      }
-    };
-
-    void fontSet.ready.then(markFontsReady);
-    fontSet.addEventListener('loadingdone', markFontsReady);
-    fontSet.addEventListener('loadingerror', markFontsReady);
-
-    return () => {
-      cancelled = true;
-      fontSet.removeEventListener('loadingdone', markFontsReady);
-      fontSet.removeEventListener('loadingerror', markFontsReady);
-    };
   }, []);
 
   const resolved: ResolvedTheme = useMemo(() => {
@@ -128,9 +102,9 @@ export function ThemeProvider({
     const resolvedContentFont = readableFamily ?? contentFontFamily ?? writingFontFamily;
     const metricScale = getFontMetricScale(resolvedUiFont);
 
-    setFontVariable(root, '--font-sans', resolvedUiFont, "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif");
-    setFontVariable(root, '--font-serif', resolvedContentFont, "'Source Serif 4', 'Source Serif Pro', 'Iowan Old Style', 'Charter', Georgia, 'Times New Roman', serif");
-    setFontVariable(root, '--font-mono', monospaceFontFamily, "'JetBrains Mono', 'Fira Code', ui-monospace, 'SF Mono', Menlo, Consolas, monospace");
+    setFontVariable(root, '--font-sans', resolvedUiFont, 'Inter');
+    setFontVariable(root, '--font-serif', resolvedContentFont, 'Source Serif 4');
+    setFontVariable(root, '--font-mono', monospaceFontFamily, 'JetBrains Mono');
     root.style.setProperty('--font-metric-scale', metricScale.toString());
   }, [
     accessibilityFontFamily,
@@ -141,44 +115,6 @@ export function ThemeProvider({
     monospaceFontFamily,
     preference,
     resolved,
-    uiFontFamily,
-    writingFontFamily,
-  ]);
-
-  useEffect(() => {
-    const fontSet = document.fonts;
-    if (!fontSet) {
-      return;
-    }
-
-    const readableFamily = accessibilityMode && accessibilityFontFamily ? accessibilityFontFamily : undefined;
-    const families = [
-      readableFamily ?? uiFontFamily ?? writingFontFamily,
-      readableFamily ?? contentFontFamily ?? writingFontFamily,
-      monospaceFontFamily,
-    ].filter((family): family is string => Boolean(family));
-
-    if (families.length === 0) {
-      return;
-    }
-
-    let cancelled = false;
-    void Promise.allSettled(
-      Array.from(new Set(families)).map((family) => fontSet.load(buildFontLoadSpec(family))),
-    ).then(() => {
-      if (!cancelled) {
-        setFontRevision((revision) => revision + 1);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    accessibilityFontFamily,
-    accessibilityMode,
-    contentFontFamily,
-    monospaceFontFamily,
     uiFontFamily,
     writingFontFamily,
   ]);
@@ -194,7 +130,6 @@ export function ThemeProvider({
         `content:${contentFontFamily ?? writingFontFamily ?? ''}`,
         `mono:${monospaceFontFamily ?? ''}`,
         `access:${accessibilityMode ? accessibilityFontFamily ?? '' : ''}`,
-        `fonts:${fontRevision}`,
       ].join('|'),
     [
       accessibilityFontFamily,
@@ -202,7 +137,6 @@ export function ThemeProvider({
       appZoom,
       contentFontFamily,
       customTheme,
-      fontRevision,
       monospaceFontFamily,
       preference,
       resolved,
@@ -249,22 +183,13 @@ function quoteFontFamily(value: string): string {
   return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
-function buildFontLoadSpec(family: string): string {
-  return `1em ${quoteFontFamily(family)}`;
-}
-
 function setFontVariable(
   root: HTMLElement,
   variable: string,
   family: string | null | undefined,
-  fallback: string,
+  fallbackFamily: string,
 ): void {
-  if (!family) {
-    root.style.removeProperty(variable);
-    return;
-  }
-
-  root.style.setProperty(variable, `${quoteFontFamily(family)}, ${fallback}`);
+  root.style.setProperty(variable, quoteFontFamily(family ?? fallbackFamily));
 }
 
 export function useTheme(): ThemeContextValue {

@@ -64,7 +64,10 @@ export class SettingsRepository {
   }
 
   async read(): Promise<Settings> {
-    if (this.cached) return this.cached;
+    if (this.cached) {
+      this.logger?.info('settings:read-cache-hit');
+      return this.cached;
+    }
     return this.enqueue(() => this.readUncached());
   }
 
@@ -176,6 +179,7 @@ export class SettingsRepository {
 
     if (result.success) {
       this.cached = result.data;
+      this.logger?.info('settings:read-valid-file', { path });
       return this.cached;
     }
 

@@ -1,25 +1,10 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ThemeProvider } from './ThemeProvider.js';
 
 describe('ThemeProvider', () => {
-  const fontLoad = vi.fn().mockResolvedValue([]);
-
-  beforeEach(() => {
-    fontLoad.mockClear();
-    Object.defineProperty(document, 'fonts', {
-      configurable: true,
-      value: {
-        ready: Promise.resolve(),
-        load: fontLoad,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      },
-    });
-  });
-
   afterEach(() => {
     cleanup();
     document.documentElement.removeAttribute('style');
@@ -43,15 +28,19 @@ describe('ThemeProvider', () => {
     expect(root.style.getPropertyValue('--font-sans')).toContain('"Source Serif 4"');
     expect(root.style.getPropertyValue('--font-serif')).toContain('"Source Serif 4"');
     expect(root.style.getPropertyValue('--font-mono')).toContain('"Source Serif 4"');
-
-    await waitFor(() => {
-      expect(fontLoad).toHaveBeenCalledWith('1em "Source Serif 4"');
-    });
   });
 
-  it('keeps rendering when a selected font load fails', async () => {
-    fontLoad.mockRejectedValueOnce(new SyntaxError('bad font'));
-
+  it('does not call the browser Font Loading API during startup', () => {
+    const fontLoad = vi.fn();
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: {
+        ready: Promise.resolve(),
+        load: fontLoad,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      },
+    });
     render(
       <ThemeProvider preference="light" uiFontFamily="Merriweather">
         <div data-testid="content" />
@@ -59,8 +48,6 @@ describe('ThemeProvider', () => {
     );
 
     expect(document.documentElement.style.getPropertyValue('--font-sans')).toContain('"Merriweather"');
-    await waitFor(() => {
-      expect(fontLoad).toHaveBeenCalledWith('1em "Merriweather"');
-    });
+    expect(fontLoad).not.toHaveBeenCalled();
   });
 });

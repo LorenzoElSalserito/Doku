@@ -14,6 +14,7 @@ export interface SystemChannelOptions {
   electronUserDataDir: string;
   cleanupDirs: string[];
   logger?: SessionLogger;
+  onRendererEvent?: (event: string, context: Record<string, unknown>) => void;
 }
 
 export function registerSystemChannel(options?: Partial<SystemChannelOptions>): () => void {
@@ -71,10 +72,10 @@ export function registerSystemChannel(options?: Partial<SystemChannelOptions>): 
     if (typeof event !== 'string' || !event.trim()) {
       return;
     }
-    logger.info(
-      `renderer:${event}`,
-      context && typeof context === 'object' ? (context as Record<string, unknown>) : {},
-    );
+    const normalizedContext =
+      context && typeof context === 'object' ? (context as Record<string, unknown>) : {};
+    logger.info(`renderer:${event}`, normalizedContext);
+    options?.onRendererEvent?.(event, normalizedContext);
   };
   const prepareForUninstall = async () => {
     const cleanupDirs = Array.from(new Set(options?.cleanupDirs ?? [app.getPath('userData')]));

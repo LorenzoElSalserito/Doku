@@ -39,13 +39,6 @@ export function createMainWindow(options: CreateWindowOptions): BrowserWindow {
     },
   });
 
-  window.once('ready-to-show', () => {
-    // Maximize instead of setFullScreen: fills the work area on startup while
-    // remaining a normal resizable window that the OS can snap to half / top / bottom.
-    window.maximize();
-    window.show();
-  });
-
   window.on('enter-full-screen', () => {
     if (process.platform !== 'linux') {
       return;
@@ -67,4 +60,17 @@ export function createMainWindow(options: CreateWindowOptions): BrowserWindow {
   }
 
   return window;
+}
+
+export function showMainWindow(window: BrowserWindow): void {
+  if (window.isDestroyed()) {
+    return;
+  }
+
+  // Maximize instead of setFullScreen: fills the work area on startup while
+  // remaining a normal resizable window that the OS can snap to half / top / bottom.
+  if (!window.isMaximized()) {
+    window.maximize();
+  }
+  window.show();
 }

@@ -70,6 +70,30 @@ async function readSettings(context) {
   return JSON.parse(raw);
 }
 
+async function readLogEntries(context) {
+  const logsDir = join(context.dataDir, 'logs');
+  let files = [];
+  try {
+    files = await fs.readdir(logsDir);
+  } catch {
+    return [];
+  }
+
+  const entries = [];
+  for (const file of files.filter((name) => name.startsWith('session-') && name.endsWith('.log'))) {
+    const raw = await fs.readFile(join(logsDir, file), 'utf-8');
+    for (const line of raw.split('\n')) {
+      if (!line.trim()) continue;
+      entries.push(JSON.parse(line));
+    }
+  }
+  return entries.sort((left, right) => {
+    const byTimestamp = String(left.timestamp).localeCompare(String(right.timestamp));
+    if (byTimestamp !== 0) return byTimestamp;
+    return Number(left.sequence ?? 0) - Number(right.sequence ?? 0);
+  });
+}
+
 async function waitForWorkspaceReady(page) {
   await page.getByRole('tablist', { name: 'Open documents' }).waitFor({ state: 'visible' });
 }
@@ -142,6 +166,7 @@ module.exports = {
   launchDokuApp,
   openMarkdownFileInRunningApp,
   prepareDokuProfile,
+  readLogEntries,
   readSettings,
   tabIdForPath,
 };

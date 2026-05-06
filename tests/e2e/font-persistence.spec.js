@@ -28,7 +28,7 @@ test.describe('font persistence', () => {
     const firstRun = await launchDokuApp(context);
 
     // Open settings and pick "Lora".
-    await firstRun.page.getByRole('button', { name: 'Settings' }).click();
+    await firstRun.page.getByRole('button', { name: 'Preferences' }).click();
     const fontSelect = firstRun.page.locator('#settings-font-family');
     await fontSelect.waitFor({ state: 'visible' });
     await fontSelect.selectOption('Lora');
@@ -39,12 +39,12 @@ test.describe('font persistence', () => {
       .toBe('Lora');
 
     // Close the settings dialog.
-    await firstRun.page.getByRole('button', { name: 'Close', exact: true }).click();
+    await firstRun.page.getByRole('button', { name: 'Done', exact: true }).click();
 
     // Open an existing file from outside the app — this triggers a launcher
     // update racing with anything else still pending on the settings file.
     await openMarkdownFileInRunningApp(context, note);
-    await expect(firstRun.page.getByRole('tab', { name: 'note', exact: true })).toBeVisible();
+    await expect(firstRun.page.getByRole('tab', { name: 'Note', exact: true })).toBeVisible();
 
     // Bug 1 regression: typography must NOT have been clobbered by the
     // launcher update.
@@ -85,6 +85,47 @@ test.describe('font persistence', () => {
     const run = await launchDokuApp(context);
     const recovered = await readSettings(context);
     expect(recovered.typography.uiFontFamily).toBe('Merriweather');
+    await closeDokuApp(run.app);
+  });
+
+  test('keeps configured Doku fonts active when crash recovery safe mode is entered', async () => {
+    const fs = require('node:fs/promises');
+    const path = require('node:path');
+    await prepareDokuProfile(context, {
+      typography: {
+        profile: 'professional',
+        uiFontFamily: 'Lora',
+        pdfFontFamily: 'Lora',
+        monospaceFontFamily: 'Lora',
+        accessibilityFontFamily: 'Lora',
+        accessibilityMode: false,
+      },
+    });
+    await fs.writeFile(
+      path.join(context.dataDir, 'crash-state.json'),
+      JSON.stringify({
+        consecutiveCrashes: 2,
+        lastBootstrapAt: new Date().toISOString(),
+      }, null, 2),
+      'utf-8',
+    );
+
+    const run = await launchDokuApp(context);
+    await expect
+      .poll(async () =>
+        run.page.evaluate(() =>
+          window.getComputedStyle(document.documentElement).getPropertyValue('--font-sans'),
+        ),
+      )
+      .toContain('Lora');
+
+    await expect
+      .poll(async () => {
+        const raw = await fs.readFile(path.join(context.dataDir, 'crash-state.json'), 'utf-8');
+        return JSON.parse(raw).consecutiveCrashes;
+      })
+      .toBe(0);
+
     await closeDokuApp(run.app);
   });
 });
