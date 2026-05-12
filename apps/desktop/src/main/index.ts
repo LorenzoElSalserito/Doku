@@ -18,7 +18,6 @@ import { PRODUCT_NAME } from '@doku/application';
 import { resolveExportRuntimePaths } from './exportRuntime.js';
 import { createMainWindow, showMainWindow } from './window.js';
 import { CrashStateManager } from './crashState.js';
-import { closeSplashWindow, createSplashWindow } from './splash.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -36,7 +35,6 @@ const pendingOpenFilePaths = new Set<string>();
 let mainWindow: BrowserWindow | null = null;
 let healthyBootstrapTimer: NodeJS.Timeout | null = null;
 let mainWindowShowTimer: NodeJS.Timeout | null = null;
-let splashWindow: BrowserWindow | null = null;
 let bootstrapMarkedHealthy = false;
 
 if (process.platform === 'linux') {
@@ -82,12 +80,6 @@ async function bootstrap(): Promise<void> {
     electronUserDataDir: app.getPath('userData'),
     locale: app.getLocale(),
   });
-  splashWindow = createSplashWindow();
-  attachSplashDiagnostics(splashWindow);
-  logStartup('splash-window-created', {
-    id: splashWindow.id,
-    bounds: splashWindow.getBounds(),
-  });
 
   const electronUserDataDir = app.getPath('userData');
   logStartup('legacy-user-data-migration-started', {
@@ -118,10 +110,11 @@ async function bootstrap(): Promise<void> {
         logger.info('window:first-frame-ready-ignored-until-bootstrap');
       }
       if (event === 'splash-ready') {
-        logger.info('window:renderer-splash-ready-main-window-still-hidden');
+        revealMainWindow('renderer-splash-ready');
       }
       if (event === 'app-ready') {
-        revealMainWindowAfterReady('renderer-app-ready');
+        revealMainWindow('renderer-app-ready');
+        markBootstrapHealthy('renderer-app-ready');
       }
     },
   });
@@ -209,22 +202,9 @@ function armMainWindowRevealFallback(window: BrowserWindow): void {
         id: window.id,
         elapsedSinceProcessStartMs: Date.now() - bootstrapStartedAtMs,
       });
+      revealMainWindow('main-window-ready-fallback');
     }, 7_500);
   });
-}
-
-function revealMainWindowAfterReady(reason: string): void {
-  if (mainWindowShowTimer) {
-    clearTimeout(mainWindowShowTimer);
-    mainWindowShowTimer = null;
-  }
-
-  setTimeout(() => {
-    revealMainWindow(reason);
-    closeSplashWindow(splashWindow);
-    splashWindow = null;
-    markBootstrapHealthy(reason);
-  }, 2);
 }
 
 function revealMainWindow(reason: string): void {
@@ -243,20 +223,6 @@ function revealMainWindow(reason: string): void {
     elapsedSinceProcessStartMs: Date.now() - bootstrapStartedAtMs,
   });
   showMainWindow(window);
-}
-
-function attachSplashDiagnostics(window: BrowserWindow): void {
-  logger.info('splash:created', {
-    id: window.id,
-    bounds: window.getBounds(),
-  });
-  window.once('ready-to-show', () => logger.info('splash:ready-to-show', { id: window.id }));
-  window.on('show', () => logger.info('splash:show', { id: window.id }));
-  window.on('closed', () => logger.info('splash:closed', { id: window.id }));
-  window.webContents.on('did-finish-load', () => logger.info('splash:did-finish-load', { id: window.id }));
-  window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-    logger.error('splash:did-fail-load', { id: window.id, errorCode, errorDescription, validatedURL, isMainFrame });
-  });
 }
 
 function scheduleHealthyBootstrap(): void {

@@ -13,6 +13,8 @@ interface MonacoEditorProps {
   value: string;
   onChange: (value: string) => void;
   onScrollChange?: (state: { scrollTop: number; scrollHeight: number; viewportHeight: number }) => void;
+  onReady?: () => void;
+  onError?: (error: Error) => void;
 }
 
 export interface MonacoEditorHandle {
@@ -31,7 +33,7 @@ export interface MonacoEditorHandle {
 }
 
 export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(function MonacoEditor(
-  { value, onChange, onScrollChange },
+  { value, onChange, onScrollChange, onReady, onError },
   ref,
 ) {
   const { resolved, themeKey } = useTheme();
@@ -42,6 +44,8 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
   const horizontalScrollSubscriptionRef = useRef<monaco.IDisposable | null>(null);
   const onChangeRef = useRef(onChange);
   const onScrollChangeRef = useRef(onScrollChange);
+  const onReadyRef = useRef(onReady);
+  const onErrorRef = useRef(onError);
   const initialValueRef = useRef(value);
   const resolvedThemeRef = useRef(resolved);
   const applyReplacement = useCallback(
@@ -140,6 +144,14 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
   }, [onScrollChange]);
 
   useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
+
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
+  useEffect(() => {
     initialValueRef.current = value;
   }, [value]);
 
@@ -198,40 +210,45 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
     if (!container) {
       return;
     }
-    editorRef.current = monaco.editor.create(container, {
-      value: initialValueRef.current,
-      language: 'markdown',
-      theme: resolvedThemeRef.current === 'dark' ? 'doku-dark' : 'doku-light',
-      minimap: { enabled: false },
-      lineNumbers: 'on',
-      wordWrap: 'on',
-      wordWrapOverride1: 'on',
-      wordWrapOverride2: 'on',
-      wrappingIndent: 'none',
-      wrappingStrategy: 'advanced',
-      scrollPredominantAxis: true,
-      scrollBeyondLastLine: false,
-      automaticLayout: true,
-      padding: getEditorPadding(),
-      ...getEditorTypography(),
-      smoothScrolling: true,
-      tabSize: 2,
-      insertSpaces: true,
-      guides: {
-        indentation: false,
-      },
-      overviewRulerBorder: false,
-      glyphMargin: false,
-      folding: false,
-      renderLineHighlight: 'gutter',
-      scrollbar: {
-        alwaysConsumeMouseWheel: false,
-        horizontal: 'hidden',
-        horizontalScrollbarSize: 0,
-        horizontalSliderSize: 0,
-        handleMouseWheel: true,
-      },
-    });
+    try {
+      editorRef.current = monaco.editor.create(container, {
+        value: initialValueRef.current,
+        language: 'markdown',
+        theme: resolvedThemeRef.current === 'dark' ? 'doku-dark' : 'doku-light',
+        minimap: { enabled: false },
+        lineNumbers: 'on',
+        wordWrap: 'on',
+        wordWrapOverride1: 'on',
+        wordWrapOverride2: 'on',
+        wrappingIndent: 'none',
+        wrappingStrategy: 'advanced',
+        scrollPredominantAxis: true,
+        scrollBeyondLastLine: false,
+        automaticLayout: true,
+        padding: getEditorPadding(),
+        ...getEditorTypography(),
+        smoothScrolling: true,
+        tabSize: 2,
+        insertSpaces: true,
+        guides: {
+          indentation: false,
+        },
+        overviewRulerBorder: false,
+        glyphMargin: false,
+        folding: false,
+        renderLineHighlight: 'gutter',
+        scrollbar: {
+          alwaysConsumeMouseWheel: false,
+          horizontal: 'hidden',
+          horizontalScrollbarSize: 0,
+          horizontalSliderSize: 0,
+          handleMouseWheel: true,
+        },
+      });
+    } catch (error: unknown) {
+      onErrorRef.current?.(error instanceof Error ? error : new Error(String(error)));
+      return;
+    }
 
     lockHorizontalScroll(editorRef.current);
 
@@ -270,6 +287,14 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
     container.addEventListener('wheel', scheduleWheelSync, { passive: true });
     container.addEventListener('touchmove', scheduleWheelSync, { passive: true });
     emitScrollSnapshot();
+    scheduleAnimationFrame(() => {
+      scheduleAnimationFrame(() => {
+        if (editorRef.current) {
+          editorRef.current.layout();
+          onReadyRef.current?.();
+        }
+      });
+    });
 
     return () => {
       container.removeEventListener('wheel', scheduleWheelSync);
@@ -470,4 +495,12 @@ function parseCssPx(value: string, fallback: number): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+function scheduleAnimationFrame(callback: FrameRequestCallback): number {
+  if (typeof window.requestAnimationFrame === 'function') {
+    return window.requestAnimationFrame(callback);
+  }
+
+  return window.setTimeout(() => callback(performance.now()), 0);
 }

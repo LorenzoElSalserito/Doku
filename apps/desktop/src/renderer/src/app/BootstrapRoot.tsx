@@ -7,9 +7,10 @@ import { AppLoading } from './AppLoading.js';
 import { resolvePreferredLanguage } from './App.js';
 
 const SETTINGS_BOOTSTRAP_TIMEOUT_MS = 10_000;
+const SPLASH_MIN_VISIBLE_MS = 1_500;
 
 type BootstrapState =
-  | { phase: 'startup-loading'; splashReady: boolean; settings: Settings | null }
+  | { phase: 'startup-loading'; splashPainted: boolean; splashMinElapsed: boolean; settings: Settings | null }
   | { phase: 'startup-error'; error: Error };
 
 function logBootstrapEvent(event: string, context?: Record<string, unknown>): void {
@@ -19,7 +20,8 @@ function logBootstrapEvent(event: string, context?: Record<string, unknown>): vo
 export function BootstrapRoot() {
   const [state, setState] = useState<BootstrapState>({
     phase: 'startup-loading',
-    splashReady: false,
+    splashPainted: false,
+    splashMinElapsed: false,
     settings: null,
   });
   const startedAtRef = useRef(Date.now());
@@ -36,6 +38,19 @@ export function BootstrapRoot() {
     });
     logBootstrapEvent('renderer-bridge-ready');
 
+    const minVisibleTimeout = window.setTimeout(() => {
+      if (cancelled) return;
+      logBootstrapEvent('splash-min-visible-finished', {
+        minVisibleMs: SPLASH_MIN_VISIBLE_MS,
+        elapsedMs: Date.now() - startedAt,
+      });
+      setState((current) =>
+        current.phase === 'startup-loading'
+          ? { ...current, splashMinElapsed: true }
+          : current,
+      );
+    }, SPLASH_MIN_VISIBLE_MS);
+
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         logBootstrapEvent('splash-ready', {
@@ -44,7 +59,7 @@ export function BootstrapRoot() {
         if (!cancelled) {
           setState((current) =>
             current.phase === 'startup-loading'
-              ? { ...current, splashReady: true }
+              ? { ...current, splashPainted: true }
               : current,
           );
         }
@@ -94,10 +109,11 @@ export function BootstrapRoot() {
     return () => {
       cancelled = true;
       window.clearTimeout(timeout);
+      window.clearTimeout(minVisibleTimeout);
     };
   }, []);
 
-  if (state.phase === 'startup-loading' && state.splashReady && state.settings) {
+  if (state.phase === 'startup-loading' && state.splashPainted && state.splashMinElapsed && state.settings) {
     return (
       <I18nProvider language={state.settings.language}>
         <BootstrapErrorBoundary>

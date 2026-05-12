@@ -1,7 +1,7 @@
 {
   "name": "doku",
   "productName": "Doku",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "icon": "apps/desktop/src/assets/icon.png",
   "description": "Doku — Local-first Markdown editor",

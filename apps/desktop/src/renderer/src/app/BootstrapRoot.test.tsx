@@ -67,6 +67,7 @@ describe('BootstrapRoot', () => {
       exports: {} as typeof window.doku.exports,
     };
 
+    const startedAt = performance.now();
     render(<BootstrapRoot />);
     await act(async () => {
       await Promise.resolve();
@@ -85,7 +86,11 @@ describe('BootstrapRoot', () => {
       frameCallbacks.shift()?.(performance.now());
       await Promise.resolve();
     });
-    expect(await screen.findByText('App ready: it')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('NOW LOADING');
+    expect(screen.queryByText('App ready: it')).not.toBeInTheDocument();
+
+    expect(await screen.findByText('App ready: it', {}, { timeout: 2_500 })).toBeInTheDocument();
+    expect(performance.now() - startedAt).toBeGreaterThanOrEqual(1_400);
   });
 
   it('keeps the splash mounted until settings are ready', async () => {
@@ -119,7 +124,10 @@ describe('BootstrapRoot', () => {
 
     settingsRequest.resolve({ ...DEFAULT_SETTINGS, language: 'it' });
 
-    expect(await screen.findByText('App ready: it')).toBeInTheDocument();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(await screen.findByText('App ready: it', {}, { timeout: 2_500 })).toBeInTheDocument();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     await waitFor(() => {
       expect(logEvent).toHaveBeenCalledWith(

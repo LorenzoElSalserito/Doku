@@ -29,9 +29,17 @@ import { WorkspaceExplorer } from './WorkspaceExplorer.js';
 
 const MonacoEditor = lazy(async () => {
   logWorkspaceEvent('monaco-module-load-started');
-  const module = await import('./MonacoEditor.js');
-  logWorkspaceEvent('monaco-module-load-finished');
-  return { default: module.MonacoEditor };
+  try {
+    const module = await import('./MonacoEditor.js');
+    logWorkspaceEvent('monaco-module-load-finished');
+    return { default: module.MonacoEditor };
+  } catch (error: unknown) {
+    logWorkspaceEvent('monaco-module-load-failed', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    throw error;
+  }
 });
 
 interface WorkspaceProps {
@@ -64,6 +72,9 @@ const LEFT_MAX = 420;
 const RIGHT_MIN = 260;
 const RIGHT_MAX = 520;
 const RESIZE_KEYBOARD_STEP = 24;
+const MONACO_READY_TIMEOUT_MS = 10000;
+
+type EditorReadiness = 'pending' | 'ready' | 'fallback';
 
 function logWorkspaceEvent(event: string, context?: Record<string, unknown>): void {
   void (window.doku.system as { logEvent?: (event: string, context?: Record<string, unknown>) => Promise<void> })
@@ -100,6 +111,10 @@ export function Workspace({
   const [tableRows, setTableRows] = useState('2');
   const [tableColumns, setTableColumns] = useState('3');
   const [workspaceTree, setWorkspaceTree] = useState<WorkspaceNode[]>([]);
+  const [editorReadiness, setEditorReadiness] = useState<EditorReadiness>(() =>
+    window.doku.system.safeMode ? 'fallback' : 'pending',
+  );
+  const [plainTextFallbackEnabled, setPlainTextFallbackEnabled] = useState(window.doku.system.safeMode);
   const initialTabsRef = useRef(initialTabs);
   const initialActiveTabIdRef = useRef(initialActiveTabId);
   const restoreMessagesRef = useRef({
@@ -125,7 +140,16 @@ export function Workspace({
   const monacoEditorRef = useRef<MonacoEditorHandle | null>(null);
   const dropDepthRef = useRef(0);
   const readinessLoggedRef = useRef(false);
+  const editorReadinessLoggedRef = useRef(false);
   const safeMode = window.doku.system.safeMode;
+  const activeTab = useMemo(
+    () => tabs.find((tab) => tab.id === activeTabId) ?? null,
+    [activeTabId, tabs],
+  );
+  const document = activeTab?.document ?? null;
+  const saveState = activeTab?.saveState ?? 'saved';
+  const loadState = activeTab?.loadState ?? 'loading';
+  const errorMessage = activeTab?.errorMessage ?? null;
 
   useEffect(() => {
     launcherRef.current = settings.launcher;
@@ -152,6 +176,60 @@ export function Workspace({
     tabsRef.current = tabs;
   }, [tabs]);
 
+  const editorPaneRequiresMonaco = !safeMode &&
+    !plainTextFallbackEnabled &&
+    Boolean(document) &&
+    (viewMode === 'write' || viewMode === 'split');
+
+  useEffect(() => {
+    if (!editorPaneRequiresMonaco || editorReadiness !== 'pending') {
+      return undefined;
+    }
+
+    logWorkspaceEvent('monaco-editor-ready-timeout-armed', {
+      timeoutMs: MONACO_READY_TIMEOUT_MS,
+      activeTabId,
+      viewMode,
+    });
+    const timeout = window.setTimeout(() => {
+      logWorkspaceEvent('monaco-editor-ready-timeout', {
+        timeoutMs: MONACO_READY_TIMEOUT_MS,
+        activeTabId,
+        viewMode,
+      });
+      setPlainTextFallbackEnabled(true);
+      setEditorReadiness('fallback');
+    }, MONACO_READY_TIMEOUT_MS);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [activeTabId, editorPaneRequiresMonaco, editorReadiness, viewMode]);
+
+  const handleMonacoReady = useCallback(() => {
+    if (editorReadinessLoggedRef.current) {
+      return;
+    }
+
+    editorReadinessLoggedRef.current = true;
+    logWorkspaceEvent('monaco-editor-ready', {
+      activeTabId,
+      viewMode,
+    });
+    setEditorReadiness('ready');
+  }, [activeTabId, viewMode]);
+
+  const handleMonacoError = useCallback((error: Error) => {
+    logWorkspaceEvent('monaco-editor-create-failed', {
+      activeTabId,
+      viewMode,
+      message: error.message,
+      stack: error.stack,
+    });
+    setPlainTextFallbackEnabled(true);
+    setEditorReadiness('fallback');
+  }, [activeTabId, viewMode]);
+
   useEffect(() => {
     if (readinessLoggedRef.current || !sessionRestoreComplete || tabs.length === 0) {
       return;
@@ -159,6 +237,10 @@ export function Workspace({
 
     const loadingTabs = tabs.filter((tab) => tab.loadState === 'loading').length;
     if (loadingTabs > 0) {
+      return;
+    }
+
+    if (editorPaneRequiresMonaco && editorReadiness !== 'ready') {
       return;
     }
 
@@ -171,19 +253,21 @@ export function Workspace({
       readyTabs,
       erroredTabs,
       activeTabId,
+      editorReadiness,
+      editor: plainTextFallbackEnabled ? 'plain-text' : 'monaco',
+      editorGate: editorPaneRequiresMonaco ? 'monaco-ready' : 'not-blocked',
     };
     logWorkspaceEvent('workspace-ready', context);
     onReady?.(context);
-  }, [activeTabId, onReady, sessionRestoreComplete, tabs]);
-
-  const activeTab = useMemo(
-    () => tabs.find((tab) => tab.id === activeTabId) ?? null,
-    [activeTabId, tabs],
-  );
-  const document = activeTab?.document ?? null;
-  const saveState = activeTab?.saveState ?? 'saved';
-  const loadState = activeTab?.loadState ?? 'loading';
-  const errorMessage = activeTab?.errorMessage ?? null;
+  }, [
+    activeTabId,
+    editorPaneRequiresMonaco,
+    editorReadiness,
+    onReady,
+    plainTextFallbackEnabled,
+    sessionRestoreComplete,
+    tabs,
+  ]);
 
   const updateActiveTab = useCallback(
     (updater: (tab: WorkspaceDocumentTab) => WorkspaceDocumentTab) => {
@@ -1619,7 +1703,7 @@ export function Workspace({
                           </strong>
                         </div>
                       ) : null}
-                      {safeMode ? (
+                      {safeMode || plainTextFallbackEnabled ? (
                         <PlainTextEditor
                           ref={monacoEditorRef}
                           value={document?.content ?? ''}
@@ -1633,6 +1717,8 @@ export function Workspace({
                             value={document?.content ?? ''}
                             onChange={handleContentChange}
                             onScrollChange={handleEditorScrollChange}
+                            onReady={handleMonacoReady}
+                            onError={handleMonacoError}
                           />
                         </Suspense>
                       )}

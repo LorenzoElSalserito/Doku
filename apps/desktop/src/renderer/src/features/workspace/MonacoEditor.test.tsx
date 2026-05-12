@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import { ThemeProvider } from '@doku/ui';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MonacoEditor } from './MonacoEditor.js';
@@ -76,6 +76,21 @@ describe('MonacoEditor', () => {
     );
     expect(monacoMock.editorInstance.setScrollLeft).toHaveBeenCalledWith(0);
     expect(monacoMock.scrollableElement.scrollLeft).toBe(0);
+  });
+
+  it('signals readiness after Monaco has been created and laid out', async () => {
+    const onReady = vi.fn();
+
+    render(
+      <ThemeProvider preference="light">
+        <MonacoEditor value="ready" onChange={vi.fn()} onReady={onReady} />
+      </ThemeProvider>,
+    );
+
+    await waitFor(() => {
+      expect(onReady).toHaveBeenCalledTimes(1);
+    });
+    expect(monacoMock.editorInstance.layout).toHaveBeenCalled();
   });
 
   it('reapplies the horizontal scroll lock when the document value changes', () => {
