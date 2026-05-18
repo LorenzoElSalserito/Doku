@@ -24,7 +24,11 @@ import type { Dictionary } from '../../i18n/keys.js';
 import { MarkdownPreview } from './MarkdownPreview.js';
 import type { MonacoEditorHandle } from './MonacoEditor.js';
 import { DefaultMarkdownAppDialog } from './DefaultMarkdownAppDialog.js';
-import { MARKDOWN_ACTION_SPECS, buildMarkdownTable, type MarkdownActionId } from './markdownActions.js';
+import {
+  MARKDOWN_ACTION_SPECS,
+  buildMarkdownTable,
+  type MarkdownActionId,
+} from './markdownActions.js';
 import { WorkspaceExplorer } from './WorkspaceExplorer.js';
 
 const MonacoEditor = lazy(async () => {
@@ -57,13 +61,14 @@ interface WorkspaceProps {
 type ResizeSide = 'left' | 'right';
 type ViewMode = Settings['workspaceViewMode'];
 type SaveState = 'saved' | 'dirty' | 'saving' | 'error';
+type LoadState = 'loading' | 'ready' | 'missing' | 'error';
 
 interface WorkspaceDocumentTab {
   id: string;
   document: DocumentSession | null;
   summary: DocumentSummary | null;
   saveState: SaveState;
-  loadState: 'loading' | 'ready' | 'error';
+  loadState: LoadState;
   errorMessage: string | null;
 }
 
@@ -77,8 +82,11 @@ const MONACO_READY_TIMEOUT_MS = 10000;
 type EditorReadiness = 'pending' | 'ready' | 'fallback';
 
 function logWorkspaceEvent(event: string, context?: Record<string, unknown>): void {
-  void (window.doku.system as { logEvent?: (event: string, context?: Record<string, unknown>) => Promise<void> })
-    .logEvent?.(event, context);
+  void (
+    window.doku.system as {
+      logEvent?: (event: string, context?: Record<string, unknown>) => Promise<void>;
+    }
+  ).logEvent?.(event, context);
 }
 
 export function Workspace({
@@ -97,7 +105,9 @@ export function Workspace({
   const [layout, setLayout] = useState(persistedWorkspace);
   const [dragState, setDragState] = useState<ResizeSide | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(persistedViewMode);
-  const [quickActionsVisible, setQuickActionsVisible] = useState(settings.workspaceQuickActionsVisible);
+  const [quickActionsVisible, setQuickActionsVisible] = useState(
+    settings.workspaceQuickActionsVisible,
+  );
   const [activeSummary, setActiveSummary] = useState<DocumentSummary | null>(null);
   const [draftRequestId, setDraftRequestId] = useState<string | null>(() =>
     initialTabs.length === 0 ? createDraftDocumentId() : null,
@@ -114,7 +124,9 @@ export function Workspace({
   const [editorReadiness, setEditorReadiness] = useState<EditorReadiness>(() =>
     window.doku.system.safeMode ? 'fallback' : 'pending',
   );
-  const [plainTextFallbackEnabled, setPlainTextFallbackEnabled] = useState(window.doku.system.safeMode);
+  const [plainTextFallbackEnabled, setPlainTextFallbackEnabled] = useState(
+    window.doku.system.safeMode,
+  );
   const initialTabsRef = useRef(initialTabs);
   const initialActiveTabIdRef = useRef(initialActiveTabId);
   const restoreMessagesRef = useRef({
@@ -176,7 +188,8 @@ export function Workspace({
     tabsRef.current = tabs;
   }, [tabs]);
 
-  const editorPaneRequiresMonaco = !safeMode &&
+  const editorPaneRequiresMonaco =
+    !safeMode &&
     !plainTextFallbackEnabled &&
     Boolean(document) &&
     (viewMode === 'write' || viewMode === 'split');
@@ -219,16 +232,19 @@ export function Workspace({
     setEditorReadiness('ready');
   }, [activeTabId, viewMode]);
 
-  const handleMonacoError = useCallback((error: Error) => {
-    logWorkspaceEvent('monaco-editor-create-failed', {
-      activeTabId,
-      viewMode,
-      message: error.message,
-      stack: error.stack,
-    });
-    setPlainTextFallbackEnabled(true);
-    setEditorReadiness('fallback');
-  }, [activeTabId, viewMode]);
+  const handleMonacoError = useCallback(
+    (error: Error) => {
+      logWorkspaceEvent('monaco-editor-create-failed', {
+        activeTabId,
+        viewMode,
+        message: error.message,
+        stack: error.stack,
+      });
+      setPlainTextFallbackEnabled(true);
+      setEditorReadiness('fallback');
+    },
+    [activeTabId, viewMode],
+  );
 
   useEffect(() => {
     if (readinessLoggedRef.current || !sessionRestoreComplete || tabs.length === 0) {
@@ -245,14 +261,18 @@ export function Workspace({
     }
 
     const readyTabs = tabs.filter((tab) => tab.loadState === 'ready').length;
+    const missingTabs = tabs.filter((tab) => tab.loadState === 'missing').length;
     const erroredTabs = tabs.filter((tab) => tab.loadState === 'error').length;
+    const activeTabState = tabs.find((tab) => tab.id === activeTabId)?.loadState ?? null;
     readinessLoggedRef.current = true;
     const context = {
       route: 'workspace',
       tabs: tabs.length,
       readyTabs,
+      missingTabs,
       erroredTabs,
       activeTabId,
+      activeTabState,
       editorReadiness,
       editor: plainTextFallbackEnabled ? 'plain-text' : 'monaco',
       editorGate: editorPaneRequiresMonaco ? 'monaco-ready' : 'not-blocked',
@@ -271,9 +291,7 @@ export function Workspace({
 
   const updateActiveTab = useCallback(
     (updater: (tab: WorkspaceDocumentTab) => WorkspaceDocumentTab) => {
-      setTabs((current) =>
-        current.map((tab) => (tab.id === activeTabId ? updater(tab) : tab)),
-      );
+      setTabs((current) => current.map((tab) => (tab.id === activeTabId ? updater(tab) : tab)));
     },
     [activeTabId],
   );
@@ -299,13 +317,6 @@ export function Workspace({
     [updateActiveTab],
   );
 
-  const setActiveTabLoadState = useCallback(
-    (nextState: 'loading' | 'ready' | 'error') => {
-      updateActiveTab((tab) => ({ ...tab, loadState: nextState }));
-    },
-    [updateActiveTab],
-  );
-
   const setActiveTabErrorMessage = useCallback(
     (nextMessage: string | null) => {
       updateActiveTab((tab) => ({ ...tab, errorMessage: nextMessage }));
@@ -313,27 +324,30 @@ export function Workspace({
     [updateActiveTab],
   );
 
-  const activateDocumentTab = useCallback((nextDocument: DocumentSession, nextSaveState: SaveState = 'saved') => {
-    const tabId = resolveDocumentTabId(nextDocument);
-    setTabs((current) => {
-      const existingIndex = current.findIndex((tab) => tab.id === tabId);
-      const nextTab: WorkspaceDocumentTab = {
-        id: tabId,
-        document: nextDocument,
-        summary: toDocumentSummary(nextDocument),
-        saveState: nextSaveState,
-        loadState: 'ready',
-        errorMessage: null,
-      };
+  const activateDocumentTab = useCallback(
+    (nextDocument: DocumentSession, nextSaveState: SaveState = 'saved') => {
+      const tabId = resolveDocumentTabId(nextDocument);
+      setTabs((current) => {
+        const existingIndex = current.findIndex((tab) => tab.id === tabId);
+        const nextTab: WorkspaceDocumentTab = {
+          id: tabId,
+          document: nextDocument,
+          summary: toDocumentSummary(nextDocument),
+          saveState: nextSaveState,
+          loadState: 'ready',
+          errorMessage: null,
+        };
 
-      if (existingIndex === -1) {
-        return [...current, nextTab];
-      }
+        if (existingIndex === -1) {
+          return [...current, nextTab];
+        }
 
-      return current.map((tab, index) => (index === existingIndex ? nextTab : tab));
-    });
-    setActiveTabId(tabId);
-  }, []);
+        return current.map((tab, index) => (index === existingIndex ? nextTab : tab));
+      });
+      setActiveTabId(tabId);
+    },
+    [],
+  );
 
   const replaceActiveTabWithDocument = useCallback(
     (nextDocument: DocumentSession, nextSaveState: SaveState = 'saved') => {
@@ -413,7 +427,7 @@ export function Workspace({
     const initialActiveId =
       initialSessionActiveTabId && tabIds.includes(initialSessionActiveTabId)
         ? initialSessionActiveTabId
-        : tabIds[0] ?? null;
+        : (tabIds[0] ?? null);
 
     setSessionRestoreComplete(false);
     logWorkspaceEvent('workspace-restore-started', {
@@ -434,37 +448,79 @@ export function Workspace({
     setActiveTabId(initialActiveId);
 
     const restore = async () => {
-      await Promise.all(
+      const restoreResults = await Promise.all(
         summaries.map(async (summary) => {
           const tabId = resolveSummaryTabId(summary);
+          logWorkspaceEvent('workspace-restore-tab-started', {
+            tabId,
+            id: summary.id,
+            kind: summary.kind,
+            path: summary.path,
+          });
           try {
             const next = await window.doku.documents.loadDocument(summary);
             if (cancelled) {
-              return;
+              return null;
             }
 
             if (!next) {
+              if (summary.kind === 'draft') {
+                const restoredDraft = createEmptyDraftFromSummary(summary);
+                setTabs((current) =>
+                  current.map((tab) =>
+                    tab.id === tabId
+                      ? {
+                          ...tab,
+                          document: restoredDraft,
+                          summary: toDocumentSummary(restoredDraft),
+                          saveState: 'saved',
+                          loadState: 'ready',
+                          errorMessage: null,
+                        }
+                      : tab,
+                  ),
+                );
+                logWorkspaceEvent('workspace-restore-draft-empty', {
+                  tabId,
+                  id: summary.id,
+                  title: summary.title,
+                });
+                logWorkspaceEvent('workspace-restore-tab-ready', {
+                  tabId,
+                  id: restoredDraft.id,
+                  kind: restoredDraft.kind,
+                });
+                return { tabId, loadState: 'ready' as LoadState };
+              }
+
               const nextLauncher = removeSummaryFromLauncher(launcherRef.current, summary);
               await initialOnUpdateRef.current({ launcher: nextLauncher });
               if (cancelled) {
-                return;
+                return null;
               }
               setTabs((current) =>
                 current.map((tab) =>
                   tab.id === tabId
                     ? {
                         ...tab,
-                        loadState: 'error',
+                        summary,
+                        loadState: 'missing',
                         errorMessage: restoreMessages.missingDocumentFile,
                       }
                     : tab,
                 ),
               );
+              logWorkspaceEvent('workspace-restore-tab-missing', {
+                tabId,
+                id: summary.id,
+                kind: summary.kind,
+                path: summary.path,
+              });
               logWorkspaceEvent('document-session-tab-missing', {
                 id: summary.id,
                 path: summary.path,
               });
-              return;
+              return { tabId, loadState: 'missing' as LoadState };
             }
 
             setTabs((current) =>
@@ -487,9 +543,16 @@ export function Workspace({
               title: next.title,
               path: next.path,
             });
+            logWorkspaceEvent('workspace-restore-tab-ready', {
+              tabId,
+              id: next.id,
+              kind: next.kind,
+              path: next.path,
+            });
+            return { tabId, loadState: 'ready' as LoadState };
           } catch (error: unknown) {
             if (cancelled) {
-              return;
+              return null;
             }
             setTabs((current) =>
               current.map((tab) =>
@@ -504,8 +567,20 @@ export function Workspace({
               ),
             );
             logWorkspaceEvent('document-session-tab-restore-failed', {
+              tabId,
+              id: summary.id,
+              kind: summary.kind,
+              path: summary.path,
               message: error instanceof Error ? error.message : restoreMessages.editorErrorBody,
             });
+            logWorkspaceEvent('workspace-restore-tab-failed', {
+              tabId,
+              id: summary.id,
+              kind: summary.kind,
+              path: summary.path,
+              message: error instanceof Error ? error.message : restoreMessages.editorErrorBody,
+            });
+            return { tabId, loadState: 'error' as LoadState };
           }
         }),
       );
@@ -513,9 +588,30 @@ export function Workspace({
       if (!cancelled) {
         setNoticeMessage(null);
         setSessionRestoreComplete(true);
+        const completedRestoreResults = restoreResults.filter((result) => result !== null);
+        const readyTabs = completedRestoreResults.filter(
+          (result) => result.loadState === 'ready',
+        ).length;
+        const missingTabs = completedRestoreResults.filter(
+          (result) => result.loadState === 'missing',
+        ).length;
+        const erroredTabs = completedRestoreResults.filter(
+          (result) => result.loadState === 'error',
+        ).length;
+        const activeTabState =
+          completedRestoreResults.find((result) => result.tabId === initialActiveId)?.loadState ??
+          null;
         logWorkspaceEvent('workspace-restore-completed', {
           tabs: summaries.length,
+          readyTabs,
+          missingTabs,
+          erroredTabs,
+          activeTabId: initialActiveId,
+          activeTabState,
         });
+        if (activeTabState === 'missing') {
+          logWorkspaceEvent('active-tab-missing', { activeTabId: initialActiveId });
+        }
       }
     };
 
@@ -607,7 +703,9 @@ export function Workspace({
 
     let cancelled = false;
     const requestedDraftId = draftRequestId ?? createDraftDocumentId();
-    const requestedTabId = activeSummary ? resolveSummaryTabId(activeSummary) : resolveDraftTabId(requestedDraftId);
+    const requestedTabId = activeSummary
+      ? resolveSummaryTabId(activeSummary)
+      : resolveDraftTabId(requestedDraftId);
 
     const existingTab = tabsRef.current.find((tab) => tab.id === requestedTabId);
     if (existingTab?.loadState === 'ready') {
@@ -620,9 +718,7 @@ export function Workspace({
     setTabs((current) => {
       if (current.some((tab) => tab.id === requestedTabId)) {
         return current.map((tab) =>
-          tab.id === requestedTabId
-            ? { ...tab, loadState: 'loading', errorMessage: null }
-            : tab,
+          tab.id === requestedTabId ? { ...tab, loadState: 'loading', errorMessage: null } : tab,
         );
       }
 
@@ -689,13 +785,19 @@ export function Workspace({
             id: activeSummary.id,
             path: activeSummary.path,
           });
+          logWorkspaceEvent('workspace-load-tab-missing', {
+            tabId: requestedTabId,
+            id: activeSummary.id,
+            kind: activeSummary.kind,
+            path: activeSummary.path,
+          });
           setTabs((current) =>
             current.map((tab) =>
               tab.id === requestedTabId
                 ? {
                     ...tab,
                     summary: activeSummary,
-                    loadState: 'error',
+                    loadState: 'missing',
                     errorMessage: dict.workspace.tabs.missingDocumentFile,
                   }
                 : tab,
@@ -734,7 +836,8 @@ export function Workspace({
               ? {
                   ...tab,
                   loadState: 'error',
-                  errorMessage: error instanceof Error ? error.message : dict.workspace.editorErrorBody,
+                  errorMessage:
+                    error instanceof Error ? error.message : dict.workspace.editorErrorBody,
                 }
               : tab,
           ),
@@ -786,23 +889,40 @@ export function Workspace({
       return;
     }
 
-    const summaries: DocumentSummary[] = tabs
-      .filter(
-        (tab): tab is WorkspaceDocumentTab & { document: DocumentSession } =>
-          tab.loadState === 'ready' &&
-          tab.document !== null &&
-          tab.document.kind === 'file' &&
+    const summaries: DocumentSummary[] = tabs.flatMap((tab) => {
+      if (
+        tab.loadState === 'ready' &&
+        tab.document !== null &&
+        ((tab.document.kind === 'file' &&
           typeof tab.document.path === 'string' &&
-          tab.document.path.length > 0,
-      )
-      .map((tab) => ({
-        id: tab.document.id,
-        kind: tab.document.kind,
-        title: tab.document.title,
-        path: tab.document.path,
-        snippet: tab.document.snippet,
-        lastOpenedAt: tab.document.lastOpenedAt,
-      }));
+          tab.document.path.length > 0) ||
+          (tab.document.kind === 'draft' &&
+            (tab.id === activeTabId || tab.document.content.trim().length > 0)))
+      ) {
+        return [
+          {
+            id: tab.document.id,
+            kind: tab.document.kind,
+            title: tab.document.title,
+            path: tab.document.path,
+            snippet: tab.document.snippet,
+            lastOpenedAt: tab.document.lastOpenedAt,
+          },
+        ];
+      }
+
+      if (
+        tab.loadState === 'missing' &&
+        tab.summary !== null &&
+        tab.summary.kind === 'file' &&
+        typeof tab.summary.path === 'string' &&
+        tab.summary.path.length > 0
+      ) {
+        return [tab.summary];
+      }
+
+      return [];
+    });
 
     const signature = JSON.stringify({
       tabs: summaries,
@@ -893,8 +1013,12 @@ export function Workspace({
   }, [dragState, onUpdate]);
 
   const workspace = layout;
-  const leftStyle = workspace.leftPanelCollapsed ? undefined : { width: `${workspace.leftPanelWidth}px` };
-  const rightStyle = workspace.rightPanelCollapsed ? undefined : { width: `${workspace.rightPanelWidth}px` };
+  const leftStyle = workspace.leftPanelCollapsed
+    ? undefined
+    : { width: `${workspace.leftPanelWidth}px` };
+  const rightStyle = workspace.rightPanelCollapsed
+    ? undefined
+    : { width: `${workspace.rightPanelWidth}px` };
   const previewContent = document?.content ?? '';
   const words = useMemo(() => countWords(previewContent), [previewContent]);
   const characters = previewContent.length;
@@ -902,7 +1026,10 @@ export function Workspace({
   const documentTitleValue = exportTitle ?? '';
   const documentHeaderTitle = documentTitleValue || dict.workspace.documentTitlePlaceholder;
   const recentDocuments = useMemo(
-    () => settings.launcher.recentDocuments.filter((summary) => summary.id !== document?.id).slice(0, 4),
+    () =>
+      settings.launcher.recentDocuments
+        .filter((summary) => summary.id !== document?.id)
+        .slice(0, 4),
     [document?.id, settings.launcher.recentDocuments],
   );
 
@@ -1087,7 +1214,11 @@ export function Workspace({
 
       return {
         ...current,
-        title: resolveDocumentDisplayTitle(nextValue, current.path, dict.workspace.untitledDocument),
+        title: resolveDocumentDisplayTitle(
+          nextValue,
+          current.path,
+          dict.workspace.untitledDocument,
+        ),
         content: nextValue,
         snippet: extractSnippet(nextValue),
         lastOpenedAt: new Date().toISOString(),
@@ -1128,7 +1259,11 @@ export function Workspace({
           nextLayout.leftPanelWidth = LEFT_MAX;
         } else {
           const delta = direction === 'increase' ? RESIZE_KEYBOARD_STEP : -RESIZE_KEYBOARD_STEP;
-          nextLayout.leftPanelWidth = clamp(currentLayout.leftPanelWidth + delta, LEFT_MIN, LEFT_MAX);
+          nextLayout.leftPanelWidth = clamp(
+            currentLayout.leftPanelWidth + delta,
+            LEFT_MIN,
+            LEFT_MAX,
+          );
         }
         nextLayout.leftPanelCollapsed = false;
       }
@@ -1140,7 +1275,11 @@ export function Workspace({
           nextLayout.rightPanelWidth = RIGHT_MAX;
         } else {
           const delta = direction === 'increase' ? RESIZE_KEYBOARD_STEP : -RESIZE_KEYBOARD_STEP;
-          nextLayout.rightPanelWidth = clamp(currentLayout.rightPanelWidth + delta, RIGHT_MIN, RIGHT_MAX);
+          nextLayout.rightPanelWidth = clamp(
+            currentLayout.rightPanelWidth + delta,
+            RIGHT_MIN,
+            RIGHT_MAX,
+          );
         }
         nextLayout.rightPanelCollapsed = false;
       }
@@ -1162,7 +1301,12 @@ export function Workspace({
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       const usesPrimaryModifier = event.metaKey || event.ctrlKey;
-      if (!usesPrimaryModifier || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'n') {
+      if (
+        !usesPrimaryModifier ||
+        event.altKey ||
+        event.shiftKey ||
+        event.key.toLowerCase() !== 'n'
+      ) {
         return;
       }
 
@@ -1205,9 +1349,7 @@ export function Workspace({
       await onUpdate({ launcher: result.launcher });
       const nextTabId = resolveDocumentTabId(result.document);
       setTabs((current) => {
-        const withoutDuplicate = current.filter(
-          (tab) => tab.id === tabId || tab.id !== nextTabId,
-        );
+        const withoutDuplicate = current.filter((tab) => tab.id === tabId || tab.id !== nextTabId);
 
         return withoutDuplicate.map((tab) =>
           tab.id === tabId
@@ -1293,7 +1435,14 @@ export function Workspace({
       setActiveTabSaveState('error');
       logWorkspaceEvent('workspace-file-create-failed', { name });
     }
-  }, [dict.workspace.workspaceExplorer, document?.path, handleOpenWorkspaceFile, refreshWorkspaceTree, setActiveTabErrorMessage, setActiveTabSaveState]);
+  }, [
+    dict.workspace.workspaceExplorer,
+    document?.path,
+    handleOpenWorkspaceFile,
+    refreshWorkspaceTree,
+    setActiveTabErrorMessage,
+    setActiveTabSaveState,
+  ]);
 
   const handleCreateWorkspaceFolder = useCallback(async () => {
     if (!document?.path) {
@@ -1314,7 +1463,13 @@ export function Workspace({
       setActiveTabSaveState('error');
       logWorkspaceEvent('workspace-folder-create-failed', { documentPath: document.path, name });
     }
-  }, [dict.workspace.workspaceExplorer, document?.path, refreshWorkspaceTree, setActiveTabErrorMessage, setActiveTabSaveState]);
+  }, [
+    dict.workspace.workspaceExplorer,
+    document?.path,
+    refreshWorkspaceTree,
+    setActiveTabErrorMessage,
+    setActiveTabSaveState,
+  ]);
 
   const handleMarkdownAction = useCallback(
     (actionId: (typeof MARKDOWN_ACTION_SPECS)[number]['id']) => {
@@ -1353,7 +1508,10 @@ export function Workspace({
 
     const rows = Number.parseInt(tableRows, 10);
     const columns = Number.parseInt(tableColumns, 10);
-    const snippet = buildMarkdownTable(Number.isFinite(rows) ? rows : 2, Number.isFinite(columns) ? columns : 3);
+    const snippet = buildMarkdownTable(
+      Number.isFinite(rows) ? rows : 2,
+      Number.isFinite(columns) ? columns : 3,
+    );
     logWorkspaceEvent('markdown-table-inserted', { rows, columns });
     monacoEditorRef.current?.replaceSelection(snippet, {
       selectionStartOffset: 2,
@@ -1431,7 +1589,10 @@ export function Workspace({
           strategy: 'project-assets',
         });
 
-        const markdownToInsert = createImageMarkdownSnippet(imported.fileName, imported.relativePath);
+        const markdownToInsert = createImageMarkdownSnippet(
+          imported.fileName,
+          imported.relativePath,
+        );
         monacoEditorRef.current?.insertText(markdownToInsert);
         setNoticeMessage(
           dict.workspace.imageImportSuccess.replace('{{fileName}}', imported.fileName),
@@ -1525,7 +1686,10 @@ export function Workspace({
                 <IconButton label={dict.workspace.save} onClick={() => void saveDocument('save')}>
                   <SaveIcon />
                 </IconButton>
-                <IconButton label={dict.workspace.saveAs} onClick={() => void saveDocument('saveAs')}>
+                <IconButton
+                  label={dict.workspace.saveAs}
+                  onClick={() => void saveDocument('saveAs')}
+                >
                   <SaveAsIcon />
                 </IconButton>
                 <IconButton
@@ -1568,7 +1732,10 @@ export function Workspace({
         </header>
 
         {quickActionsVisible ? (
-          <div className="workspace__quick-actions" aria-label={dict.workspace.quickActions.barLabel}>
+          <div
+            className="workspace__quick-actions"
+            aria-label={dict.workspace.quickActions.barLabel}
+          >
             <div className="workspace__quick-actions-list">
               {MARKDOWN_ACTION_SPECS.map((action) => (
                 <Button
@@ -1647,7 +1814,9 @@ export function Workspace({
                     onCreateFolder={() => void handleCreateWorkspaceFolder()}
                   />
                 ) : (
-                  <p className="workspace__panel-meta">{dict.workspace.workspaceExplorer.draftHint}</p>
+                  <p className="workspace__panel-meta">
+                    {dict.workspace.workspaceExplorer.draftHint}
+                  </p>
                 )}
               </Card>
             </aside>
@@ -1673,14 +1842,18 @@ export function Workspace({
             />
             {loadState === 'loading' ? (
               <div className="workspace__editor-loading">{dict.workspace.editorLoading}</div>
-            ) : loadState === 'error' ? (
+            ) : loadState === 'missing' || loadState === 'error' ? (
               <div className="workspace__editor-error" role="alert">
                 <h2 className="workspace__editor-title">{dict.workspace.editorErrorTitle}</h2>
-                <p className="workspace__editor-body">{errorMessage ?? dict.workspace.editorErrorBody}</p>
+                <p className="workspace__editor-body">
+                  {errorMessage ?? dict.workspace.editorErrorBody}
+                </p>
               </div>
             ) : (
               <div className={`workspace__editor-shell workspace__editor-shell--${viewMode}`}>
-                {noticeMessage ? <div className="workspace__editor-notice">{noticeMessage}</div> : null}
+                {noticeMessage ? (
+                  <div className="workspace__editor-notice">{noticeMessage}</div>
+                ) : null}
                 <div className={`workspace__editor-panels workspace__editor-panels--${viewMode}`}>
                   {(viewMode === 'write' || viewMode === 'split') && (
                     <section
@@ -1711,7 +1884,13 @@ export function Workspace({
                           onScrollChange={handleEditorScrollChange}
                         />
                       ) : (
-                        <Suspense fallback={<div className="workspace__editor-loading">{dict.workspace.editorLoading}</div>}>
+                        <Suspense
+                          fallback={
+                            <div className="workspace__editor-loading">
+                              {dict.workspace.editorLoading}
+                            </div>
+                          }
+                        >
                           <MonacoEditor
                             ref={monacoEditorRef}
                             value={document?.content ?? ''}
@@ -1769,7 +1948,9 @@ export function Workspace({
               aria-label={dict.workspace.rightPanelLabel}
             >
               <Card className="workspace__panel-card workspace__panel-card--feature">
-                <span className="workspace__panel-eyebrow">{dict.workspace.projectPanelEyebrow}</span>
+                <span className="workspace__panel-eyebrow">
+                  {dict.workspace.projectPanelEyebrow}
+                </span>
                 <h2 className="workspace__panel-title">{dict.workspace.projectPanelTitle}</h2>
                 <p className="workspace__panel-body">{dict.workspace.projectPanelBody}</p>
                 <dl className="workspace__metrics">
@@ -1785,7 +1966,9 @@ export function Workspace({
               </Card>
 
               <Card className="workspace__panel-card workspace__panel-card--secondary">
-                <span className="workspace__panel-eyebrow">{dict.workspace.recentDocumentsTitle}</span>
+                <span className="workspace__panel-eyebrow">
+                  {dict.workspace.recentDocumentsTitle}
+                </span>
                 <h3 className="workspace__panel-subtitle">{dict.workspace.recentDocumentsTitle}</h3>
                 <p className="workspace__panel-body">{dict.workspace.recentDocumentsBody}</p>
                 {recentDocuments.length > 0 ? (
@@ -1844,7 +2027,9 @@ export function Workspace({
                     </dd>
                   </div>
                 </dl>
-                <p className="workspace__panel-meta">{errorMessage ?? statusLabel(saveState, dict.workspace)}</p>
+                <p className="workspace__panel-meta">
+                  {errorMessage ?? statusLabel(saveState, dict.workspace)}
+                </p>
               </Card>
             </aside>
           </>
@@ -1883,7 +2068,11 @@ export function Workspace({
 interface TextEditorProps {
   value: string;
   onChange: (value: string) => void;
-  onScrollChange?: (state: { scrollTop: number; scrollHeight: number; viewportHeight: number }) => void;
+  onScrollChange?: (state: {
+    scrollTop: number;
+    scrollHeight: number;
+    viewportHeight: number;
+  }) => void;
 }
 
 const PlainTextEditor = forwardRef<MonacoEditorHandle, TextEditorProps>(function PlainTextEditor(
@@ -2001,11 +2190,18 @@ function getFilePath(file: File): string {
 }
 
 function createImageMarkdownSnippet(fileName: string, relativePath: string): string {
-  const altText = fileName.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || 'Image';
+  const altText =
+    fileName
+      .replace(/\.[^.]+$/, '')
+      .replace(/[-_]+/g, ' ')
+      .trim() || 'Image';
   return `![${altText}](${relativePath})`;
 }
 
-function resolveImageImportErrorMessage(message: string, workspaceDict: Dictionary['workspace']): string {
+function resolveImageImportErrorMessage(
+  message: string,
+  workspaceDict: Dictionary['workspace'],
+): string {
   switch (message) {
     case 'documents:image-import:unsupported-format':
       return workspaceDict.imageImportUnsupported;
@@ -2069,10 +2265,11 @@ function DocumentTabs({
       {tabs.map((tab) => {
         const title = tab.document
           ? resolveDocumentTabTitle(tab.document)
-          : tab.summary?.title ?? '...';
+          : (tab.summary?.title ?? '...');
         const isActive = tab.id === activeTabId;
         const isDragging = tab.id === draggingTabId;
         const isDropTarget = tab.id === dropTargetTabId && tab.id !== draggingTabId;
+        const isMissing = tab.loadState === 'missing';
         const isErrored = tab.loadState === 'error';
         const errorLabel = tab.errorMessage ?? labels.missingDocumentFile;
 
@@ -2089,9 +2286,13 @@ function DocumentTabs({
             className={[
               'workspace-tabs__item',
               isActive ? 'workspace-tabs__item--active' : '',
+              isMissing ? 'workspace-tabs__item--missing' : '',
+              isErrored ? 'workspace-tabs__item--error' : '',
               isDragging ? 'workspace-tabs__item--dragging' : '',
               isDropTarget ? 'workspace-tabs__item--drop-target' : '',
-            ].filter(Boolean).join(' ')}
+            ]
+              .filter(Boolean)
+              .join(' ')}
             draggable
             onDragStart={(event) => {
               event.dataTransfer.effectAllowed = 'move';
@@ -2135,14 +2336,18 @@ function DocumentTabs({
                 className={`workspace-tabs__state workspace-tabs__state--${tab.saveState}`}
                 aria-hidden="true"
               />
-              {isErrored ? (
-                <span className="workspace-tabs__warning" title={errorLabel} aria-label={errorLabel}>
+              {isMissing || isErrored ? (
+                <span
+                  className="workspace-tabs__warning"
+                  title={errorLabel}
+                  aria-label={errorLabel}
+                >
                   <WarningIcon />
                 </span>
               ) : null}
               <span className="workspace-tabs__title">{title}</span>
             </button>
-            {isErrored ? (
+            {isMissing || isErrored ? (
               <button
                 type="button"
                 className="workspace-tabs__reopen"
@@ -2177,10 +2382,7 @@ function DocumentTabs({
 interface ResizeHandleProps {
   side: ResizeSide;
   onPointerDown: () => void;
-  onKeyboardResize: (
-    side: ResizeSide,
-    direction: 'decrease' | 'increase' | 'min' | 'max',
-  ) => void;
+  onKeyboardResize: (side: ResizeSide, direction: 'decrease' | 'increase' | 'min' | 'max') => void;
 }
 
 function ResizeHandle({ side, onPointerDown, onKeyboardResize }: ResizeHandleProps) {
@@ -2227,7 +2429,9 @@ function ResizeHandle({ side, onPointerDown, onKeyboardResize }: ResizeHandlePro
     <button
       type="button"
       className={`workspace__resize workspace__resize--${side}`}
-      aria-label={side === 'left' ? dict.workspace.resizeLeftPanel : dict.workspace.resizeRightPanel}
+      aria-label={
+        side === 'left' ? dict.workspace.resizeLeftPanel : dict.workspace.resizeRightPanel
+      }
       onPointerDown={onPointerDown}
       onKeyDown={handleKeyDown}
     >
@@ -2254,7 +2458,9 @@ function removeSummaryFromLauncher(
   return {
     recentDocuments,
     quickResumeId:
-      launcher.quickResumeId === summary.id ? (recentDocuments[0]?.id ?? null) : launcher.quickResumeId,
+      launcher.quickResumeId === summary.id
+        ? (recentDocuments[0]?.id ?? null)
+        : launcher.quickResumeId,
   };
 }
 
@@ -2324,6 +2530,19 @@ function resolveDraftTabId(draftId: string): string {
   return `document:${draftId}`;
 }
 
+function createEmptyDraftFromSummary(summary: DocumentSummary): DocumentSession {
+  const now = new Date().toISOString();
+  return {
+    id: summary.id,
+    kind: 'draft',
+    title: summary.title,
+    content: '',
+    snippet: '',
+    lastOpenedAt: now,
+    lastSavedAt: null,
+  };
+}
+
 function createDraftDocumentId(): string {
   return `draft:${crypto.randomUUID()}`;
 }
@@ -2333,9 +2552,7 @@ function resolveDocumentTabTitle(document: DocumentSession): string {
   return title || document.title;
 }
 
-function resolveDocumentExportTitle(
-  document: DocumentSession | null,
-): string | undefined {
+function resolveDocumentExportTitle(document: DocumentSession | null): string | undefined {
   if (!document) {
     return undefined;
   }
@@ -2356,7 +2573,11 @@ function resolveDocumentSaveTitle(document: DocumentSession): string {
   return 'document';
 }
 
-function resolveDocumentDisplayTitle(content: string, filePath: string | undefined, fallback: string): string {
+function resolveDocumentDisplayTitle(
+  content: string,
+  filePath: string | undefined,
+  fallback: string,
+): string {
   const markdownTitle = extractMarkdownTitle(content);
   if (markdownTitle) {
     return markdownTitle;
@@ -2602,7 +2823,10 @@ function FileMenu({ labels, recents, onNew, onOpen, onSelectRecent }: FileMenuPr
         onKeyDown={handleTriggerKeyDown}
       >
         <span>{labels.trigger}</span>
-        <span className={`file-menu__chevron${open ? ' file-menu__chevron--open' : ''}`} aria-hidden>
+        <span
+          className={`file-menu__chevron${open ? ' file-menu__chevron--open' : ''}`}
+          aria-hidden
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
             <path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
           </svg>
@@ -2624,7 +2848,12 @@ function FileMenu({ labels, recents, onNew, onOpen, onSelectRecent }: FileMenuPr
             >
               <span className="file-menu__item-icon" aria-hidden>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                  <path
+                    d="M12 5v14M5 12h14"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                  />
                 </svg>
               </span>
               <span className="file-menu__item-copy">
@@ -2643,7 +2872,12 @@ function FileMenu({ labels, recents, onNew, onOpen, onSelectRecent }: FileMenuPr
             >
               <span className="file-menu__item-icon" aria-hidden>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                  <path d="M5 8h5l2 2h7v8H5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                  <path
+                    d="M5 8h5l2 2h7v8H5z"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               </span>
               <span className="file-menu__item-copy">
@@ -2745,8 +2979,18 @@ function QuickActionsIcon() {
 function WriteModeIcon() {
   return (
     <svg className="workspace__mode-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M6 18l3.4-.7L18 8.7 15.3 6 6.7 14.6z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-      <path d="M13.8 7.5l2.7 2.7M5 20h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path
+        d="M6 18l3.4-.7L18 8.7 15.3 6 6.7 14.6z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M13.8 7.5l2.7 2.7M5 20h14"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -2754,7 +2998,12 @@ function WriteModeIcon() {
 function PreviewModeIcon() {
   return (
     <svg className="workspace__mode-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M4.5 12s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path
+        d="M4.5 12s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
       <circle cx="12" cy="12" r="2.2" stroke="currentColor" strokeWidth="1.6" />
     </svg>
   );
@@ -2763,8 +3012,18 @@ function PreviewModeIcon() {
 function SplitModeIcon() {
   return (
     <svg className="workspace__mode-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M5 6h14v12H5zM12 6v12" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-      <path d="M7.5 9h2.2M7.5 12h2.8M14.5 10.2c.6-.7 1.3-1 2-1s1.4.3 2 1M14.5 13.8c.6.7 1.3 1 2 1s1.4-.3 2-1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path
+        d="M5 6h14v12H5zM12 6v12"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7.5 9h2.2M7.5 12h2.8M14.5 10.2c.6-.7 1.3-1 2-1s1.4.3 2 1M14.5 13.8c.6.7 1.3 1 2 1s1.4-.3 2-1"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -2773,7 +3032,13 @@ function SaveIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M6 4h10l2 2v14H6z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-      <path d="M9 4v5h6V4M9 17h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M9 4v5h6V4M9 17h6"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -2782,8 +3047,19 @@ function SaveAsIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M5 5h9l2 2v5.5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-      <path d="M7 5v5h6V5M7 19h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M14 18.5l4.6-4.6 1.5 1.5-4.6 4.6H14z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path
+        d="M7 5v5h6V5M7 19h5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14 18.5l4.6-4.6 1.5 1.5-4.6 4.6H14z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -2803,7 +3079,13 @@ function SaveStateIcon({ state }: { state: SaveState }) {
     return (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
         <path d="M12 5a7 7 0 017 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-        <path d="M19 12a7 7 0 01-7 7 7 7 0 01-7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" opacity="0.42" />
+        <path
+          d="M19 12a7 7 0 01-7 7 7 7 0 01-7-7"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          opacity="0.42"
+        />
       </svg>
     );
   }
@@ -2811,8 +3093,18 @@ function SaveStateIcon({ state }: { state: SaveState }) {
   if (state === 'error') {
     return (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-        <path d="M12 5l7.5 13H4.5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-        <path d="M12 10v3.4M12 16.4v.1" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+        <path
+          d="M12 5l7.5 13H4.5z"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M12 10v3.4M12 16.4v.1"
+          stroke="currentColor"
+          strokeWidth="1.9"
+          strokeLinecap="round"
+        />
       </svg>
     );
   }
@@ -2820,7 +3112,13 @@ function SaveStateIcon({ state }: { state: SaveState }) {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
       <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth="1.7" />
-      <path d="M8.4 12.2l2.2 2.2 5-5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M8.4 12.2l2.2 2.2 5-5"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -2829,7 +3127,13 @@ function ExportIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M6 5h8l4 4v10H6z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-      <path d="M14 5v4h4M12 12v5M9.5 14.5L12 17l2.5-2.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M14 5v4h4M12 12v5M9.5 14.5L12 17l2.5-2.5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -2837,8 +3141,19 @@ function ExportIcon() {
 function GuideIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M5.5 5.5h6.2c1.3 0 2.3 1 2.3 2.3v10.7c0-1.2-1-2.2-2.2-2.2H5.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M18.5 5.5H14v13c0-1.2 1-2.2 2.2-2.2h2.3zM8 8.5h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M5.5 5.5h6.2c1.3 0 2.3 1 2.3 2.3v10.7c0-1.2-1-2.2-2.2-2.2H5.5z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M18.5 5.5H14v13c0-1.2 1-2.2 2.2-2.2h2.3zM8 8.5h3"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -2847,7 +3162,12 @@ function SettingsIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M12 8.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M18.2 13.3l1.3 1-.8 1.5-1.6-.4a6.6 6.6 0 01-1.2 1l-.2 1.7h-1.7l-.2-1.7a6.4 6.4 0 01-1.5-.2l-1.2 1.2-1.5-.9.4-1.6a6.4 6.4 0 01-1-1.2l-1.7-.2v-1.7l1.7-.2c.1-.5.2-1 .4-1.4L6.8 8.8l.9-1.5 1.6.4a6.6 6.6 0 011.2-1l.2-1.7h1.7l.2 1.7c.5.1 1 .2 1.4.4l1.3-1.1 1.5.9-.4 1.6c.4.4.7.8 1 1.2l1.7.2v1.7l-1.7.2c-.1.5-.2 1-.4 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path
+        d="M18.2 13.3l1.3 1-.8 1.5-1.6-.4a6.6 6.6 0 01-1.2 1l-.2 1.7h-1.7l-.2-1.7a6.4 6.4 0 01-1.5-.2l-1.2 1.2-1.5-.9.4-1.6a6.4 6.4 0 01-1-1.2l-1.7-.2v-1.7l1.7-.2c.1-.5.2-1 .4-1.4L6.8 8.8l.9-1.5 1.6.4a6.6 6.6 0 011.2-1l.2-1.7h1.7l.2 1.7c.5.1 1 .2 1.4.4l1.3-1.1 1.5.9-.4 1.6c.4.4.7.8 1 1.2l1.7.2v1.7l-1.7.2c-.1.5-.2 1-.4 1.5z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -2864,7 +3184,12 @@ function InfoIcon() {
 function CloseTabIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M7 7l10 10M17 7L7 17" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path
+        d="M7 7l10 10M17 7L7 17"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -2872,12 +3197,7 @@ function CloseTabIcon() {
 function WarningIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 4l8 15H4L12 4z"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinejoin="round"
-      />
+      <path d="M12 4l8 15H4L12 4z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
       <path d="M12 9v4M12 16.5v.1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
@@ -2893,7 +3213,13 @@ function ReopenIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <path d="M11 11l-4 4 4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M11 11l-4 4 4 4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -2972,7 +3298,12 @@ function ChartIcon() {
 function TextHeadingIcon({ level }: { level: '1' | '2' }) {
   return (
     <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M5 6v12M14 6v12M5 12h9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M5 6v12M14 6v12M5 12h9"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
       <text x="16" y="18" fill="currentColor" fontSize="8" fontWeight="700">
         {level}
       </text>
@@ -2994,7 +3325,13 @@ function TextMarkIcon({ mark, italic = false }: { mark: 'B' | 'I'; italic?: bool
       >
         {mark}
       </text>
-      <path d="M5 20h14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity="0.42" />
+      <path
+        d="M5 20h14"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        opacity="0.42"
+      />
     </svg>
   );
 }
@@ -3017,7 +3354,13 @@ function ImageIcon() {
   return (
     <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M5 7.5h14v9H5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-      <path d="M7.5 15l3.3-3.2 2.5 2.4 1.5-1.5L18 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M7.5 15l3.3-3.2 2.5 2.4 1.5-1.5L18 15"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
       <circle cx="15.8" cy="9.8" r="1" fill="currentColor" />
     </svg>
   );
@@ -3028,9 +3371,15 @@ function ListIcon({ ordered }: { ordered: boolean }) {
     <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
       {ordered ? (
         <>
-          <text x="5" y="9" fill="currentColor" fontSize="5.5" fontWeight="700">1</text>
-          <text x="5" y="14" fill="currentColor" fontSize="5.5" fontWeight="700">2</text>
-          <text x="5" y="19" fill="currentColor" fontSize="5.5" fontWeight="700">3</text>
+          <text x="5" y="9" fill="currentColor" fontSize="5.5" fontWeight="700">
+            1
+          </text>
+          <text x="5" y="14" fill="currentColor" fontSize="5.5" fontWeight="700">
+            2
+          </text>
+          <text x="5" y="19" fill="currentColor" fontSize="5.5" fontWeight="700">
+            3
+          </text>
         </>
       ) : (
         <>
@@ -3039,7 +3388,12 @@ function ListIcon({ ordered }: { ordered: boolean }) {
           <circle cx="7" cy="16.5" r="1.1" fill="currentColor" />
         </>
       )}
-      <path d="M11 7.5h8M11 12h8M11 16.5h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path
+        d="M11 7.5h8M11 12h8M11 16.5h8"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -3047,8 +3401,19 @@ function ListIcon({ ordered }: { ordered: boolean }) {
 function ChecklistIcon() {
   return (
     <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M5.5 7.5l1.3 1.3 2.4-2.8M5.5 12l1.3 1.3 2.4-2.8M5.5 16.5l1.3 1.3 2.4-2.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M12 7.5h7M12 12h7M12 16.5h7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path
+        d="M5.5 7.5l1.3 1.3 2.4-2.8M5.5 12l1.3 1.3 2.4-2.8M5.5 16.5l1.3 1.3 2.4-2.8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 7.5h7M12 12h7M12 16.5h7"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -3056,7 +3421,13 @@ function ChecklistIcon() {
 function QuoteIcon() {
   return (
     <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M8 8.5h3v3.2c0 2.4-1.1 4-3.2 4.8M15 8.5h3v3.2c0 2.4-1.1 4-3.2 4.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M8 8.5h3v3.2c0 2.4-1.1 4-3.2 4.8M15 8.5h3v3.2c0 2.4-1.1 4-3.2 4.8"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -3064,7 +3435,13 @@ function QuoteIcon() {
 function InlineCodeIcon() {
   return (
     <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M9 8l-4 4 4 4M15 8l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M9 8l-4 4 4 4M15 8l4 4-4 4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -3073,7 +3450,13 @@ function CodeBlockIcon() {
   return (
     <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M5 6.5h14v11H5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-      <path d="M9.5 10l-2 2 2 2M14.5 10l2 2-2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M9.5 10l-2 2 2 2M14.5 10l2 2-2 2"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -3090,8 +3473,18 @@ function DividerIcon() {
 
 function TableIcon() {
   return (
-    <svg className="workspace__quick-actions-table-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M5 6h14v12H5zM5 10h14M9.5 6v12M14.5 6v12" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    <svg
+      className="workspace__quick-actions-table-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+    >
+      <path
+        d="M5 6h14v12H5zM5 10h14M9.5 6v12M14.5 6v12"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

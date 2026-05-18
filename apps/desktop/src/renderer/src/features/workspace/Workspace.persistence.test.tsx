@@ -109,11 +109,11 @@ describe('Workspace tab persistence', () => {
     await screen.findByRole('tab', { name: 'Chapter 3' });
 
     const tablist = screen.getByRole('tablist', { name: 'Open documents' });
-    expect(within(tablist).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'Chapter 1',
-      'Chapter 2',
-      'Chapter 3',
-    ]);
+    expect(
+      within(tablist)
+        .getAllByRole('tab')
+        .map((tab) => tab.textContent),
+    ).toEqual(['Chapter 1', 'Chapter 2', 'Chapter 3']);
     expect(screen.getByRole('tab', { name: 'Chapter 2' })).toHaveAttribute('aria-selected', 'true');
     expect(window.doku.documents.loadDocument).toHaveBeenCalledWith(summaries[0]);
     expect(window.doku.documents.loadDocument).toHaveBeenCalledWith(summaries[1]);
@@ -167,14 +167,14 @@ describe('Workspace tab persistence', () => {
       );
     });
     const manySummaries = manyDocuments.map(toSummary);
-    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(function (
-      this: Element,
-    ) {
-      const tablist = this.closest('.workspace-tabs') as HTMLElement | null;
-      if (tablist) {
-        tablist.scrollLeft = 240;
-      }
-    });
+    const scrollIntoView = vi
+      .spyOn(Element.prototype, 'scrollIntoView')
+      .mockImplementation(function (this: Element) {
+        const tablist = this.closest('.workspace-tabs') as HTMLElement | null;
+        if (tablist) {
+          tablist.scrollLeft = 240;
+        }
+      });
     installDokuMock([], manyDocuments);
 
     renderWorkspace({
@@ -197,10 +197,17 @@ describe('Workspace tab persistence', () => {
     expect(scrollIntoView).toHaveBeenCalled();
 
     fireEvent.keyDown(window, { key: 'Tab', ctrlKey: true });
-    expect(screen.getByRole('tab', { name: 'Chapter 01' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Chapter 01' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
 
-    const tab01Item = screen.getByRole('tab', { name: 'Chapter 01' }).closest('.workspace-tabs__item');
-    const tab03Item = screen.getByRole('tab', { name: 'Chapter 03' }).closest('.workspace-tabs__item');
+    const tab01Item = screen
+      .getByRole('tab', { name: 'Chapter 01' })
+      .closest('.workspace-tabs__item');
+    const tab03Item = screen
+      .getByRole('tab', { name: 'Chapter 03' })
+      .closest('.workspace-tabs__item');
     expect(tab01Item).not.toBeNull();
     expect(tab03Item).not.toBeNull();
 
@@ -209,13 +216,109 @@ describe('Workspace tab persistence', () => {
     fireEvent.dragOver(tab03Item as HTMLElement, { dataTransfer });
     fireEvent.drop(tab03Item as HTMLElement, { dataTransfer });
 
-    expect(within(tablist).getAllByRole('tab').slice(0, 3).map((tab) => tab.textContent)).toEqual([
-      'Chapter 02',
-      'Chapter 03',
-      'Chapter 01',
-    ]);
+    expect(
+      within(tablist)
+        .getAllByRole('tab')
+        .slice(0, 3)
+        .map((tab) => tab.textContent),
+    ).toEqual(['Chapter 02', 'Chapter 03', 'Chapter 01']);
 
     scrollIntoView.mockRestore();
+  });
+
+  it('keeps a restored missing file as a recoverable tab and still reports workspace readiness', async () => {
+    const onReady = vi.fn();
+    installDokuMock([], [documents[0], documents[2]]);
+
+    renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+        sessionTabs: summaries,
+        activeSessionTabId: 'file:/workspace/chapter-2.md',
+      },
+      initialTabs: summaries,
+      initialActiveTabId: 'file:/workspace/chapter-2.md',
+      onReady,
+    });
+
+    const missingTab = await screen.findByRole('tab', { name: 'Chapter 2' });
+    expect(missingTab).toHaveAttribute('aria-selected', 'true');
+    expect(missingTab.closest('.workspace-tabs__item')).toHaveClass(
+      'workspace-tabs__item--missing',
+    );
+    expect(screen.getByLabelText('The file is no longer available on disk.')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('The file is no longer available on disk.');
+
+    await waitFor(() => {
+      expect(onReady).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tabs: 3,
+          readyTabs: 2,
+          missingTabs: 1,
+          erroredTabs: 0,
+          activeTabId: 'file:/workspace/chapter-2.md',
+          activeTabState: 'missing',
+          editorGate: 'not-blocked',
+        }),
+      );
+    });
+
+    expect(window.doku.documents.loadDocument).toHaveBeenCalledWith(summaries[1]);
+  });
+
+  it('persists an empty draft tab so restart does not fall back to the last file', async () => {
+    const onUpdate = vi.fn<(patch: SettingsPatch) => Promise<void>>().mockResolvedValue(undefined);
+
+    renderWorkspace({
+      initialTabs: [],
+      onUpdate,
+    });
+
+    await screen.findByRole('tab', { name: 'Untitled document' });
+
+    await waitFor(() => {
+      expect(onUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activeSessionTabId: expect.stringMatching(/^document:draft:/),
+          sessionTabs: [
+            expect.objectContaining({
+              id: expect.stringMatching(/^draft:/),
+              kind: 'draft',
+              title: 'Untitled document',
+              snippet: '',
+            }),
+          ],
+        }),
+      );
+    });
+  });
+
+  it('restores an empty draft session even when no autosave snapshot exists', async () => {
+    const draftSummary: DocumentSummary = {
+      id: 'draft:empty-session',
+      kind: 'draft',
+      title: 'Untitled document',
+      snippet: '',
+      lastOpenedAt: '2026-05-18T12:00:00.000Z',
+    };
+    installDokuMock([], []);
+
+    renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+        sessionTabs: [draftSummary],
+        activeSessionTabId: 'document:draft:empty-session',
+      },
+      initialTabs: [draftSummary],
+      initialActiveTabId: 'document:draft:empty-session',
+    });
+
+    await screen.findByRole('tab', { name: 'Untitled document' });
+    expect(screen.getByLabelText('Markdown editor')).toHaveValue('');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(window.doku.documents.loadDocument).toHaveBeenCalledWith(draftSummary);
   });
 });
 
@@ -227,11 +330,13 @@ function renderWorkspace({
   initialTabs,
   initialActiveTabId = null,
   onUpdate = vi.fn<(patch: SettingsPatch) => Promise<void>>().mockResolvedValue(undefined),
+  onReady = vi.fn(),
 }: {
   settings?: typeof DEFAULT_SETTINGS;
   initialTabs: DocumentSummary[];
   initialActiveTabId?: string | null;
   onUpdate?: (patch: SettingsPatch) => Promise<void>;
+  onReady?: (context?: Record<string, unknown>) => void;
 }) {
   return render(
     <I18nProvider language="en">
@@ -245,6 +350,7 @@ function renderWorkspace({
           onOpenInfo={vi.fn()}
           onOpenGuide={vi.fn()}
           onOpenExport={vi.fn()}
+          onReady={onReady}
         />
       </ThemeProvider>
     </I18nProvider>,
@@ -259,12 +365,14 @@ function installDokuMock(
     configurable: true,
     value: {
       system: {
+        safeMode: false,
         platform: 'linux',
         appInfo: vi.fn(),
         prefersDark: vi.fn(),
         openExternal: vi.fn(),
         listFonts: vi.fn(),
         openDefaultAppsPreferences: vi.fn(),
+        logEvent: vi.fn().mockResolvedValue(undefined),
       },
       documents: {
         loadDocument: vi.fn(async (summary: DocumentSummary) =>
@@ -298,7 +406,10 @@ function installDokuMock(
   });
 }
 
-function findDocument(path: string | undefined, availableDocuments: DocumentSession[]): DocumentSession | null {
+function findDocument(
+  path: string | undefined,
+  availableDocuments: DocumentSession[],
+): DocumentSession | null {
   return availableDocuments.find((document) => document.path === path) ?? null;
 }
 

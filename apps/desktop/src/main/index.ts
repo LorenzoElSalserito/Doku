@@ -36,6 +36,8 @@ let mainWindow: BrowserWindow | null = null;
 let healthyBootstrapTimer: NodeJS.Timeout | null = null;
 let mainWindowShowTimer: NodeJS.Timeout | null = null;
 let bootstrapMarkedHealthy = false;
+let latestRendererEvent: { event: string; context: Record<string, unknown>; at: string } | null =
+  null;
 
 if (process.platform === 'linux') {
   app.disableHardwareAcceleration();
@@ -105,7 +107,8 @@ async function bootstrap(): Promise<void> {
     electronUserDataDir,
     cleanupDirs: [DOCUMENTS_DATA_DIR, electronUserDataDir],
     logger,
-    onRendererEvent: (event) => {
+    onRendererEvent: (event, context) => {
+      latestRendererEvent = { event, context, at: new Date().toISOString() };
       if (event === 'first-frame-ready') {
         logger.info('window:first-frame-ready-ignored-until-bootstrap');
       }
@@ -130,18 +133,21 @@ async function bootstrap(): Promise<void> {
     hasLuaLatex: Boolean(exportRuntime.lualatexPath),
     hasWeasyPython: Boolean(exportRuntime.weasyPythonPath),
   });
-  const disposeExport = registerExportChannel({
-    lualatex: new LatexPdfExportService({
-      pandocPath: exportRuntime.pandocPath,
-      lualatexPath: exportRuntime.lualatexPath,
-      latexRuntimeRoot: exportRuntime.latexRuntimeRoot,
-    }),
-    weasy: new WeasyPdfExportService({
-      printStylesheetPath: exportRuntime.printStylesheetPath,
-      weasyScriptPath: exportRuntime.weasyScriptPath,
-      pythonExecutablePath: exportRuntime.weasyPythonPath,
-    }),
-  }, logger);
+  const disposeExport = registerExportChannel(
+    {
+      lualatex: new LatexPdfExportService({
+        pandocPath: exportRuntime.pandocPath,
+        lualatexPath: exportRuntime.lualatexPath,
+        latexRuntimeRoot: exportRuntime.latexRuntimeRoot,
+      }),
+      weasy: new WeasyPdfExportService({
+        printStylesheetPath: exportRuntime.printStylesheetPath,
+        weasyScriptPath: exportRuntime.weasyScriptPath,
+        pythonExecutablePath: exportRuntime.weasyPythonPath,
+      }),
+    },
+    logger,
+  );
 
   const preloadPath = join(__dirname, '../preload/index.js');
   const rendererDevUrl = process.env.ELECTRON_RENDERER_URL;
@@ -246,10 +252,12 @@ function markBootstrapHealthy(reason: string): void {
   void crashState
     .markBootstrapHealthy()
     .then(() => logStartup('healthy', { reason, ...crashState.snapshot }))
-    .catch((err) => logger.warn('app:bootstrap-healthy-failed', {
-      reason,
-      error: serializeErrorForLog(err),
-    }));
+    .catch((err) =>
+      logger.warn('app:bootstrap-healthy-failed', {
+        reason,
+        error: serializeErrorForLog(err),
+      }),
+    );
 }
 
 function registerFileOpenHandlers(): void {
@@ -412,20 +420,39 @@ function attachWindowDiagnostics(window: BrowserWindow): void {
   });
   window.on('show', () => logger.info('window:show', { id: window.id }));
   window.on('closed', () => logger.info('window:closed', { id: window.id }));
-  window.webContents.on('did-start-loading', () => logger.info('window:did-start-loading', { id: window.id }));
+  window.webContents.on('did-start-loading', () =>
+    logger.info('window:did-start-loading', { id: window.id }),
+  );
   window.webContents.on('dom-ready', () => logger.info('window:dom-ready', { id: window.id }));
-  window.webContents.on('did-finish-load', () => logger.info('window:did-finish-load', { id: window.id }));
-  window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-    logger.error('window:did-fail-load', { id: window.id, errorCode, errorDescription, validatedURL, isMainFrame });
-  });
+  window.webContents.on('did-finish-load', () =>
+    logger.info('window:did-finish-load', { id: window.id }),
+  );
+  window.webContents.on(
+    'did-fail-load',
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      logger.error('window:did-fail-load', {
+        id: window.id,
+        errorCode,
+        errorDescription,
+        validatedURL,
+        isMainFrame,
+      });
+    },
+  );
   window.webContents.on('preload-error', (_event, preloadPath, error) => {
-    logger.error('window:preload-error', { id: window.id, preloadPath, error: serializeErrorForLog(error) });
+    logger.error('window:preload-error', {
+      id: window.id,
+      preloadPath,
+      error: serializeErrorForLog(error),
+    });
   });
   window.webContents.on('render-process-gone', (_event, details) => {
-    logger.error('window:render-process-gone', { id: window.id, ...details });
+    logger.error('window:render-process-gone', { id: window.id, ...details, latestRendererEvent });
     void logCrashpadPendingDumps();
   });
-  window.webContents.on('unresponsive', () => logger.warn('window:unresponsive', { id: window.id }));
+  window.webContents.on('unresponsive', () =>
+    logger.warn('window:unresponsive', { id: window.id }),
+  );
   window.webContents.on('responsive', () => logger.info('window:responsive', { id: window.id }));
   window.webContents.on('console-message', (_event, level, message, line, sourceId) => {
     logger.debug('renderer:console-message', { id: window.id, level, message, line, sourceId });
@@ -442,13 +469,14 @@ function registerProcessDiagnostics(): void {
     void logger.flush();
   });
   app.on('child-process-gone', (_event, details) => {
-    logger.error('app:child-process-gone', { ...details });
+    logger.error('app:child-process-gone', { ...details, latestRendererEvent });
     void logCrashpadPendingDumps();
   });
   app.on('render-process-gone', (_event, webContents, details) => {
     logger.error('app:render-process-gone', {
       webContentsId: webContents.id,
       ...details,
+      latestRendererEvent,
     });
   });
   app.on('gpu-info-update', () => logger.info('app:gpu-info-update'));
