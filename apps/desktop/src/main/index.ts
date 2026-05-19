@@ -117,7 +117,6 @@ async function bootstrap(): Promise<void> {
       }
       if (event === 'app-ready') {
         revealMainWindow('renderer-app-ready');
-        markBootstrapHealthy('renderer-app-ready');
       }
     },
   });

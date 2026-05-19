@@ -228,6 +228,7 @@ export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(fu
         padding: getEditorPadding(),
         ...getEditorTypography(),
         smoothScrolling: true,
+        experimentalGpuAcceleration: 'off',
         tabSize: 2,
         insertSpaces: true,
         guides: {
