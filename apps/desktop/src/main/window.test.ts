@@ -9,6 +9,7 @@ interface FakeBrowserWindow {
   isDestroyed: ReturnType<typeof vi.fn>;
   isMaximized: ReturnType<typeof vi.fn>;
   setFullScreen: ReturnType<typeof vi.fn>;
+  setBounds: ReturnType<typeof vi.fn>;
   loadURL: ReturnType<typeof vi.fn>;
   loadFile: ReturnType<typeof vi.fn>;
   webContents: { setWindowOpenHandler: ReturnType<typeof vi.fn> };
@@ -17,8 +18,11 @@ interface FakeBrowserWindow {
   emit(event: string, ...args: unknown[]): void;
 }
 
+const FAKE_WORK_AREA = { x: 0, y: 0, width: 1920, height: 1040 };
+
 const electronMock = vi.hoisted(() => {
   const instances: FakeBrowserWindow[] = [];
+  const workArea = { x: 0, y: 0, width: 1920, height: 1040 };
 
   class BrowserWindow {
     static readonly instances = instances;
@@ -26,13 +30,18 @@ const electronMock = vi.hoisted(() => {
       const onceHandlers = new Map<string, Handler[]>();
       const onHandlers = new Map<string, Handler[]>();
 
+      const showOrderRef = { value: 0 };
       const instance: FakeBrowserWindow = {
         options: opts,
-        show: vi.fn(),
+        show: vi.fn(() => {
+          showOrderRef.value += 1;
+          for (const cb of onHandlers.get('show') ?? []) cb();
+        }),
         maximize: vi.fn(),
         isDestroyed: vi.fn(() => false),
         isMaximized: vi.fn(() => false),
         setFullScreen: vi.fn(),
+        setBounds: vi.fn(),
         loadURL: vi.fn().mockResolvedValue(undefined),
         loadFile: vi.fn().mockResolvedValue(undefined),
         webContents: { setWindowOpenHandler: vi.fn() },
@@ -61,13 +70,19 @@ const electronMock = vi.hoisted(() => {
   return {
     BrowserWindow,
     instances,
+    workArea,
     shell: { openExternal: vi.fn().mockResolvedValue(undefined) },
+    screen: {
+      getCursorScreenPoint: vi.fn(() => ({ x: 0, y: 0 })),
+      getDisplayNearestPoint: vi.fn(() => ({ workArea })),
+    },
   };
 });
 
 vi.mock('electron', () => ({
   BrowserWindow: electronMock.BrowserWindow,
   shell: electronMock.shell,
+  screen: electronMock.screen,
 }));
 
 vi.mock('@doku/application', () => ({
@@ -99,6 +114,8 @@ describe('createMainWindow — startup visibility & OS snap compatibility', () =
   beforeEach(() => {
     vi.resetModules();
     electronMock.instances.length = 0;
+    electronMock.screen.getDisplayNearestPoint.mockClear();
+    electronMock.screen.getCursorScreenPoint.mockClear();
   });
 
   it('keeps the window hidden on ready-to-show so the renderer can reveal a stable first frame', async () => {
@@ -113,17 +130,68 @@ describe('createMainWindow — startup visibility & OS snap compatibility', () =
     expect(instance.show).not.toHaveBeenCalled();
   });
 
-  it('maximizes before showing the window when explicitly revealed', async () => {
-    const instance = await buildWindow();
-    const { showMainWindow } = await import('./window.js');
+  it('on linux pre-sizes the window to the display work area before show (avoids double-paint)', async () => {
+    await withPlatform('linux', async () => {
+      const instance = await buildWindow();
+      const { showMainWindow } = await import('./window.js');
 
-    showMainWindow(instance as unknown as import('electron').BrowserWindow);
+      showMainWindow(instance as unknown as import('electron').BrowserWindow);
 
-    expect(instance.maximize).toHaveBeenCalledTimes(1);
-    expect(instance.show).toHaveBeenCalledTimes(1);
-    const maximizeOrder = instance.maximize.mock.invocationCallOrder[0]!;
-    const showOrder = instance.show.mock.invocationCallOrder[0]!;
-    expect(maximizeOrder).toBeLessThan(showOrder);
+      expect(instance.setBounds).toHaveBeenCalledTimes(1);
+      expect(instance.setBounds).toHaveBeenCalledWith(FAKE_WORK_AREA);
+      expect(instance.maximize).not.toHaveBeenCalled();
+      expect(instance.show).toHaveBeenCalledTimes(1);
+
+      const boundsOrder = instance.setBounds.mock.invocationCallOrder[0]!;
+      const showOrder = instance.show.mock.invocationCallOrder[0]!;
+      expect(boundsOrder).toBeLessThan(showOrder);
+    });
+  });
+
+  it('on non-linux platforms still maximizes before showing (matches OS conventions)', async () => {
+    await withPlatform('darwin', async () => {
+      const instance = await buildWindow();
+      const { showMainWindow } = await import('./window.js');
+
+      showMainWindow(instance as unknown as import('electron').BrowserWindow);
+
+      expect(instance.maximize).toHaveBeenCalledTimes(1);
+      expect(instance.setBounds).not.toHaveBeenCalled();
+      expect(instance.show).toHaveBeenCalledTimes(1);
+      const maximizeOrder = instance.maximize.mock.invocationCallOrder[0]!;
+      const showOrder = instance.show.mock.invocationCallOrder[0]!;
+      expect(maximizeOrder).toBeLessThan(showOrder);
+    });
+  });
+
+  it('emits the show event exactly once per reveal (no maximize→show double-paint)', async () => {
+    await withPlatform('linux', async () => {
+      const instance = await buildWindow();
+      const { showMainWindow } = await import('./window.js');
+      let showEvents = 0;
+      (instance.on as unknown as (event: string, cb: () => void) => void)('show', () => {
+        showEvents += 1;
+      });
+
+      showMainWindow(instance as unknown as import('electron').BrowserWindow);
+
+      expect(showEvents).toBe(1);
+    });
+  });
+
+  it('falls back to maximize() if `screen` is unavailable on linux', async () => {
+    await withPlatform('linux', async () => {
+      electronMock.screen.getDisplayNearestPoint.mockImplementationOnce(() => {
+        throw new Error('screen unavailable');
+      });
+      const instance = await buildWindow();
+      const { showMainWindow } = await import('./window.js');
+
+      showMainWindow(instance as unknown as import('electron').BrowserWindow);
+
+      expect(instance.maximize).toHaveBeenCalledTimes(1);
+      expect(instance.show).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('does not force real fullscreen on startup (would break OS snap gestures)', async () => {

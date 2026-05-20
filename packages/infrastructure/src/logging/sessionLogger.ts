@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs';
+import { promises as fs, appendFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -54,6 +54,20 @@ export class SessionLogger {
     this.write('debug', event, context);
   }
 
+  // Synchronous variant. Use only on hot paths where the async queue may be
+  // lost (signal handlers, uncaughtException, just before suspected-fatal
+  // native calls). Bypasses the writeQueue so the entry hits disk even if the
+  // process is killed microseconds later.
+  writeSync(level: LogLevel, event: string, context: LogContext = {}): void {
+    const payload = this.buildPayload(level, event, context);
+    try {
+      mkdirSync(dirname(this.filePath), { recursive: true });
+      appendFileSync(this.filePath, payload, 'utf-8');
+    } catch {
+      // Logging must never break application flow.
+    }
+  }
+
   getInfo(): SessionLoggerInfo {
     return {
       sessionId: this.sessionId,
@@ -97,6 +111,19 @@ export class SessionLogger {
   }
 
   private write(level: LogLevel, event: string, context: LogContext = {}): void {
+    const payload = this.buildPayload(level, event, context);
+
+    this.writeQueue = this.writeQueue
+      .then(async () => {
+        await fs.mkdir(dirname(this.filePath), { recursive: true });
+        await fs.appendFile(this.filePath, payload, 'utf-8');
+      })
+      .catch(() => {
+        // Logging must never break application flow.
+      });
+  }
+
+  private buildPayload(level: LogLevel, event: string, context: LogContext): string {
     const entry = {
       timestamp: new Date().toISOString(),
       sequence: ++this.sequence,
@@ -116,16 +143,7 @@ export class SessionLogger {
       },
       context: sanitizeForLog(context),
     };
-    const payload = `${JSON.stringify(entry)}\n`;
-
-    this.writeQueue = this.writeQueue
-      .then(async () => {
-        await fs.mkdir(dirname(this.filePath), { recursive: true });
-        await fs.appendFile(this.filePath, payload, 'utf-8');
-      })
-      .catch(() => {
-        // Logging must never break application flow.
-      });
+    return `${JSON.stringify(entry)}\n`;
   }
 }
 

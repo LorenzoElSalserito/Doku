@@ -60,4 +60,44 @@ describe('SessionLogger', () => {
       },
     });
   });
+
+  it('writeSync persists entries before the writeQueue drains (survives sigkill scenarios)', async () => {
+    const logger = new SessionLogger({
+      logsDir: tempDir,
+      sessionId: 'sync-session',
+      processName: 'main',
+      appVersion: '0.0.0',
+    });
+
+    // Interleave: queued-info, sync-error, queued-info. The sync entry must
+    // land in the file even before `flush()` resolves.
+    logger.info('startup:before', {});
+    logger.writeSync('error', 'process:signal', { signal: 'SIGSEGV' });
+    logger.info('startup:after', {});
+
+    const filePath = join(tempDir, 'session-sync-session.log');
+    const partial = await fs.readFile(filePath, 'utf-8');
+    const syncLines = partial
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(syncLines.some((entry) => entry.event === 'process:signal')).toBe(true);
+
+    await logger.flush();
+
+    const lines = (await fs.readFile(filePath, 'utf-8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+    const events = lines.map((entry) => entry.event);
+    expect(events).toContain('startup:before');
+    expect(events).toContain('process:signal');
+    expect(events).toContain('startup:after');
+    // Sequence values must cover [1..N] without gaps; physical write order
+    // can interleave sync vs async, but every call must produce one record.
+    const sequences = lines.map((entry) => entry.sequence as number).sort((a, b) => a - b);
+    expect(sequences).toEqual([1, 2, 3]);
+  });
 });

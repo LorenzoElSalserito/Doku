@@ -43,7 +43,15 @@ if (process.platform === 'linux') {
   app.disableHardwareAcceleration();
   app.commandLine.appendSwitch('disable-gpu');
   app.commandLine.appendSwitch('disable-gpu-compositing');
-  app.commandLine.appendSwitch('disable-features', 'UseChromeOSDirectVideoDecoder');
+}
+
+// Opt-in verbose Chromium logging — surfaces GPU/renderer errors that would
+// otherwise vanish when launched from a desktop menu (no controlling tty).
+// Enable via `DOKU_LOG_VERBOSE=1` before launching.
+const VERBOSE_LOGGING = process.env.DOKU_LOG_VERBOSE === '1';
+if (VERBOSE_LOGGING) {
+  app.commandLine.appendSwitch('enable-logging');
+  app.commandLine.appendSwitch('v', '1');
 }
 
 app.setName(PRODUCT_NAME);
@@ -66,9 +74,11 @@ async function bootstrap(): Promise<void> {
     electronUserDataDir: ORIGINAL_USER_DATA_DIR,
     argv: process.argv,
     isPackaged: app.isPackaged,
+    verboseLogging: VERBOSE_LOGGING,
   });
   logStartup('crash-reporter-started', { crashDumpDir: app.getPath('crashDumps') });
   void logCrashpadPendingDumps();
+  void archiveStaleCrashpadDumps();
   void logger.pruneOlderThan(LOG_RETENTION_MS);
 
   logStartup('crash-state-mark-starting');
@@ -227,7 +237,12 @@ function revealMainWindow(reason: string): void {
     reason,
     elapsedSinceProcessStartMs: Date.now() - bootstrapStartedAtMs,
   });
+  // Sync markers around the native call: if Electron segfaults inside
+  // setBounds/maximize/show on Linux/X11, the async writeQueue would lose the
+  // last events. writeSync guarantees the markers hit disk.
+  logger.writeSync('info', 'window:reveal-begin', { id: window.id, reason });
   showMainWindow(window);
+  logger.writeSync('info', 'window:reveal-end', { id: window.id, reason });
 }
 
 function scheduleHealthyBootstrap(): void {
@@ -454,19 +469,46 @@ function attachWindowDiagnostics(window: BrowserWindow): void {
   );
   window.webContents.on('responsive', () => logger.info('window:responsive', { id: window.id }));
   window.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-    logger.debug('renderer:console-message', { id: window.id, level, message, line, sourceId });
+    // Promoted from debug → info so renderer console errors land in session
+    // logs without needing a debug build. Filter at consumer side if noisy.
+    const consoleLevel = level >= 2 ? 'warn' : 'info';
+    logger[consoleLevel]('renderer:console-message', {
+      id: window.id,
+      level,
+      message,
+      line,
+      sourceId,
+    });
   });
 }
 
 function registerProcessDiagnostics(): void {
   process.on('uncaughtException', (error) => {
-    logger.error('process:uncaught-exception', { error: serializeErrorForLog(error) });
+    // writeSync first — if this exception is followed by a hard crash the
+    // async queue would never drain.
+    logger.writeSync('error', 'process:uncaught-exception', {
+      error: serializeErrorForLog(error),
+    });
     void logger.flush();
   });
   process.on('unhandledRejection', (reason) => {
-    logger.error('process:unhandled-rejection', { reason: serializeErrorForLog(reason) });
+    logger.writeSync('error', 'process:unhandled-rejection', {
+      reason: serializeErrorForLog(reason),
+    });
     void logger.flush();
   });
+  for (const sig of ['SIGSEGV', 'SIGABRT', 'SIGBUS', 'SIGILL', 'SIGFPE'] as const) {
+    try {
+      process.on(sig, () => {
+        // Native crash signals reach us only if the process hasn't already
+        // been terminated by the kernel. Record what we can, then let the
+        // default handler run.
+        logger.writeSync('error', 'process:signal', { signal: sig });
+      });
+    } catch {
+      // Some signals are not catchable on all platforms; ignore.
+    }
+  }
   app.on('child-process-gone', (_event, details) => {
     logger.error('app:child-process-gone', { ...details, latestRendererEvent });
     void logCrashpadPendingDumps();
@@ -502,6 +544,80 @@ async function logCrashpadPendingDumps(): Promise<void> {
       logger.warn('app:crashpad-pending-dumps-failed', { error: serializeErrorForLog(error) });
     }
   }
+}
+
+// Crashpad keeps .dmp/.meta pairs in the `pending` directory until they are
+// uploaded. We start the reporter with `uploadToServer:false`, so they never
+// drain on their own. Once the queue grows large, Crashpad's housekeeping
+// thread becomes a stability liability (observed: SIGSEGV in browser process
+// shortly after window:show on LMDE with 40+ pending dumps). Move stale
+// entries to a dated archive under <userdata>/logs/crashpad-archive/ so the
+// next boot starts with an empty queue.
+const CRASHPAD_ARCHIVE_THRESHOLD = 10;
+async function archiveStaleCrashpadDumps(): Promise<void> {
+  const pendingDir = join(app.getPath('crashDumps'), 'pending');
+  let entries: string[];
+  try {
+    entries = await fs.readdir(pendingDir);
+  } catch (error: unknown) {
+    if (isNodeError(error) && error.code === 'ENOENT') return;
+    logger.warn('app:crashpad-archive-list-failed', { error: serializeErrorForLog(error) });
+    return;
+  }
+
+  const artefacts = entries.filter(
+    (entry) => entry.endsWith('.dmp') || entry.endsWith('.meta') || entry.endsWith('.lock'),
+  );
+  const dumps = artefacts.filter((entry) => entry.endsWith('.dmp'));
+  if (dumps.length < CRASHPAD_ARCHIVE_THRESHOLD) {
+    return;
+  }
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const archiveDir = join(DOCUMENTS_DATA_DIR, 'logs', 'crashpad-archive', stamp);
+  try {
+    await fs.mkdir(archiveDir, { recursive: true });
+  } catch (error: unknown) {
+    logger.warn('app:crashpad-archive-mkdir-failed', { error: serializeErrorForLog(error) });
+    return;
+  }
+
+  let archived = 0;
+  for (const entry of artefacts) {
+    const src = join(pendingDir, entry);
+    const dst = join(archiveDir, entry);
+    try {
+      await fs.rename(src, dst);
+      archived += 1;
+    } catch (error: unknown) {
+      // EXDEV → cross-device, fall back to copy+unlink. Other failures we
+      // just skip; pending dump retention is a best-effort cleanup.
+      if (isNodeError(error) && error.code === 'EXDEV') {
+        try {
+          await fs.copyFile(src, dst);
+          await fs.rm(src, { force: true });
+          archived += 1;
+          continue;
+        } catch (copyError: unknown) {
+          logger.warn('app:crashpad-archive-copy-failed', {
+            entry,
+            error: serializeErrorForLog(copyError),
+          });
+        }
+      } else {
+        logger.warn('app:crashpad-archive-move-failed', {
+          entry,
+          error: serializeErrorForLog(error),
+        });
+      }
+    }
+  }
+
+  logger.info('app:crashpad-archived', {
+    archived,
+    archiveDir,
+    threshold: CRASHPAD_ARCHIVE_THRESHOLD,
+  });
 }
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {
