@@ -4,7 +4,7 @@
   "version": "0.1.2",
   "private": true,
   "icon": "src/assets/icon.png",
-  "description": "Doku desktop shell (Electron + Vite + React)",
+  "description": "Doku is your elegant, definitive, MarkDown Editor.",
   "license": "AGPL-3.0-only",
   "homepage": "https://github.com/LorenzoElSalserito/Doku",
   "repository": {
@@ -30,7 +30,7 @@
     "appId": "app.doku.desktop",
     "productName": "Doku",
     "electronVersion": "30.0.0",
-    "artifactName": "Doku-${version}-${os}-${arch}.${ext}",
+    "artifactName": "doku_${version}_${os}_${arch}.${ext}",
     "directories": {
       "output": "../../build/desktop",
       "buildResources": "src/assets"
@@ -53,7 +53,7 @@
       }
     ],
     "linux": {
-      "executableName": "doku-desktop",
+      "executableName": "doku",
       "category": "Office",
       "maintainer": "Lorenzo DM <commercial.lorenzodm@gmail.com>",
       "target": [
@@ -63,11 +63,18 @@
       "desktop": {
         "entry": {
           "Name": "Doku",
-          "Icon": "/usr/share/icons/hicolor/1080x1080/apps/doku-desktop.png"
+          "Icon": "/usr/share/icons/hicolor/1080x1080/apps/doku.png"
         }
       },
       "synopsis": "The Definitive MarkDown Editor - AGPLv3",
       "description": "Doku: your beautiful, elegant MarkDown Editor"
+    },
+    "deb": {
+      "packageName": "doku",
+      "fpm": [
+        "../../build/deb-docs/copyright=/usr/share/doc/doku/copyright",
+        "../../build/deb-docs/README.md=/usr/share/doc/doku/README.md"
+      ]
     },
     "mac": {
       "target": [

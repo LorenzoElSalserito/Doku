@@ -7,11 +7,11 @@ const { join } = require('node:path');
 const rootDir = process.cwd();
 const packageJson = JSON.parse(readFileSync(join(rootDir, 'package.json'), 'utf8'));
 const appVersion = packageJson.version;
-const debPath = join(rootDir, `build/desktop/Doku-${appVersion}-linux-amd64.deb`);
+const debPath = join(rootDir, `build/desktop/doku_${appVersion}_linux_amd64.deb`);
 const unpackedDir = join(rootDir, 'build/desktop/linux-unpacked');
 
 const requiredUnpackedFiles = [
-  'doku-desktop',
+  'doku',
   'resources/app.asar',
   'resources/export-runtime/printStylesheet.css',
   'resources/export-runtime/scripts/render_weasy_pdf.py',
@@ -22,7 +22,7 @@ const requiredUnpackedFiles = [
 ];
 
 const requiredDebContent = [
-  './opt/Doku/doku-desktop',
+  './opt/Doku/doku',
   './opt/Doku/resources/app.asar',
   './opt/Doku/resources/export-runtime/printStylesheet.css',
   './opt/Doku/resources/export-runtime/scripts/render_weasy_pdf.py',
@@ -30,7 +30,9 @@ const requiredDebContent = [
   './opt/Doku/resources/export-runtime/latex/bin/pandoc',
   './opt/Doku/resources/export-runtime/latex/bin/lualatex',
   './opt/Doku/resources/export-runtime/latex/share/texlive/texmf-dist/web2c/texmf.cnf',
-  './usr/share/applications/doku-desktop.desktop',
+  './usr/share/applications/doku.desktop',
+  './usr/share/doc/doku/copyright',
+  './usr/share/doc/doku/README.md',
 ];
 
 function main() {
@@ -52,7 +54,7 @@ function main() {
   checks.push(ok(`.deb size is ${formatBytes(debStats.size)}`));
 
   const controlOutput = exec('dpkg-deb', ['-I', debPath]);
-  assertIncludes(controlOutput, 'Package: doku', 'Debian control metadata contains package name');
+  assertIncludes(controlOutput, 'Package: doku\n', 'Debian control metadata contains package name');
   assertIncludes(controlOutput, `Version: ${appVersion}`, 'Debian control metadata contains version');
   assertIncludes(
     controlOutput,
