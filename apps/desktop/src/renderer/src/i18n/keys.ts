@@ -90,6 +90,8 @@ export interface Dictionary {
       closeDirtyConfirm: string;
       missingDocumentFile: string;
       reopenFromDisk: string;
+      scrollPrev: string;
+      scrollNext: string;
     };
     quickActions: {
       toggleShow: string;
@@ -115,6 +117,27 @@ export interface Dictionary {
       mermaidDiagram: string;
       markmapMindmap: string;
       chartBlock: string;
+    };
+    immersive: {
+      enter: string;
+      exit: string;
+    };
+    contentColors: {
+      button: string;
+      title: string;
+      link: string;
+      heading: string;
+      code: string;
+      quote: string;
+      reset: string;
+    };
+    previewZoom: {
+      label: string;
+      zoomIn: string;
+      zoomOut: string;
+      reset: string;
+      fitWidth: string;
+      fitPage: string;
     };
     visualBlocks: {
       loading: string;

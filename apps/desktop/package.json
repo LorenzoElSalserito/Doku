@@ -1,7 +1,7 @@
 {
   "name": "doku-desktop",
   "productName": "Doku",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "icon": "src/assets/icon.png",
   "description": "Doku is your elegant, definitive, MarkDown Editor.",

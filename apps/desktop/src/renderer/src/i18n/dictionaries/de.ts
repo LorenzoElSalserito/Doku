@@ -96,6 +96,8 @@ export const de: Dictionary = {
       closeDirtyConfirm: 'Dieses Dokument enthält ungespeicherte Änderungen. Trotzdem schließen?',
       missingDocumentFile: 'Die Datei ist auf dem Datenträger nicht mehr verfügbar.',
       reopenFromDisk: 'Vom Datenträger erneut öffnen',
+      scrollPrev: 'Tabs nach links scrollen',
+      scrollNext: 'Tabs nach rechts scrollen',
     },
     quickActions: {
       toggleShow: 'Schnellaktionen anzeigen',
@@ -121,6 +123,27 @@ export const de: Dictionary = {
       mermaidDiagram: 'Diagramm',
       markmapMindmap: 'Mindmap',
       chartBlock: 'Diagramm',
+    },
+    immersive: {
+      enter: 'Immersiver Modus',
+      exit: 'Immersiven Modus beenden',
+    },
+    contentColors: {
+      button: 'Farben',
+      title: 'Inhaltsfarben',
+      link: 'Links',
+      heading: 'Überschriften',
+      code: 'Codeblöcke',
+      quote: 'Zitate',
+      reset: 'Zurücksetzen',
+    },
+    previewZoom: {
+      label: 'Vorschau-Zoom',
+      zoomIn: 'Vergrößern',
+      zoomOut: 'Verkleinern',
+      reset: 'Zoom zurücksetzen',
+      fitWidth: 'Breite anpassen',
+      fitPage: 'Höhe anpassen',
     },
     visualBlocks: {
       loading: 'Visueller Block lädt…',

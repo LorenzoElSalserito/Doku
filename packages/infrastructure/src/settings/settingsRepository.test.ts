@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  DEFAULT_CONTENT_COLORS,
   DEFAULT_SETTINGS,
   buildUnifiedDokuTypography,
   type Settings,
@@ -296,6 +297,28 @@ describe('SettingsRepository', () => {
     expect(final.firstRunCompleted).toBe(true);
     expect(final.typography.uiFontFamily).toBe('Lora');
     expect(final.customTheme.focusRing).toBe(DEFAULT_SETTINGS.customTheme.focusRing);
+  });
+
+  it('fills contentColors with defaults for files predating the field', async () => {
+    const settingsPath = join(tempDir, 'settings.json');
+    const { contentColors: _omitted, ...rest } = DEFAULT_SETTINGS;
+    await writeFile(settingsPath, JSON.stringify(rest, null, 2), 'utf-8');
+
+    const repo = makeRepo();
+    const recovered = await repo.read();
+
+    expect(recovered.contentColors).toEqual(DEFAULT_CONTENT_COLORS);
+    // A persisted override round-trips intact.
+    const updated = await repo.update({
+      contentColors: { link: '#FF0000', heading: null, code: null, quote: '#102030' },
+    });
+    expect(updated.contentColors.link).toBe('#FF0000');
+    expect(updated.contentColors.quote).toBe('#102030');
+
+    const repo2 = makeRepo();
+    const reloaded = await repo2.read();
+    expect(reloaded.contentColors.link).toBe('#FF0000');
+    expect(reloaded.contentColors.quote).toBe('#102030');
   });
 
   it('recovers gracefully when a single field has an invalid value (e.g. retired enum)', async () => {

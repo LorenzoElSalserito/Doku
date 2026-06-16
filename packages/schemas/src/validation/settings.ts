@@ -49,6 +49,23 @@ export const DEFAULT_CUSTOM_THEME: CustomTheme = {
   focusRing: '#66CBF5',
 };
 
+const NullableHexColorSchema = HexColorSchema.nullable();
+
+export const ContentColorsSchema = z.object({
+  link: NullableHexColorSchema.default(null),
+  heading: NullableHexColorSchema.default(null),
+  code: NullableHexColorSchema.default(null),
+  quote: NullableHexColorSchema.default(null),
+});
+export type ContentColors = z.infer<typeof ContentColorsSchema>;
+
+export const DEFAULT_CONTENT_COLORS: ContentColors = {
+  link: null,
+  heading: null,
+  code: null,
+  quote: null,
+};
+
 export const DocumentKindSchema = z.enum(['file', 'draft']);
 export type DocumentKind = z.infer<typeof DocumentKindSchema>;
 
@@ -202,6 +219,7 @@ export const SettingsSchema = z.object({
   theme: ThemePreferenceSchema,
   appZoom: AppZoomSchema,
   customTheme: CustomThemeSchema,
+  contentColors: ContentColorsSchema.default(DEFAULT_CONTENT_COLORS),
   typography: DokuTypographySchema,
   writingFontFamily: z.string().min(1).nullable(),
   workspaceQuickActionsVisible: z.boolean(),
@@ -220,6 +238,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   appZoom: 100,
   customTheme: DEFAULT_CUSTOM_THEME,
+  contentColors: DEFAULT_CONTENT_COLORS,
   typography: DEFAULT_DOKU_TYPOGRAPHY,
   writingFontFamily: null,
   workspaceQuickActionsVisible: false,

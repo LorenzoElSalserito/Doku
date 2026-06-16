@@ -4,6 +4,7 @@ export type {
   AppZoom,
   ThemeBase,
   CustomTheme,
+  ContentColors,
   DefaultAppPrompt,
   Settings,
   SettingsPatch,
@@ -28,6 +29,7 @@ export type {
 
 export {
   DEFAULT_CUSTOM_THEME,
+  DEFAULT_CONTENT_COLORS,
   DEFAULT_WORKSPACE_LAYOUT,
   DOKU_FONT_CATALOG,
   DOKU_FONT_PROFILES,

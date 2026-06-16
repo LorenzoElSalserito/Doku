@@ -129,6 +129,214 @@ describe('Workspace', () => {
     expect(screen.getByRole('button', { name: 'Bold' })).toBeInTheDocument();
   });
 
+  it('toggles immersive reading mode on the preview pane', async () => {
+    const user = userEvent.setup();
+
+    const view = renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    const root = view.container.querySelector('.workspace');
+    expect(root).not.toBeNull();
+    expect(root).not.toHaveClass('workspace--immersive');
+
+    await user.click(await screen.findByRole('button', { name: 'Immersive mode' }));
+
+    expect(root).toHaveClass('workspace--immersive');
+    expect(screen.getByRole('button', { name: 'Exit immersive mode' })).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    expect(root).not.toHaveClass('workspace--immersive');
+    expect(screen.getByRole('button', { name: 'Immersive mode' })).toBeInTheDocument();
+  });
+
+  it('applies content colors from the quick actions popover', async () => {
+    const user = userEvent.setup();
+    const onUpdate = vi.fn<(patch: SettingsPatch) => Promise<void>>().mockResolvedValue(undefined);
+
+    const view = renderWorkspace({
+      onUpdate,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+        workspaceQuickActionsVisible: true,
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Colors' }));
+
+    const popover = screen.getByRole('dialog', { name: 'Content colors' });
+    fireEvent.change(within(popover).getByLabelText('Links'), {
+      target: { value: '#ff0000' },
+    });
+
+    expect(onUpdate).toHaveBeenCalledWith({
+      contentColors: { link: '#FF0000', heading: null, code: null, quote: null },
+    });
+
+    const previewPane = view.container.querySelector('.workspace__editor-pane--preview');
+    expect(previewPane?.getAttribute('style')).toContain('--content-color-link: #FF0000');
+  });
+
+  it('separates panel toggles and the view switcher into distinct button groups', async () => {
+    const view = renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    const panelsGroup = view.container.querySelector('.workspace__action-group--panels');
+    const viewGroup = view.container.querySelector('.workspace__action-group--view');
+    expect(panelsGroup).not.toBeNull();
+    expect(viewGroup).not.toBeNull();
+    // The old combined layout group (panels + nested view sub-group) is gone.
+    expect(view.container.querySelector('.workspace__action-group--layout')).toBeNull();
+    // The view switcher lives only in the view group.
+    expect((viewGroup as HTMLElement).querySelectorAll('.doku-segmented__option').length).toBeGreaterThan(0);
+    expect((panelsGroup as HTMLElement).querySelectorAll('.doku-segmented__option').length).toBe(0);
+  });
+
+  it('renders document tabs in the header with scroll navigation hidden until overflow', async () => {
+    const view = renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    await screen.findByRole('tab', { name: 'chapter-1' });
+
+    const header = view.container.querySelector('.workspace__header');
+    const tablist = screen.getByRole('tablist', { name: 'Open documents' });
+    expect(header?.contains(tablist)).toBe(true);
+
+    // The editor card no longer hosts the tab strip.
+    const editorCard = view.container.querySelector('.workspace__editor-card');
+    expect(editorCard?.querySelector('[role="tablist"]')).toBeNull();
+
+    // Scroll arrows exist but stay hidden while the tabs fit.
+    const navButtons = view.container.querySelectorAll('.workspace-tabs__nav');
+    expect(navButtons.length).toBe(2);
+    navButtons.forEach((button) => {
+      expect(button).toHaveAttribute('hidden');
+    });
+  });
+
+  it('zooms the preview page from the floating zoom bar', async () => {
+    const user = userEvent.setup();
+    const view = renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+        workspaceViewMode: 'preview',
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    const zoomBar = screen.getByRole('group', { name: 'Preview zoom' });
+    const valueButton = () => within(zoomBar).getByRole('button', { name: 'Reset zoom' });
+    expect(valueButton()).toHaveTextContent('100%');
+
+    await user.click(within(zoomBar).getByRole('button', { name: 'Zoom in' }));
+
+    expect(valueButton()).toHaveTextContent('110%');
+    const zoomWrapper = view.container.querySelector('.workspace__preview-zoom');
+    expect(zoomWrapper?.getAttribute('style')).toContain('zoom: 1.1');
+
+    // Fixed fit values: width -> 190%, length -> 75%.
+    await user.click(within(zoomBar).getByRole('button', { name: 'Fit width' }));
+    expect(valueButton()).toHaveTextContent('190%');
+    expect(
+      view.container.querySelector('.workspace__preview-zoom')?.getAttribute('style'),
+    ).toContain('zoom: 1.9');
+
+    await user.click(within(zoomBar).getByRole('button', { name: 'Fit height' }));
+    expect(valueButton()).toHaveTextContent('75%');
+    expect(
+      view.container.querySelector('.workspace__preview-zoom')?.getAttribute('style'),
+    ).toContain('zoom: 0.75');
+  });
+
+  it('resets zoom on single click and edits it manually on double click', async () => {
+    const user = userEvent.setup();
+    const view = renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+        workspaceViewMode: 'preview',
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    const zoomBar = screen.getByRole('group', { name: 'Preview zoom' });
+    await user.click(within(zoomBar).getByRole('button', { name: 'Fit width' }));
+    expect(within(zoomBar).getByRole('button', { name: 'Reset zoom' })).toHaveTextContent('190%');
+
+    // Single click restores 100% (after the click-vs-double-click delay).
+    await user.click(within(zoomBar).getByRole('button', { name: 'Reset zoom' }));
+    await waitFor(() => {
+      expect(within(zoomBar).getByRole('button', { name: 'Reset zoom' })).toHaveTextContent('100%');
+    });
+
+    // Double click switches to a manual numeric field.
+    await user.dblClick(within(zoomBar).getByRole('button', { name: 'Reset zoom' }));
+    const field = within(zoomBar).getByRole('spinbutton', { name: 'Preview zoom' });
+    await user.clear(field);
+    await user.type(field, '150');
+    fireEvent.blur(field);
+
+    await waitFor(() => {
+      expect(within(zoomBar).getByRole('button', { name: 'Reset zoom' })).toHaveTextContent('150%');
+    });
+    expect(
+      view.container.querySelector('.workspace__preview-zoom')?.getAttribute('style'),
+    ).toContain('zoom: 1.5');
+  });
+
+  it('offers the immersive toggle in write view without the zoom bar', async () => {
+    renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+        workspaceViewMode: 'write',
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    expect(await screen.findByRole('button', { name: 'Immersive mode' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Preview zoom' })).not.toBeInTheDocument();
+  });
+
   it('routes quick actions through the monaco imperative API', async () => {
     const user = userEvent.setup();
 
@@ -915,11 +1123,12 @@ describe('Workspace', () => {
       </I18nProvider>,
     );
 
-    await screen.findByRole('tab', { name: longTitle });
-    const titleLabel = view.container.querySelector('.workspace__document-heading');
-    expect(titleLabel).not.toBeNull();
-    expect(titleLabel).toHaveClass('workspace__document-heading');
-    expect(titleLabel).toHaveAttribute('title', longTitle);
+    const activeTab = await screen.findByRole('tab', { name: longTitle });
+    // The standalone header heading was removed: the document title now lives
+    // only in the active tab box at the top of the editor.
+    expect(activeTab).toHaveAttribute('aria-selected', 'true');
+    expect(activeTab).toHaveAttribute('title', longTitle);
+    expect(view.container.querySelector('.workspace__document-heading')).toBeNull();
     expect(screen.queryByText('Home')).not.toBeInTheDocument();
     expect(screen.queryByText('Workspace')).not.toBeInTheDocument();
     expect(screen.queryByText('Markdown file')).not.toBeInTheDocument();

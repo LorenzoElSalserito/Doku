@@ -22,6 +22,7 @@ The result is a desktop Markdown editor that feels closer to a digital editorial
 - **No account required**: Doku does not need a login, cloud workspace or remote service to support the core writing flow.
 - **Markdown-native**: write in plain `.md`, keep portable files, avoid lock-in.
 - **Editorial workspace**: write, preview and split modes are designed for long-form focus, with a page-like preview that feels close to the final printed result.
+- **Comfort and focus controls**: top tabs for your open documents, an adjustable and centered preview zoom, an immersive distraction-free mode, scrollable side panels and personalizable preview colors.
 - **Integrated guidance**: product help and Markdown guidance are available inside the app, so you do not need to leave your writing context.
 - **Beautiful light and dark themes**: Warm Ivory and Deep Slate are treated as two first-class editorial identities.
 - **Bundled typography and app zoom**: Doku ships its font catalog with the app and offers 75%, 100%, 125% and 150% interface zoom without requiring system font installation.
@@ -48,6 +49,37 @@ After the first real file save, Doku can suggest opening the system default-app 
 Visual preference changes such as zoom, theme and typography show a restart notice, making the application of layout-sensitive changes explicit instead of silently destabilizing the workspace.
 
 The integrated Guide Center includes product help, shortcuts and Markdown reference material with examples, so the app can teach without interrupting.
+
+## Reading, Focus And Personalization
+
+The workspace adapts to how you want to read and write at any moment.
+
+- **Document tabs at the top**: every open Markdown file gets its own tab across the top of the editor. Tabs gently shrink to make room as you open more documents, and when there are too many to fit, side arrows let you scroll through them. The title of the document you are editing always stays visible on its active tab.
+- **More room to write**: the bars around the workspace are slimmer and the editor sits closer to the top, giving your text more breathing space.
+- **Scrollable side panels**: the left workspace panel and the right information panel scroll on their own, so their content stays reachable even on smaller windows.
+- **Immersive mode**: a discreet button in the bottom corner of the editor and preview hides the top bars and side panels for distraction-free reading or writing. It stays almost transparent until you move the pointer over it, and pressing it again — or the Esc key — brings everything back exactly as it was.
+
+### Preview Zoom
+
+Pure Preview mode shows your document as a centered page. A quiet zoom bar sits along the bottom of the page and fades out of the way until you need it:
+
+- **Fit width** scales the page to fill the reading area.
+- **Fit length** zooms out so the whole page fits in view.
+- A **slider** lets you set any zoom between 50% and 300%.
+- The **percentage** is also a quick control: a single click returns to 100%, and a double click lets you type an exact value.
+
+The page stays centered at every zoom level, and a horizontal scrollbar only appears when you zoom in past the width of the view.
+
+### Content Colors
+
+From the quick actions bar, a **Colors** button opens a small panel where you can personalize how key parts of your preview look:
+
+- hyperlink color,
+- heading color,
+- code block background,
+- quote background.
+
+Your choices apply to the live preview in every theme, and a single reset returns any element to its default.
 
 ## Privacy And Local Data
 

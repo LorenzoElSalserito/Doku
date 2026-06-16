@@ -8,11 +8,13 @@ import {
   useState,
   Suspense,
   forwardRef,
+  type CSSProperties,
   type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import { Button, Card, IconButton, Input, SegmentedControl, type SegmentedOption } from '@doku/ui';
 import type {
+  ContentColors,
   DocumentSession,
   DocumentSummary,
   Settings,
@@ -30,6 +32,7 @@ import {
   type MarkdownActionId,
 } from './markdownActions.js';
 import { WorkspaceExplorer } from './WorkspaceExplorer.js';
+import { ContentColorsControl } from './ContentColorsControl.js';
 
 const MonacoEditor = lazy(async () => {
   logWorkspaceEvent('monaco-module-load-started');
@@ -76,6 +79,11 @@ const LEFT_MIN = 220;
 const LEFT_MAX = 420;
 const RIGHT_MIN = 260;
 const RIGHT_MAX = 520;
+const PREVIEW_ZOOM_MIN = 0.5;
+const PREVIEW_ZOOM_MAX = 3;
+const PREVIEW_ZOOM_STEP = 0.1;
+const PREVIEW_FIT_WIDTH_ZOOM = 1.9;
+const PREVIEW_FIT_LENGTH_ZOOM = 0.75;
 const RESIZE_KEYBOARD_STEP = 24;
 const MONACO_READY_TIMEOUT_MS = 10000;
 
@@ -108,6 +116,12 @@ export function Workspace({
   const [quickActionsVisible, setQuickActionsVisible] = useState(
     settings.workspaceQuickActionsVisible,
   );
+  const [immersive, setImmersive] = useState(false);
+  const [contentColors, setContentColors] = useState<ContentColors>(settings.contentColors);
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [zoomEditing, setZoomEditing] = useState(false);
+  const [zoomDraft, setZoomDraft] = useState('');
+  const zoomClickTimerRef = useRef<number | null>(null);
   const [activeSummary, setActiveSummary] = useState<DocumentSummary | null>(null);
   const [draftRequestId, setDraftRequestId] = useState<string | null>(() =>
     initialTabs.length === 0 ? createDraftDocumentId() : null,
@@ -183,6 +197,10 @@ export function Workspace({
   useEffect(() => {
     setQuickActionsVisible(settings.workspaceQuickActionsVisible);
   }, [settings.workspaceQuickActionsVisible]);
+
+  useEffect(() => {
+    setContentColors(settings.contentColors);
+  }, [settings.contentColors]);
 
   useEffect(() => {
     tabsRef.current = tabs;
@@ -1024,7 +1042,6 @@ export function Workspace({
   const characters = previewContent.length;
   const exportTitle = resolveDocumentExportTitle(document);
   const documentTitleValue = exportTitle ?? '';
-  const documentHeaderTitle = documentTitleValue || dict.workspace.documentTitlePlaceholder;
   const recentDocuments = useMemo(
     () =>
       settings.launcher.recentDocuments
@@ -1110,6 +1127,123 @@ export function Workspace({
     logWorkspaceEvent('workspace-quick-actions-toggled', { visible: nextVisible });
     void onUpdate({ workspaceQuickActionsVisible: nextVisible });
   }, [onUpdate, quickActionsVisible]);
+
+  const handleContentColorsChange = useCallback(
+    (next: ContentColors) => {
+      setContentColors(next);
+      logWorkspaceEvent('workspace-content-colors-changed', {
+        link: next.link,
+        heading: next.heading,
+        code: next.code,
+        quote: next.quote,
+      });
+      void onUpdate({ contentColors: next });
+    },
+    [onUpdate],
+  );
+
+  const contentColorStyle = useMemo<CSSProperties>(() => {
+    const style: Record<string, string> = {};
+    if (contentColors.link) {
+      style['--content-color-link'] = contentColors.link;
+    }
+    if (contentColors.heading) {
+      style['--content-color-heading'] = contentColors.heading;
+    }
+    if (contentColors.code) {
+      style['--content-color-code-bg'] = contentColors.code;
+    }
+    if (contentColors.quote) {
+      style['--content-color-quote-bg'] = contentColors.quote;
+    }
+    return style as CSSProperties;
+  }, [contentColors]);
+
+  const adjustPreviewZoom = useCallback((delta: number) => {
+    setPreviewZoom((current) =>
+      roundZoom(clamp(current + delta, PREVIEW_ZOOM_MIN, PREVIEW_ZOOM_MAX)),
+    );
+  }, []);
+
+  const setPreviewZoomValue = useCallback((value: number) => {
+    if (!Number.isFinite(value)) {
+      return;
+    }
+    setPreviewZoom(roundZoom(clamp(value, PREVIEW_ZOOM_MIN, PREVIEW_ZOOM_MAX)));
+  }, []);
+
+  const handleZoomValueClick = useCallback(() => {
+    // Defer the single-click reset so a double-click (manual entry) can cancel it.
+    if (zoomClickTimerRef.current !== null) {
+      window.clearTimeout(zoomClickTimerRef.current);
+    }
+    zoomClickTimerRef.current = window.setTimeout(() => {
+      zoomClickTimerRef.current = null;
+      setPreviewZoom(1);
+      logWorkspaceEvent('workspace-preview-zoom-reset');
+    }, 220);
+  }, []);
+
+  const handleZoomValueDoubleClick = useCallback(() => {
+    if (zoomClickTimerRef.current !== null) {
+      window.clearTimeout(zoomClickTimerRef.current);
+      zoomClickTimerRef.current = null;
+    }
+    setZoomDraft(String(Math.round(previewZoom * 100)));
+    setZoomEditing(true);
+  }, [previewZoom]);
+
+  const commitZoomDraft = useCallback(() => {
+    const parsed = Number(zoomDraft);
+    if (Number.isFinite(parsed) && zoomDraft.trim() !== '') {
+      setPreviewZoom(roundZoom(clamp(parsed / 100, PREVIEW_ZOOM_MIN, PREVIEW_ZOOM_MAX)));
+    }
+    setZoomEditing(false);
+  }, [zoomDraft]);
+
+  useEffect(() => {
+    return () => {
+      if (zoomClickTimerRef.current !== null) {
+        window.clearTimeout(zoomClickTimerRef.current);
+      }
+    };
+  }, []);
+
+  const fitPreview = useCallback(
+    (mode: 'width' | 'length') => {
+      const nextZoom = mode === 'width' ? PREVIEW_FIT_WIDTH_ZOOM : PREVIEW_FIT_LENGTH_ZOOM;
+      setPreviewZoom(nextZoom);
+      logWorkspaceEvent('workspace-preview-zoom-fit', { mode, zoom: nextZoom });
+    },
+    [],
+  );
+
+  const toggleImmersive = useCallback(() => {
+    setImmersive((current) => {
+      const next = !current;
+      logWorkspaceEvent('workspace-immersive-toggled', { immersive: next });
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!immersive) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setImmersive(false);
+        logWorkspaceEvent('workspace-immersive-toggled', { immersive: false });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [immersive]);
 
   const handleActivateTab = useCallback((tabId: string) => {
     setActiveTabId(tabId);
@@ -1616,8 +1750,21 @@ export function Workspace({
     [dict.workspace, document?.path, setActiveTabErrorMessage, setActiveTabSaveState],
   );
 
+  const renderImmersiveToggle = () => (
+    <button
+      type="button"
+      className="workspace__immersive-toggle"
+      aria-pressed={immersive}
+      title={immersive ? dict.workspace.immersive.exit : dict.workspace.immersive.enter}
+      aria-label={immersive ? dict.workspace.immersive.exit : dict.workspace.immersive.enter}
+      onClick={toggleImmersive}
+    >
+      {immersive ? <ImmersiveExitIcon /> : <ImmersiveEnterIcon />}
+    </button>
+  );
+
   return (
-    <div className="workspace">
+    <div className={immersive ? 'workspace workspace--immersive' : 'workspace'}>
       <div className="workspace__topbar">
         <header className="workspace__header">
           <FileMenu
@@ -1628,15 +1775,21 @@ export function Workspace({
             onSelectRecent={handleSelectRecent}
           />
 
-          <div className="workspace__header-main">
-            <h1 className="workspace__document-heading" title={documentHeaderTitle}>
-              {documentHeaderTitle}
-            </h1>
+          <div className="workspace__header-tabs">
+            <DocumentTabs
+              tabs={tabs}
+              activeTabId={activeTabId}
+              labels={dict.workspace.tabs}
+              onActivate={handleActivateTab}
+              onClose={handleCloseTab}
+              onReorder={handleReorderTabs}
+              onReopenFromDisk={handleReopenTabFromDisk}
+            />
           </div>
 
           <div className="workspace__header-side">
             <div className="workspace__header-actions">
-              <div className="workspace__action-group workspace__action-group--layout">
+              <div className="workspace__action-group workspace__action-group--panels">
                 <IconButton
                   label={
                     workspace.leftPanelCollapsed
@@ -1673,6 +1826,9 @@ export function Workspace({
                 >
                   <PanelRightIcon />
                 </IconButton>
+              </div>
+
+              <div className="workspace__action-group workspace__action-group--view">
                 <SegmentedControl
                   value={viewMode}
                   options={viewOptions}
@@ -1751,6 +1907,11 @@ export function Workspace({
                   <MarkdownActionIcon actionId={action.id} />
                 </Button>
               ))}
+              <ContentColorsControl
+                labels={dict.workspace.contentColors}
+                colors={contentColors}
+                onChange={handleContentColorsChange}
+              />
             </div>
 
             <div className="workspace__quick-actions-table">
@@ -1831,15 +1992,6 @@ export function Workspace({
 
         <main className="workspace__editor" id="workspace-editor" tabIndex={-1}>
           <Card elevated className="workspace__editor-card">
-            <DocumentTabs
-              tabs={tabs}
-              activeTabId={activeTabId}
-              labels={dict.workspace.tabs}
-              onActivate={handleActivateTab}
-              onClose={handleCloseTab}
-              onReorder={handleReorderTabs}
-              onReopenFromDisk={handleReopenTabFromDisk}
-            />
             {loadState === 'loading' ? (
               <div className="workspace__editor-loading">{dict.workspace.editorLoading}</div>
             ) : loadState === 'missing' || loadState === 'error' ? (
@@ -1901,6 +2053,7 @@ export function Workspace({
                           />
                         </Suspense>
                       )}
+                      {viewMode === 'write' ? renderImmersiveToggle() : null}
                     </section>
                   )}
 
@@ -1909,23 +2062,125 @@ export function Workspace({
                       className={`workspace__editor-pane workspace__editor-pane--preview${
                         viewMode === 'preview' ? ' workspace__editor-pane--preview-page' : ''
                       }`}
+                      style={contentColorStyle}
                     >
                       <div
                         ref={previewScrollRef}
                         className="workspace__preview-scroll"
                         onWheel={handlePreviewWheel}
                       >
-                        <MarkdownPreview
-                          content={previewContent}
-                          sourcePath={document?.path}
-                          emptyLabel={dict.workspace.previewEmpty}
-                          visualLabels={{
-                            loading: dict.workspace.visualBlocks.loading,
-                            fallback: dict.workspace.visualBlocks.fallback,
-                            errorTitle: dict.workspace.visualBlocks.errorTitle,
-                          }}
-                        />
+                        <div
+                          className="workspace__preview-zoom"
+                          style={
+                            viewMode === 'preview'
+                              ? ({ zoom: previewZoom } as CSSProperties)
+                              : undefined
+                          }
+                        >
+                          <MarkdownPreview
+                            content={previewContent}
+                            sourcePath={document?.path}
+                            emptyLabel={dict.workspace.previewEmpty}
+                            visualLabels={{
+                              loading: dict.workspace.visualBlocks.loading,
+                              fallback: dict.workspace.visualBlocks.fallback,
+                              errorTitle: dict.workspace.visualBlocks.errorTitle,
+                            }}
+                          />
+                        </div>
                       </div>
+                      {viewMode === 'preview' ? (
+                        <div
+                          className="workspace__preview-zoom-bar"
+                          role="group"
+                          aria-label={dict.workspace.previewZoom.label}
+                        >
+                          <button
+                            type="button"
+                            className="workspace__preview-zoom-fit"
+                            title={dict.workspace.previewZoom.fitWidth}
+                            aria-label={dict.workspace.previewZoom.fitWidth}
+                            onClick={() => fitPreview('width')}
+                          >
+                            <FitWidthIcon />
+                          </button>
+                          <button
+                            type="button"
+                            className="workspace__preview-zoom-fit"
+                            title={dict.workspace.previewZoom.fitPage}
+                            aria-label={dict.workspace.previewZoom.fitPage}
+                            onClick={() => fitPreview('length')}
+                          >
+                            <FitPageIcon />
+                          </button>
+                          <span className="workspace__preview-zoom-divider" aria-hidden />
+                          <button
+                            type="button"
+                            className="workspace__preview-zoom-step"
+                            title={dict.workspace.previewZoom.zoomOut}
+                            aria-label={dict.workspace.previewZoom.zoomOut}
+                            disabled={previewZoom <= PREVIEW_ZOOM_MIN}
+                            onClick={() => adjustPreviewZoom(-PREVIEW_ZOOM_STEP)}
+                          >
+                            −
+                          </button>
+                          <input
+                            type="range"
+                            className="workspace__preview-zoom-slider"
+                            min={PREVIEW_ZOOM_MIN}
+                            max={PREVIEW_ZOOM_MAX}
+                            step={0.05}
+                            value={previewZoom}
+                            aria-label={dict.workspace.previewZoom.label}
+                            onChange={(event) => setPreviewZoomValue(Number(event.target.value))}
+                          />
+                          <button
+                            type="button"
+                            className="workspace__preview-zoom-step"
+                            title={dict.workspace.previewZoom.zoomIn}
+                            aria-label={dict.workspace.previewZoom.zoomIn}
+                            disabled={previewZoom >= PREVIEW_ZOOM_MAX}
+                            onClick={() => adjustPreviewZoom(PREVIEW_ZOOM_STEP)}
+                          >
+                            +
+                          </button>
+                          {zoomEditing ? (
+                            <input
+                              type="number"
+                              className="workspace__preview-zoom-input"
+                              min={PREVIEW_ZOOM_MIN * 100}
+                              max={PREVIEW_ZOOM_MAX * 100}
+                              step={5}
+                              value={zoomDraft}
+                              autoFocus
+                              aria-label={dict.workspace.previewZoom.label}
+                              onChange={(event) => setZoomDraft(event.target.value)}
+                              onBlur={commitZoomDraft}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.preventDefault();
+                                  commitZoomDraft();
+                                } else if (event.key === 'Escape') {
+                                  event.preventDefault();
+                                  setZoomEditing(false);
+                                }
+                              }}
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              className="workspace__preview-zoom-value"
+                              title={dict.workspace.previewZoom.reset}
+                              aria-label={dict.workspace.previewZoom.reset}
+                              onClick={handleZoomValueClick}
+                              onDoubleClick={handleZoomValueDoubleClick}
+                            >
+                              {Math.round(previewZoom * 100)}%
+                            </button>
+                          )}
+                        </div>
+                      ) : null}
+                      {renderImmersiveToggle()}
                     </section>
                   )}
                 </div>
@@ -2237,7 +2492,20 @@ function DocumentTabs({
 }: DocumentTabsProps) {
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
   const [dropTargetTabId, setDropTargetTabId] = useState<string | null>(null);
+  const [canScrollPrev, setCanScrollPrev] = useState(false);
+  const [canScrollNext, setCanScrollNext] = useState(false);
   const tabRefs = useRef(new Map<string, HTMLDivElement>());
+  const stripRef = useRef<HTMLDivElement | null>(null);
+
+  const updateScrollState = useCallback(() => {
+    const strip = stripRef.current;
+    if (!strip) {
+      return;
+    }
+    const maxScroll = strip.scrollWidth - strip.clientWidth;
+    setCanScrollPrev(strip.scrollLeft > 1);
+    setCanScrollNext(maxScroll > 1 && strip.scrollLeft < maxScroll - 1);
+  }, []);
 
   useEffect(() => {
     if (!activeTabId) {
@@ -2256,13 +2524,50 @@ function DocumentTabs({
     });
   }, [activeTabId]);
 
+  useEffect(() => {
+    updateScrollState();
+    const strip = stripRef.current;
+    if (!strip || typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+    const observer = new ResizeObserver(() => updateScrollState());
+    observer.observe(strip);
+    return () => observer.disconnect();
+  }, [tabs.length, updateScrollState]);
+
+  const scrollByStep = useCallback((direction: -1 | 1) => {
+    const strip = stripRef.current;
+    if (!strip || typeof strip.scrollBy !== 'function') {
+      return;
+    }
+    strip.scrollBy({ left: direction * Math.max(strip.clientWidth * 0.7, 160), behavior: 'smooth' });
+  }, []);
+
   if (tabs.length === 0) {
     return null;
   }
 
   return (
-    <div className="workspace-tabs" role="tablist" aria-label={labels.label}>
-      {tabs.map((tab) => {
+    <div className="workspace-tabs-bar">
+      <button
+        type="button"
+        className="workspace-tabs__nav workspace-tabs__nav--prev"
+        aria-label={labels.scrollPrev}
+        title={labels.scrollPrev}
+        hidden={!canScrollPrev}
+        tabIndex={canScrollPrev ? 0 : -1}
+        onClick={() => scrollByStep(-1)}
+      >
+        <TabScrollIcon direction="prev" />
+      </button>
+      <div
+        ref={stripRef}
+        className="workspace-tabs"
+        role="tablist"
+        aria-label={labels.label}
+        onScroll={updateScrollState}
+      >
+        {tabs.map((tab) => {
         const title = tab.document
           ? resolveDocumentTabTitle(tab.document)
           : (tab.summary?.title ?? '...');
@@ -2375,7 +2680,33 @@ function DocumentTabs({
           </div>
         );
       })}
+      </div>
+      <button
+        type="button"
+        className="workspace-tabs__nav workspace-tabs__nav--next"
+        aria-label={labels.scrollNext}
+        title={labels.scrollNext}
+        hidden={!canScrollNext}
+        tabIndex={canScrollNext ? 0 : -1}
+        onClick={() => scrollByStep(1)}
+      >
+        <TabScrollIcon direction="next" />
+      </button>
     </div>
+  );
+}
+
+function TabScrollIcon({ direction }: { direction: 'prev' | 'next' }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d={direction === 'prev' ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6'}
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -2442,6 +2773,10 @@ function ResizeHandle({ side, onPointerDown, onKeyboardResize }: ResizeHandlePro
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+function roundZoom(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function countWords(value: string): number {
@@ -2958,6 +3293,64 @@ function PanelRightIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M4 5h16v14H4z" stroke="currentColor" strokeWidth="1.6" />
       <path d="M15 5v14" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
+function ImmersiveEnterIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ImmersiveExitIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function FitWidthIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="4" y="7" width="16" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        d="M8 12h8M8 12l2-2M8 12l2 2M16 12l-2-2M16 12l-2 2"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function FitPageIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="6" y="3" width="12" height="18" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        d="M12 8v8M12 8l-2 2M12 8l2 2M12 16l-2-2M12 16l2-2"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
