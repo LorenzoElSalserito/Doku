@@ -139,6 +139,10 @@ export interface Dictionary {
       fitWidth: string;
       fitPage: string;
     };
+    previewInvert: {
+      invert: string;
+      restore: string;
+    };
     visualBlocks: {
       loading: string;
       fallback: string;

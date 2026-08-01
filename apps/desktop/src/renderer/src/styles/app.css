@@ -1910,7 +1910,9 @@
   min-height: 1123px;
   max-width: none;
   gap: 0;
-  padding: 20mm 18mm 22mm;
+  /* Same geometry as a recto page in printStylesheet.css: 20mm top, 18mm
+     bottom, 26mm binding gutter on the inner edge, 16mm on the outer one. */
+  padding: 20mm 16mm 18mm 26mm;
   background: #ffffff;
   color: #1a1816;
   font-family: var(--font-serif);
@@ -2062,17 +2064,24 @@
   border-color: #d9d3ca;
   border-radius: 0;
   background: #ffffff;
+  /* The printed page has no scrollbars: wide tables shrink to the text column
+     exactly like they do in the exported PDF. */
+  overflow-x: visible;
 }
 
 .workspace__editor-pane--preview-page .markdown-preview__table {
   color: #5f5953;
   font-size: 0.95em;
+  table-layout: auto;
 }
 
 .workspace__editor-pane--preview-page .markdown-preview__table th,
 .workspace__editor-pane--preview-page .markdown-preview__table td {
   border-bottom-color: #d9d3ca;
   padding: 0.45rem 0.6rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .workspace__editor-pane--preview-page .markdown-preview__table th {
@@ -2122,6 +2131,94 @@
   max-width: 100%;
   border-radius: 0;
   box-shadow: none;
+}
+
+/* Inverted preview: swaps the printed page's paper/ink colours for reading in
+   the dark. Images and visual blocks keep their own colours on purpose. */
+.workspace__editor-pane--preview-page.workspace__editor-pane--preview-inverted {
+  --preview-invert-paper: #12110f;
+  --preview-invert-ink: #f1ede7;
+  --preview-invert-ink-soft: #c3bcb2;
+  --preview-invert-border: #3a352e;
+  --preview-invert-code-bg: #22201c;
+  --preview-invert-quote-bg: #14262c;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-base) 82%, #000000), var(--color-base)),
+    var(--color-base);
+}
+
+.workspace__editor-pane--preview-inverted .markdown-preview {
+  background: var(--preview-invert-paper);
+  color: var(--preview-invert-ink);
+}
+
+.workspace__editor-pane--preview-page.workspace__editor-pane--preview-inverted
+  .markdown-preview__heading {
+  color: var(--content-color-heading, var(--preview-invert-ink));
+}
+
+.workspace__editor-pane--preview-page.workspace__editor-pane--preview-inverted
+  .markdown-preview__heading--2 {
+  border-bottom-color: var(--preview-invert-border);
+}
+
+.workspace__editor-pane--preview-page.workspace__editor-pane--preview-inverted
+  .markdown-preview__paragraph,
+.workspace__editor-pane--preview-page.workspace__editor-pane--preview-inverted
+  .markdown-preview__list,
+.workspace__editor-pane--preview-page.workspace__editor-pane--preview-inverted
+  .markdown-preview__quote,
+.workspace__editor-pane--preview-page.workspace__editor-pane--preview-inverted
+  .markdown-preview__code,
+.workspace__editor-pane--preview-page.workspace__editor-pane--preview-inverted
+  .markdown-preview__table-wrap {
+  color: var(--preview-invert-ink-soft);
+}
+
+.workspace__editor-pane--preview-page.workspace__editor-pane--preview-inverted
+  .markdown-preview__quote {
+  background: var(--content-color-quote-bg, var(--preview-invert-quote-bg));
+}
+
+.workspace__editor-pane--preview-page.workspace__editor-pane--preview-inverted
+  .markdown-preview__code,
+.workspace__editor-pane--preview-inverted .markdown-preview__inline-code {
+  background: var(--content-color-code-bg, var(--preview-invert-code-bg));
+  color: var(--preview-invert-ink);
+}
+
+.workspace__editor-pane--preview-page.workspace__editor-pane--preview-inverted
+  .markdown-preview__table-wrap,
+.workspace__editor-pane--preview-page.workspace__editor-pane--preview-inverted
+  .markdown-preview__table th,
+.workspace__editor-pane--preview-page.workspace__editor-pane--preview-inverted
+  .markdown-preview__table td {
+  border-color: var(--preview-invert-border);
+}
+
+.workspace__editor-pane--preview-page.workspace__editor-pane--preview-inverted
+  .markdown-preview__table-wrap {
+  background: var(--preview-invert-paper);
+}
+
+.workspace__editor-pane--preview-page.workspace__editor-pane--preview-inverted
+  .markdown-preview__table th {
+  background: var(--preview-invert-code-bg);
+  color: var(--preview-invert-ink);
+}
+
+.workspace__editor-pane--preview-page.workspace__editor-pane--preview-inverted
+  .markdown-preview__rule {
+  border-top-color: var(--preview-invert-border);
+}
+
+.workspace__editor-pane--preview-inverted .markdown-preview__empty {
+  color: var(--preview-invert-ink-soft);
+}
+
+.workspace__preview-zoom-fit--active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
 }
 
 .markdown-preview__image-fallback {

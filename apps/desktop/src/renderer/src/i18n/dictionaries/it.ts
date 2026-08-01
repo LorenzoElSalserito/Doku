@@ -145,6 +145,10 @@ export const it: Dictionary = {
       fitWidth: 'Adatta larghezza',
       fitPage: 'Adatta lunghezza',
     },
+    previewInvert: {
+      invert: 'Inverti i colori dell’anteprima',
+      restore: 'Ripristina i colori dell’anteprima',
+    },
     visualBlocks: {
       loading: 'Caricamento blocco visuale…',
       fallback: 'Blocco visuale',

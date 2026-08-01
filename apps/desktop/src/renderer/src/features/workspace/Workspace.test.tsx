@@ -320,6 +320,60 @@ describe('Workspace', () => {
     ).toContain('zoom: 1.5');
   });
 
+  it('inverts the preview colours from the zoom bar and restores them', async () => {
+    const user = userEvent.setup();
+    const view = renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+        workspaceViewMode: 'preview',
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    const zoomBar = screen.getByRole('group', { name: 'Preview zoom' });
+    const pane = () => view.container.querySelector('.workspace__editor-pane--preview');
+    expect(pane()).not.toHaveClass('workspace__editor-pane--preview-inverted');
+    expect(pane()).toHaveAttribute('data-preview-inverted', 'false');
+
+    await user.click(within(zoomBar).getByRole('button', { name: 'Invert preview colours' }));
+
+    expect(pane()).toHaveClass('workspace__editor-pane--preview-inverted');
+    expect(pane()).toHaveAttribute('data-preview-inverted', 'true');
+    const restoreButton = within(zoomBar).getByRole('button', {
+      name: 'Restore preview colours',
+    });
+    expect(restoreButton).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(restoreButton);
+
+    expect(pane()).not.toHaveClass('workspace__editor-pane--preview-inverted');
+    expect(
+      within(zoomBar).getByRole('button', { name: 'Invert preview colours' }),
+    ).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('keeps the invert control out of split view', async () => {
+    renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+        workspaceViewMode: 'split',
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    expect(
+      screen.queryByRole('button', { name: 'Invert preview colours' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('offers the immersive toggle in write view without the zoom bar', async () => {
     renderWorkspace({
       settings: {

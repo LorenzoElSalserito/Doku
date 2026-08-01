@@ -70,6 +70,10 @@ Pure Preview mode shows your document as a centered page. A quiet zoom bar sits 
 
 The page stays centered at every zoom level, and a horizontal scrollbar only appears when you zoom in past the width of the view.
 
+### Inverted Preview
+
+The zoom bar also carries an **invert colors** button. It flips the printed page of the preview to light text on a dark sheet, including code blocks, tables and quotes, while images and diagrams keep their own colors. Pressing it again restores the paper look. The inversion is a reading aid for the current view only: it never changes the document, your color choices or the exported PDF.
+
 ### Content Colors
 
 From the quick actions bar, a **Colors** button opens a small panel where you can personalize how key parts of your preview look:
@@ -170,6 +174,8 @@ Doku is designed around local export flows:
 - Markdown remains the source format.
 - Typographic PDF export is intended for polished reading output.
 - Web-style PDF export is intended for HTML/CSS-oriented rendering.
+
+The web-style profile uses a professional A4 stylesheet built around two rules. First, nothing is ever clipped: wide tables shrink to the text column and repeat their header across pages, long code lines and URLs wrap instead of running off the sheet, and images are scaled down to the page width. Second, the page is binding-safe: margins are mirrored, so the wider gutter always falls on the inner edge of each sheet (26 mm inner, 16 mm outer) and stapled or bound printouts never swallow text. Page numbers are printed at the bottom of every page, and the document keeps the font selected in Doku.
 
 Packaged builds include the web-style PDF runtime internally, including the WeasyPrint Python environment used by Doku. Export runs locally and does not upload document content to a remote service.
 

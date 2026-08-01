@@ -61,6 +61,38 @@ async function closeDokuApp(app) {
   await app.close();
 }
 
+/**
+ * Replaces the native save dialog in the main process so an export can run
+ * unattended and land on a known path.
+ */
+async function stubSaveDialog(app, filePath) {
+  await app.evaluate(async ({ dialog }, target) => {
+    dialog.showSaveDialog = async () => ({ canceled: false, filePath: target });
+  }, filePath);
+}
+
+/** True when the bundled WeasyPrint runtime and Pandoc are both available. */
+function hasWeasyExportRuntime() {
+  const { spawnSync } = require('node:child_process');
+  const { existsSync } = require('node:fs');
+  const pythonBin = resolve(
+    process.cwd(),
+    process.platform === 'win32'
+      ? 'build/export-runtime/weasy-python/Scripts/python.exe'
+      : 'build/export-runtime/weasy-python/bin/python',
+  );
+
+  if (!existsSync(pythonBin)) {
+    return false;
+  }
+
+  if (spawnSync('which', ['pandoc'], { encoding: 'utf-8' }).status !== 0) {
+    return false;
+  }
+
+  return spawnSync(pythonBin, ['-c', 'import weasyprint']).status === 0;
+}
+
 async function cleanupDokuE2EContext(context) {
   await fs.rm(context.rootDir, { recursive: true, force: true });
 }
@@ -163,6 +195,8 @@ module.exports = {
   closeDokuApp,
   createDokuE2EContext,
   createMarkdownFile,
+  hasWeasyExportRuntime,
+  stubSaveDialog,
   launchDokuApp,
   openMarkdownFileInRunningApp,
   prepareDokuProfile,

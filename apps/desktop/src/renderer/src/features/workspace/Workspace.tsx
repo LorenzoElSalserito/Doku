@@ -119,6 +119,7 @@ export function Workspace({
   const [immersive, setImmersive] = useState(false);
   const [contentColors, setContentColors] = useState<ContentColors>(settings.contentColors);
   const [previewZoom, setPreviewZoom] = useState(1);
+  const [previewInverted, setPreviewInverted] = useState(false);
   const [zoomEditing, setZoomEditing] = useState(false);
   const [zoomDraft, setZoomDraft] = useState('');
   const zoomClickTimerRef = useRef<number | null>(null);
@@ -1218,6 +1219,14 @@ export function Workspace({
     [],
   );
 
+  const togglePreviewInverted = useCallback(() => {
+    setPreviewInverted((current) => {
+      const next = !current;
+      logWorkspaceEvent('workspace-preview-inverted-toggled', { inverted: next });
+      return next;
+    });
+  }, []);
+
   const toggleImmersive = useCallback(() => {
     setImmersive((current) => {
       const next = !current;
@@ -2061,7 +2070,12 @@ export function Workspace({
                     <section
                       className={`workspace__editor-pane workspace__editor-pane--preview${
                         viewMode === 'preview' ? ' workspace__editor-pane--preview-page' : ''
+                      }${
+                        viewMode === 'preview' && previewInverted
+                          ? ' workspace__editor-pane--preview-inverted'
+                          : ''
                       }`}
+                      data-preview-inverted={viewMode === 'preview' ? previewInverted : undefined}
                       style={contentColorStyle}
                     >
                       <div
@@ -2112,6 +2126,26 @@ export function Workspace({
                             onClick={() => fitPreview('length')}
                           >
                             <FitPageIcon />
+                          </button>
+                          <button
+                            type="button"
+                            className={`workspace__preview-zoom-fit${
+                              previewInverted ? ' workspace__preview-zoom-fit--active' : ''
+                            }`}
+                            title={
+                              previewInverted
+                                ? dict.workspace.previewInvert.restore
+                                : dict.workspace.previewInvert.invert
+                            }
+                            aria-label={
+                              previewInverted
+                                ? dict.workspace.previewInvert.restore
+                                : dict.workspace.previewInvert.invert
+                            }
+                            aria-pressed={previewInverted}
+                            onClick={togglePreviewInverted}
+                          >
+                            <InvertColorsIcon />
                           </button>
                           <span className="workspace__preview-zoom-divider" aria-hidden />
                           <button
@@ -3351,6 +3385,15 @@ function FitPageIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function InvertColorsIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M12 3a9 9 0 0 1 0 18Z" fill="currentColor" />
     </svg>
   );
 }
