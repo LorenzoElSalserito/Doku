@@ -49,12 +49,14 @@ function certifyOfflineExportRuntime() {
   const runtime = join(unpackedDir, 'resources/export-runtime');
   const libraryDir = join(runtime, 'lib');
   const pythonHome = join(runtime, 'weasy-python');
+  const pythonBin = join(pythonHome, 'bin/python');
+  const pythonPath = resolvePythonSitePackages(pythonHome);
   const env = {
     PATH: '/nonexistent',
     XDG_CACHE_HOME: '/tmp/doku-zero-dependency-cache',
     LD_LIBRARY_PATH: libraryDir,
     PYTHONHOME: pythonHome,
-    PYTHONPATH: join(pythonHome, 'lib/python3.13/site-packages'),
+    PYTHONPATH: pythonPath,
     TEXMFROOT: join(runtime, 'latex/share/texlive'),
     TEXMFDIST: join(runtime, 'latex/share/texlive/texmf-dist'),
     TEXMFLOCAL: join(runtime, 'latex/share/texmf'),
@@ -69,15 +71,15 @@ function certifyOfflineExportRuntime() {
   execFileSync(join(runtime, 'latex/bin/pandoc'), ['--version'], { env, stdio: 'ignore' });
   execFileSync(join(runtime, 'latex/bin/lualatex'), ['--version'], { env, stdio: 'ignore' });
   execFileSync(
-    join(pythonHome, 'bin/python'),
+    pythonBin,
     ['-c', 'from weasyprint import HTML; HTML(string="<p>Doku</p>").write_pdf("/tmp/doku-zero-dependency.pdf")'],
-    { env, stdio: 'ignore' },
+    { env, stdio: 'inherit' },
   );
 
   for (const executable of [
     join(runtime, 'latex/bin/pandoc'),
     join(runtime, 'latex/bin/lualatex'),
-    join(pythonHome, 'bin/python'),
+    pythonBin,
   ]) {
     const result = spawnSync('/usr/bin/ldd', [executable], { env, encoding: 'utf8' });
     const output = result.stdout ?? '';
@@ -86,6 +88,16 @@ function certifyOfflineExportRuntime() {
   }
   console.log('- export runtime funziona con PATH host disabilitato');
   console.log('- dipendenze ELF risolte dal bundle');
+}
+
+function resolvePythonSitePackages(pythonHome) {
+  const config = readFileSync(join(pythonHome, 'pyvenv.cfg'), 'utf8');
+  const version = config.match(/^version\s*=\s*(\d+\.\d+)/m)?.[1];
+  if (!version) fail(`versione Python non rilevabile in ${join(pythonHome, 'pyvenv.cfg')}`);
+
+  const sitePackages = join(pythonHome, 'lib', `python${version}`, 'site-packages');
+  if (!existsSync(sitePackages)) fail(`pacchetti Python mancanti in ${sitePackages}`);
+  return sitePackages;
 }
 
 function assertExists(path, label) {
