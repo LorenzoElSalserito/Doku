@@ -20,6 +20,7 @@ const WORKSPACE_PACKAGES = [
   '@doku/application',
   '@doku/infrastructure',
   '@doku/ui',
+  'zod',
 ];
 
 export default defineConfig({

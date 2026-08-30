@@ -16,19 +16,20 @@ main().catch((error) => {
 
 async function main() {
   await fs.mkdir(binDir, { recursive: true });
+  const suffix = process.platform === 'win32' ? '.exe' : '';
   const pandoc = resolveExecutable('pandoc', '/usr/bin/pandoc');
   const luahbtex = resolveExecutable('luahbtex', '/usr/bin/luahbtex');
   const kpsewhich = resolveExecutable('kpsewhich', '/usr/bin/kpsewhich');
 
-  await copyExecutable(pandoc, join(binDir, 'pandoc'));
-  await copyExecutable(luahbtex, join(binDir, 'luahbtex'));
-  await copyExecutable(luahbtex, join(binDir, 'lualatex'));
-  await copyExecutable(kpsewhich, join(binDir, 'kpsewhich'));
+  await copyExecutable(pandoc, join(binDir, `pandoc${suffix}`));
+  await copyExecutable(luahbtex, join(binDir, `luahbtex${suffix}`));
+  await copyExecutable(luahbtex, join(binDir, `lualatex${suffix}`));
+  await copyExecutable(kpsewhich, join(binDir, `kpsewhich${suffix}`));
 
-  await copyTree('/usr/share/texlive', join(runtimeDir, 'share/texlive'));
-  await copyTree('/usr/share/texmf', join(runtimeDir, 'share/texmf'));
-  await copyTree('/var/lib/texmf', join(runtimeDir, 'var/lib/texmf'));
-  await copyTree('/etc/texmf', join(runtimeDir, 'etc/texmf'));
+  await copyTree(resolveTexTree(kpsewhich, 'TEXMFROOT'), join(runtimeDir, 'share/texlive'));
+  await copyTree(resolveTexTree(kpsewhich, 'TEXMFLOCAL'), join(runtimeDir, 'share/texmf'));
+  await copyTree(resolveTexTree(kpsewhich, 'TEXMFSYSVAR'), join(runtimeDir, 'var/lib/texmf'));
+  await copyTree(resolveTexTree(kpsewhich, 'TEXMFSYSCONFIG'), join(runtimeDir, 'etc/texmf'));
 
   console.log(`LuaLaTeX runtime ready at ${runtimeDir}`);
 }
@@ -47,7 +48,8 @@ function resolveExecutable(name, fallbackPath) {
     return fallbackPath;
   }
 
-  const result = spawnSync('which', [name], {
+  const lookupCommand = process.platform === 'win32' ? 'where' : 'which';
+  const result = spawnSync(lookupCommand, [name], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore'],
   });
@@ -60,6 +62,18 @@ function resolveExecutable(name, fallbackPath) {
   throw new Error(
     `Missing required executable: ${name}. Install pandoc and TeX Live LuaLaTeX before running ensure:latex-runtime.`,
   );
+}
+
+function resolveTexTree(kpsewhich, variable) {
+  const result = spawnSync(kpsewhich, [`-var-value=${variable}`], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const path = result.status === 0 ? result.stdout.trim().split(/\r?\n/)[0] : '';
+  if (!path || !existsSync(path)) {
+    throw new Error(`Missing required TeX tree: ${variable} (${path || 'not resolved'})`);
+  }
+  return path;
 }
 
 async function copyTree(source, target) {

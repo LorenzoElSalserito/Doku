@@ -2,7 +2,7 @@
 
 ![Doku icon](apps/desktop/src/assets/icon.png)
 
-**Doku is a local-first Markdown writing studio for desktop.**
+**Your Second Mind.**
 
 It is designed for people who want a calm, beautiful and reliable place to write: authors, students, researchers, copywriters, essayists and anyone who prefers plain Markdown without giving up a polished editorial experience.
 

@@ -83,7 +83,7 @@ test.describe('tab persistence', () => {
 
     await expect
       .poll(async () =>
-        secondRun.page.locator('.workspace-tabs').evaluate((element) => {
+        secondRun.page.locator('.workspace__topbar').evaluate((element) => {
           const styles = window.getComputedStyle(element);
           return {
             position: styles.position,

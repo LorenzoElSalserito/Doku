@@ -1,0 +1,28 @@
+{
+  "releases": [
+    {
+      "version": "0.1.5",
+      "date": "Sun, 30 Aug 2026 16:40:06 +0200",
+      "distribution": "unstable",
+      "urgency": "medium",
+      "maintainer": "Lorenzo DM <commercial.lorenzodm@gmail.com>",
+      "entries": [
+        "Added: Pipeline di release versionata e crash-safe, packaging Debian conforme e verifica automatica degli artefatti desktop.",
+        "Added: Runtime PDF offline certificato per pacchetti Linux, Windows e macOS.",
+        "Changed: Identità descrittiva aggiornata a \"Your Second Mind\".",
+        "Changed: Export PDF rafforzato con font incorporati, geometria A4 rilegabile e controlli anti-clipping."
+      ]
+    },
+    {
+      "version": "0.1.4",
+      "date": "Sat, 01 Aug 2026 12:00:00 +0200",
+      "distribution": "unstable",
+      "urgency": "medium",
+      "maintainer": "Lorenzo DM <commercial.lorenzodm@gmail.com>",
+      "entries": [
+        "Added: Professional A4 PDF rendering with mirrored binding margins and page-number auditing.",
+        "Fixed: Wide tables, code, URLs and images stay inside the printable page area."
+      ]
+    }
+  ]
+}

@@ -36,10 +36,17 @@ async function createMarkdownFile(context, fileName, content) {
 }
 
 async function launchDokuApp(context, filePath) {
+  return launchDokuAppWithEnv(context, buildDokuEnv(context), filePath);
+}
+
+async function launchDokuAppWithEnv(context, env, filePath) {
   const app = await electron.launch({
     executablePath: electronExecutable,
     args: [mainEntry, ...(filePath ? [filePath] : [])],
-    env: buildDokuEnv(context),
+    env: {
+      ...env,
+      ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+    },
   });
   const page = await app.firstWindow();
   await waitForWorkspaceReady(page);
@@ -198,6 +205,7 @@ module.exports = {
   hasWeasyExportRuntime,
   stubSaveDialog,
   launchDokuApp,
+  launchDokuAppWithEnv,
   openMarkdownFileInRunningApp,
   prepareDokuProfile,
   readLogEntries,

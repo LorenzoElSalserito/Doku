@@ -16,17 +16,29 @@ interface WeasyPdfExportServiceOptions {
   weasyScriptPath?: string;
   printStylesheetPath?: string;
   pythonExecutablePath?: string;
+  pandocPath?: string;
+  nativeLibraryDir?: string;
+  pythonHome?: string;
+  pythonPath?: string;
 }
 
 export class WeasyPdfExportService {
   private readonly weasyScriptPath: string;
   private readonly printStylesheetPath: string;
   private readonly pythonExecutablePath: string;
+  private readonly pandocPath: string;
+  private readonly runtimeEnv: NodeJS.ProcessEnv;
 
   constructor(options: WeasyPdfExportServiceOptions = {}) {
     this.weasyScriptPath = options.weasyScriptPath ?? DEFAULT_WEASY_SCRIPT_PATH;
     this.printStylesheetPath = options.printStylesheetPath ?? DEFAULT_PRINT_STYLESHEET_PATH;
     this.pythonExecutablePath = options.pythonExecutablePath ?? 'python3';
+    this.pandocPath = options.pandocPath ?? 'pandoc';
+    this.runtimeEnv = buildNativeRuntimeEnvironment(
+      options.nativeLibraryDir,
+      options.pythonHome,
+      options.pythonPath,
+    );
   }
 
   async exportPdf(raw: unknown, outputPath: string): Promise<PdfExportResult> {
@@ -55,8 +67,8 @@ export class WeasyPdfExportService {
       );
       await mkdir(dirname(outputPath), { recursive: true });
 
-      await renderHtml(markdownPath, htmlPath, stylesheetPath, input);
-      await renderPdf(htmlPath, outputPath, this.weasyScriptPath, this.pythonExecutablePath);
+      await renderHtml(markdownPath, htmlPath, stylesheetPath, input, this.pandocPath, this.runtimeEnv);
+      await renderPdf(htmlPath, outputPath, this.weasyScriptPath, this.pythonExecutablePath, this.runtimeEnv);
 
       const details = await stat(outputPath);
       return {
@@ -76,6 +88,8 @@ async function renderHtml(
   htmlPath: string,
   stylesheetPath: string,
   input: PdfExportRequest,
+  pandocPath: string,
+  runtimeEnv: NodeJS.ProcessEnv,
 ): Promise<void> {
   try {
     const args = [
@@ -93,7 +107,7 @@ async function renderHtml(
       args.splice(args.length - 2, 0, '--metadata', `title=${input.title.trim()}`);
     }
 
-    await execFileAsync('pandoc', args);
+    await execFileAsync(pandocPath, args, { env: runtimeEnv });
   } catch (error: unknown) {
     throw humanizeWeasyError(error);
   }
@@ -104,12 +118,29 @@ async function renderPdf(
   outputPath: string,
   weasyScriptPath: string,
   pythonExecutablePath: string,
+  runtimeEnv: NodeJS.ProcessEnv,
 ): Promise<void> {
   try {
-    await execFileAsync(pythonExecutablePath, [weasyScriptPath, htmlPath, outputPath]);
+    await execFileAsync(pythonExecutablePath, [weasyScriptPath, htmlPath, outputPath], { env: runtimeEnv });
   } catch (error: unknown) {
     throw humanizeWeasyError(error);
   }
+}
+
+function buildNativeRuntimeEnvironment(
+  nativeLibraryDir: string | undefined,
+  pythonHome: string | undefined,
+  pythonPath: string | undefined,
+): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  if (nativeLibraryDir) {
+    env.LD_LIBRARY_PATH = env.LD_LIBRARY_PATH
+      ? `${nativeLibraryDir}:${env.LD_LIBRARY_PATH}`
+      : nativeLibraryDir;
+  }
+  if (pythonHome) env.PYTHONHOME = pythonHome;
+  if (pythonPath) env.PYTHONPATH = pythonPath;
+  return env;
 }
 
 function humanizeWeasyError(error: unknown): Error {

@@ -1,17 +1,18 @@
 {
   "name": "doku",
   "productName": "Doku",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "icon": "apps/desktop/src/assets/icon.png",
-  "description": "Doku — Local-first Markdown editor",
+  "description": "Doku — Your Second Mind",
   "license": "AGPL-3.0-only",
   "workspaces": [
     "packages/*",
     "apps/*"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12.0",
+    "npm": ">=10.2.3"
   },
   "scripts": {
     "dev": "npm run dev --workspace doku-desktop",
@@ -20,19 +21,35 @@
     "test": "vitest run",
     "test:e2e": "npm run ensure:export-assets && npm run build --workspace doku-desktop && playwright test",
     "test:e2e:headed": "npm run ensure:export-assets && npm run build --workspace doku-desktop && playwright test --headed",
-    "dist": "npm run package:linux && npm run smoke:linux",
+    "version:bump": "node scripts/version-bump.js",
+    "version:show": "node scripts/version-bump.js --no-bump --dry-run",
+    "verify:packaging": "node scripts/verify-packaging-assets.js",
+    "test:packaging": "node --test tests/packaging/release-packaging.test.mjs",
+    "dist": "npm run version:bump && npm run ensure:export-runtime && npm run ensure:deb-docs && npm run verify:packaging && npm run package:linux:all --workspace doku-desktop && npm run smoke:linux && npm run smoke:linux:rpm",
     "smoke:linux": "node scripts/smoke-linux-package.cjs",
+    "smoke:linux:rpm": "node scripts/smoke-linux-rpm.cjs",
     "ensure:export-assets": "node scripts/ensure-export-assets.cjs",
     "ensure:deb-docs": "node scripts/ensure-deb-docs.cjs",
     "ensure:weasy-runtime": "node scripts/ensure-weasy-runtime.cjs",
     "ensure:latex-runtime": "node scripts/ensure-latex-runtime.cjs",
-    "ensure:export-runtime": "npm run ensure:weasy-runtime && npm run ensure:latex-runtime",
+    "ensure:bundle-native-runtime": "node scripts/bundle-linux-native-runtime.cjs",
+    "ensure:export-runtime": "npm run ensure:weasy-runtime && npm run ensure:latex-runtime && npm run ensure:bundle-native-runtime",
     "package:dir": "npm run ensure:export-assets && npm run package:dir --workspace doku-desktop",
-    "package:linux": "npm run ensure:export-runtime && npm run ensure:deb-docs && npm run package:linux --workspace doku-desktop",
+    "package:linux": "npm run ensure:export-runtime && npm run package:linux --workspace doku-desktop && npm run smoke:linux",
+    "package:linux:deb": "npm run ensure:export-runtime && npm run ensure:deb-docs && npm run verify:packaging && npm run package:linux:deb --workspace doku-desktop",
+    "package:linux:rpm": "npm run ensure:export-runtime && npm run package:linux:rpm --workspace doku-desktop && npm run smoke:linux:rpm",
     "package:mac": "npm run ensure:export-assets && npm run package:mac --workspace doku-desktop",
-    "package:win": "npm run ensure:export-assets && npm run package:win --workspace doku-desktop",
+    "package:win": "npm run ensure:export-runtime && npm run package:win --workspace doku-desktop",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write ."
+  },
+  "overrides": {
+    "@electron/get": {
+      "undici": "^7.29.0"
+    },
+    "jsdom": {
+      "undici": "^7.29.0"
+    }
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",

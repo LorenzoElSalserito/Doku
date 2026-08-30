@@ -2,6 +2,8 @@ node_modules
 dist
 out
 build
+dist-electron
+scripts/.release-pending.json
 .vite
 coverage
 test-results
@@ -20,7 +22,6 @@ playwright-report
 # Local planning and release notes not meant for publish
 PLAN.md
 Doku_PRD.md
-CHANGELOG.md
 FONTS.md
 BUG.md
 docs/

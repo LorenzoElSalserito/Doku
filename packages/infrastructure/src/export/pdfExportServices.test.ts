@@ -58,6 +58,12 @@ describe('PDF export services', () => {
       '/opt/Doku/resources/export-runtime/latex/bin/pandoc',
       expect.arrayContaining([
         '--pdf-engine=/opt/Doku/resources/export-runtime/latex/bin/lualatex',
+        '--pdf-engine-opt=-halt-on-error',
+        '--variable=papersize:a4',
+        '--variable=classoption:twoside',
+        '--variable=geometry:inner=26mm,outer=16mm,top=20mm,bottom=20mm',
+        '--variable=fontsize:11pt',
+        '--variable=linestretch:1.15',
         '--output',
         outputPath,
       ]),
@@ -81,6 +87,7 @@ describe('PDF export services', () => {
       printStylesheetPath: 'packages/infrastructure/src/export/printStylesheet.css',
       weasyScriptPath: 'packages/infrastructure/src/export/scripts/render_weasy_pdf.py',
       pythonExecutablePath: '/opt/Doku/resources/export-runtime/weasy-python/bin/python',
+      pandocPath: '/opt/Doku/resources/export-runtime/latex/bin/pandoc',
     });
 
     const result = await service.exportPdf(
@@ -101,14 +108,16 @@ describe('PDF export services', () => {
     expect(result.fileSizeBytes).toBeGreaterThan(0);
     expect(execFileMock).toHaveBeenNthCalledWith(
       1,
-      'pandoc',
+      '/opt/Doku/resources/export-runtime/latex/bin/pandoc',
       expect.arrayContaining(['--to=html5', '--output']),
+      expect.objectContaining({ env: expect.any(Object) }),
       expect.any(Function),
     );
     expect(execFileMock).toHaveBeenNthCalledWith(
       2,
       '/opt/Doku/resources/export-runtime/weasy-python/bin/python',
       expect.arrayContaining(['packages/infrastructure/src/export/scripts/render_weasy_pdf.py', outputPath]),
+      expect.objectContaining({ env: expect.any(Object) }),
       expect.any(Function),
     );
   });

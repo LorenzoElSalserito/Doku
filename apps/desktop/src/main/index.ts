@@ -1,5 +1,5 @@
 import { app, BrowserWindow, crashReporter } from 'electron';
-import { promises as fs } from 'node:fs';
+import { mkdirSync, promises as fs } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, extname, join, resolve } from 'node:path';
 import {
@@ -15,14 +15,17 @@ import {
   serializeErrorForLog,
 } from '@doku/infrastructure';
 import { PRODUCT_NAME } from '@doku/application';
-import { resolveExportRuntimePaths } from './exportRuntime.js';
+import { findMissingExportRuntimeEntries, resolveExportRuntimePaths } from './exportRuntime.js';
 import { createMainWindow, showMainWindow } from './window.js';
 import { CrashStateManager } from './crashState.js';
+import { resolvePortableDataPaths } from './portableData.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ORIGINAL_USER_DATA_DIR = app.getPath('userData');
-const DOCUMENTS_DATA_DIR = resolveDocumentsDataDir(ORIGINAL_USER_DATA_DIR);
+const PORTABLE_DATA_PATHS = configurePortableDataPaths();
+const ELECTRON_USER_DATA_DIR = app.getPath('userData');
+const DOCUMENTS_DATA_DIR = resolveDocumentsDataDir(ELECTRON_USER_DATA_DIR);
 const bootstrapStartedAtMs = Date.now();
 const logger = new SessionLogger({
   logsDir: join(DOCUMENTS_DATA_DIR, 'logs'),
@@ -71,7 +74,7 @@ async function bootstrap(): Promise<void> {
     platform: process.platform,
     version: app.getVersion(),
     appDataDir: DOCUMENTS_DATA_DIR,
-    electronUserDataDir: ORIGINAL_USER_DATA_DIR,
+    electronUserDataDir: ELECTRON_USER_DATA_DIR,
     argv: process.argv,
     isPackaged: app.isPackaged,
     verboseLogging: VERBOSE_LOGGING,
@@ -137,6 +140,12 @@ async function bootstrap(): Promise<void> {
   logStartup('ipc-registration-finished');
   logStartup('export-runtime-resolve-started');
   const exportRuntime = resolveExportRuntimePaths(__dirname);
+  const missingExportRuntimeEntries = findMissingExportRuntimeEntries(exportRuntime);
+  if (app.isPackaged && missingExportRuntimeEntries.length > 0) {
+    throw new Error(
+      `Bundled export runtime incomplete: ${missingExportRuntimeEntries.join(', ')}`,
+    );
+  }
   logStartup('export-runtime-resolved', {
     hasPandoc: Boolean(exportRuntime.pandocPath),
     hasLuaLatex: Boolean(exportRuntime.lualatexPath),
@@ -148,11 +157,16 @@ async function bootstrap(): Promise<void> {
         pandocPath: exportRuntime.pandocPath,
         lualatexPath: exportRuntime.lualatexPath,
         latexRuntimeRoot: exportRuntime.latexRuntimeRoot,
+        nativeLibraryDir: exportRuntime.nativeLibraryDir,
       }),
       weasy: new WeasyPdfExportService({
         printStylesheetPath: exportRuntime.printStylesheetPath,
         weasyScriptPath: exportRuntime.weasyScriptPath,
         pythonExecutablePath: exportRuntime.weasyPythonPath,
+        pandocPath: exportRuntime.pandocPath,
+        nativeLibraryDir: exportRuntime.nativeLibraryDir,
+        pythonHome: exportRuntime.pythonHome,
+        pythonPath: exportRuntime.pythonPath,
       }),
     },
     logger,
@@ -381,11 +395,36 @@ function resolveDocumentsDataDir(fallbackDir: string): string {
     return resolve(process.env.DOKU_DATA_DIR);
   }
 
+  if (PORTABLE_DATA_PATHS) {
+    return PORTABLE_DATA_PATHS.rootDir;
+  }
+
   try {
     return join(app.getPath('documents'), PRODUCT_NAME);
   } catch {
     return fallbackDir;
   }
+}
+
+function configurePortableDataPaths(): ReturnType<typeof resolvePortableDataPaths> {
+  const paths = resolvePortableDataPaths(process.env);
+  if (!paths) {
+    return null;
+  }
+
+  for (const path of [
+    paths.rootDir,
+    paths.electronUserDataDir,
+    paths.sessionDataDir,
+    paths.crashDumpsDir,
+  ]) {
+    mkdirSync(path, { recursive: true });
+  }
+
+  app.setPath('userData', paths.electronUserDataDir);
+  app.setPath('sessionData', paths.sessionDataDir);
+  app.setPath('crashDumps', paths.crashDumpsDir);
+  return paths;
 }
 
 async function migrateLegacyUserData(sourceDir: string, targetDir: string): Promise<void> {

@@ -1,10 +1,11 @@
 {
   "name": "doku-desktop",
   "productName": "Doku",
-  "version": "0.1.4",
+  "desktopName": "doku.desktop",
+  "version": "0.1.5",
   "private": true,
   "icon": "src/assets/icon.png",
-  "description": "Doku is your elegant, definitive, MarkDown Editor.",
+  "description": "Doku — Your Second Mind",
   "license": "AGPL-3.0-only",
   "homepage": "https://github.com/LorenzoElSalserito/Doku",
   "repository": {
@@ -22,15 +23,19 @@
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "package:dir": "npm run build && npx electron-builder --dir --publish=never",
-    "package:linux": "npm run build && npx electron-builder --linux deb --publish=never",
+    "package:linux": "npm run build && electron-builder --linux AppImage --publish=never",
+    "package:linux:all": "npm run build && electron-builder --linux AppImage deb rpm --publish=never",
+    "package:linux:deb": "npm run build && electron-builder --linux deb --publish=never",
+    "package:linux:rpm": "npm run build && electron-builder --linux rpm --publish=never",
     "package:mac": "npm run build && npx electron-builder --mac dmg --publish=never",
-    "package:win": "npm run build && npx electron-builder --win nsis --publish=never"
+    "package:win": "npm run build && electron-builder --win portable --publish=never"
   },
   "build": {
     "appId": "app.doku.desktop",
     "productName": "Doku",
-    "electronVersion": "30.0.0",
-    "artifactName": "doku_${version}_${os}_${arch}.${ext}",
+    "electronVersion": "43.2.0",
+    "artifactName": "doku_v${version}.${ext}",
+    "afterAllArtifactBuild": "../../scripts/after-all-artifact-build.js",
     "directories": {
       "output": "../../build/desktop",
       "buildResources": "src/assets"
@@ -47,6 +52,7 @@
           "printStylesheet.css",
           "scripts/**",
           "fonts/**",
+          "lib/**",
           "weasy-python/**",
           "latex/**"
         ]
@@ -54,10 +60,11 @@
     ],
     "linux": {
       "executableName": "doku",
+      "syncDesktopName": true,
       "category": "Office",
       "maintainer": "Lorenzo DM <commercial.lorenzodm@gmail.com>",
       "target": [
-        "deb"
+        "AppImage"
       ],
       "icon": "src/assets/linux-icons",
       "desktop": {
@@ -66,14 +73,26 @@
           "Icon": "/usr/share/icons/hicolor/1080x1080/apps/doku.png"
         }
       },
-      "synopsis": "The Definitive MarkDown Editor - AGPLv3",
-      "description": "Doku: your beautiful, elegant MarkDown Editor"
+      "synopsis": "Your Second Mind",
+      "description": "Doku — Your Second Mind. A private, local-first Markdown workspace."
+    },
+    "appImage": {
+      "artifactName": "doku_v${version}.${ext}"
     },
     "deb": {
       "packageName": "doku",
+      "packageCategory": "misc",
+      "priority": "optional",
       "fpm": [
         "../../build/deb-docs/copyright=/usr/share/doc/doku/copyright",
         "../../build/deb-docs/README.md=/usr/share/doc/doku/README.md"
+      ]
+    },
+    "rpm": {
+      "packageName": "doku",
+      "depends": [],
+      "fpm": [
+        "--no-rpm-autoreqprov"
       ]
     },
     "mac": {
@@ -85,13 +104,12 @@
     },
     "win": {
       "target": [
-        "nsis"
+        "portable"
       ],
       "icon": "src/assets/icon.ico"
     },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+    "portable": {
+      "artifactName": "doku_v${version}.${ext}"
     },
     "fileAssociations": [
       {
@@ -101,11 +119,15 @@
       }
     ]
   },
-  "dependencies": {
+  "devDependencies": {
     "@doku/application": "*",
     "@doku/infrastructure": "*",
     "@doku/schemas": "*",
     "@doku/ui": "*",
+    "@vitejs/plugin-react": "^4.2.1",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^2.1.0",
     "markmap-lib": "^0.18.12",
     "markmap-view": "^0.18.12",
     "mermaid": "^11.14.0",
@@ -113,12 +135,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "recharts": "^2.15.4",
+    "vite": "^5.2.0",
     "zod": "^3.22.4"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.2.1",
-    "electron": "^30.0.0",
-    "electron-vite": "^2.1.0",
-    "vite": "^5.2.0"
   }
 }
