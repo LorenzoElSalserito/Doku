@@ -14,6 +14,59 @@ const bump = require('../../scripts/version-bump.js')
 const deb = require('../../scripts/deb-finalize.js')
 const has = (command) => spawnSync('sh', ['-c', `command -v ${command}`], { stdio: 'ignore' }).status === 0
 
+test('Pandoc data survives file-only packaging with embedded or external defaults', async () => {
+  const { preparePandocData } = require('../../scripts/lib/pandoc-data.cjs')
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'doku-pandoc-data-'))
+  try {
+    const source = path.join(temp, 'external')
+    const destination = path.join(temp, 'runtime/share/pandoc')
+    await preparePandocData(source, destination)
+    const packaged = path.join(temp, 'packaged/share/pandoc')
+    // Artifact builders enumerate files; empty directories are not retained.
+    for (const name of fs.readdirSync(destination)) {
+      if (!fs.statSync(path.join(destination, name)).isFile()) continue
+      fs.mkdirSync(packaged, { recursive: true })
+      fs.copyFileSync(path.join(destination, name), path.join(packaged, name))
+    }
+    assert.ok(fs.statSync(packaged).isDirectory())
+    fs.mkdirSync(path.join(source, 'templates'), { recursive: true })
+    fs.writeFileSync(path.join(source, 'templates/default.latex'), 'external template')
+    await preparePandocData(source, destination)
+    assert.equal(fs.readFileSync(path.join(destination, 'templates/default.latex'), 'utf8'), 'external template')
+  } finally { fs.rmSync(temp, { recursive: true, force: true }) }
+})
+
+test('macOS library staging preserves colliding read-only libraries and supports reruns', () => {
+  const { createLibraryStore, copyWritable } = require('../../scripts/lib/macos-library-store.cjs')
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'doku-macos-libraries-'))
+  try {
+    const sources = ['homebrew', 'pillow'].map((name) => {
+      const file = path.join(temp, name, 'liblzma.5.dylib')
+      fs.mkdirSync(path.dirname(file), { recursive: true })
+      fs.writeFileSync(file, name, { mode: 0o444 })
+      return file
+    })
+    const directory = path.join(temp, 'bundle/lib')
+    const store = createLibraryStore(directory)
+    const targets = sources.map(store.stage)
+    assert.notEqual(targets[0], targets[1])
+    for (let i = 0; i < sources.length; i++) {
+      assert.equal(fs.readFileSync(targets[i], 'utf8'), i === 0 ? 'homebrew' : 'pillow')
+      assert.equal(store.stage(sources[i]), targets[i])
+      if (process.platform !== 'win32') {
+        assert.equal(fs.statSync(sources[i]).mode & 0o777, 0o444)
+        assert.equal(fs.statSync(targets[i]).mode & 0o777, 0o755)
+      }
+    }
+    fs.chmodSync(targets[0], 0o444)
+    assert.equal(createLibraryStore(directory).stage(sources[0]), targets[0])
+    const alias = path.join(directory, 'liblzma.dylib')
+    fs.writeFileSync(alias, 'stale', { mode: 0o444 })
+    copyWritable(targets[0], alias)
+    assert.equal(fs.readFileSync(alias, 'utf8'), 'homebrew')
+  } finally { fs.rmSync(temp, { recursive: true, force: true }) }
+})
+
 test('version arithmetic and strict semver', () => {
   assert.equal(meta.bumpVersion('0.1.9'), '0.1.10')
   assert.equal(meta.bumpVersion('0.1.9', 'minor'), '0.2.0')

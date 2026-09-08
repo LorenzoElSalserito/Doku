@@ -4,6 +4,7 @@ const { existsSync } = require('node:fs');
 const fs = require('node:fs/promises');
 const { dirname, join } = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { preparePandocData } = require('./lib/pandoc-data.cjs');
 
 const rootDir = join(__dirname, '..');
 const runtimeDir = join(rootDir, 'build/export-runtime/latex');
@@ -28,11 +29,8 @@ async function main() {
 
   await copyExecutable(pandoc, join(binDir, `pandoc${suffix}`));
   const pandocData = join(runtimeDir, 'share/pandoc');
-  await fs.mkdir(pandocData, { recursive: true });
   const systemPandocData = process.env.DOKU_PANDOC_DATA_DIR || '/usr/share/pandoc/data';
-  if (existsSync(systemPandocData)) {
-    await fs.cp(systemPandocData, pandocData, { recursive: true, dereference: true });
-  }
+  await preparePandocData(systemPandocData, pandocData);
   await copyExecutable(luahbtex, join(binDir, `luahbtex${suffix}`));
   await copyExecutable(luahbtex, join(binDir, `lualatex${suffix}`));
   await copyExecutable(kpsewhich, join(binDir, `kpsewhich${suffix}`));

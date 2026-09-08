@@ -2,6 +2,7 @@
 const fs = require('node:fs');
 const { basename, dirname, join, relative, resolve } = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
+const { copyWritable, createLibraryStore } = require('./lib/macos-library-store.cjs');
 
 if (process.platform !== 'darwin') process.exit(0);
 const runtime = resolve(__dirname, '../build/export-runtime');
@@ -34,14 +35,12 @@ const loaded = run(python, ['-c', [
 ].join('; ')]).split('\n').filter((file) => file.startsWith('/') && !file.startsWith('/usr/lib/') && !file.startsWith('/System/Library/'));
 const queue = files(runtime);
 const visited = new Set();
-const origins = new Map();
+const { stage, origins } = createLibraryStore(libraryDir);
 const modified = [];
 for (const source of loaded) {
-  const target = join(libraryDir, basename(source));
-  fs.copyFileSync(source, target);
-  origins.set(target, source);
-  queue.push(target);
+  queue.push(stage(source));
 }
+
 while (queue.length) {
   const binary = queue.shift();
   if (visited.has(binary)) continue;
@@ -67,31 +66,30 @@ while (queue.length) {
     if (!source || !fs.existsSync(source)) throw new Error(`Unresolved Mach-O dependency: ${dependency} in ${original}`);
     // A dylib lists its own install name first.
     if (fs.realpathSync(source) === fs.realpathSync(original)) continue;
-    const target = join(libraryDir, basename(source));
-    if (!origins.has(target)) {
-      if (resolve(source) !== target) fs.copyFileSync(source, target);
-      origins.set(target, source);
-      queue.push(target);
-    } else if (fs.realpathSync(origins.get(target)) !== fs.realpathSync(source)) {
-      throw new Error(`Conflicting Mach-O library names: ${source} and ${origins.get(target)}`);
-    }
+    const target = stage(source);
+    if (!visited.has(target)) queue.push(target);
     fs.chmodSync(binary, 0o755);
     run('install_name_tool', ['-change', dependency, `@loader_path/${relative(dirname(binary), target)}`, binary]);
   }
+  fs.chmodSync(binary, 0o755);
   modified.push(binary);
 }
 // CFFI requests unversioned dylib names; preserve those entry points.
 for (const binary of [...modified]) {
   if (dirname(binary) !== libraryDir) continue;
   const source = origins.get(binary);
-  if (!source) continue;
+  if (!source || !/^(libgobject-|libpango|libharfbuzz|libfontconfig)/.test(basename(source))) continue;
+  const aliases = new Set([basename(source)]);
   for (const alias of fs.readdirSync(dirname(source))) {
     const entry = join(dirname(source), alias);
     if (!fs.lstatSync(entry).isSymbolicLink() || !fs.existsSync(entry)) continue;
     if (fs.realpathSync(entry) !== fs.realpathSync(source)) continue;
+    aliases.add(alias);
+  }
+  for (const alias of aliases) {
     const target = join(libraryDir, alias);
     if (target === binary) continue;
-    fs.copyFileSync(binary, target);
+    copyWritable(binary, target);
     modified.push(target);
   }
 }

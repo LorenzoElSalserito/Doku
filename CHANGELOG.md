@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Conservata la directory dati Pandoc nei pacchetti Windows/macOS anche quando i dati predefiniti sono incorporati nel binario: i packager non eliminano più la directory vuota necessaria al controllo runtime.
+- Corretto il bundle macOS: librerie copiate con permessi scrivibili e nomi distinti per origine, evitando sovrascritture e collisioni tra librerie dinamiche omonime di Homebrew e Python/Pillow.
+
 ## [0.1.7] - 2026-09-08
 
 - Fixed: Corretta la ricerca dei font con Fontconfig 2.13 su Ubuntu 22.04: configurazione XDG ancorata al bundle anche dopo spostamento; lo smoke controlla la presenza di font prima dell’export PDF.
