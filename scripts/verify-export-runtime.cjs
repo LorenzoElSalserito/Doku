@@ -1,5 +1,6 @@
 const { existsSync, readdirSync, lstatSync } = require('node:fs');
 const { join } = require('node:path');
+const { execFileSync } = require('node:child_process');
 
 function verifyExportRuntime(runtime, platform) {
   const windows = platform === 'win32';
@@ -34,4 +35,7 @@ function verifyExportRuntime(runtime, platform) {
 }
 
 exports.verifyExportRuntime = verifyExportRuntime;
-exports.default = async (context) => verifyExportRuntime(join(__dirname, '../build/export-runtime'), context.electronPlatformName);
+exports.default = async (context) => {
+  execFileSync(process.execPath, [join(__dirname, 'verify-packaging-assets.js'), '--require-build'], { stdio: 'inherit' });
+  verifyExportRuntime(join(__dirname, '../build/export-runtime'), context.electronPlatformName);
+};

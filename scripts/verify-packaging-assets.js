@@ -7,7 +7,9 @@ const root = meta.readJson(meta.paths.packageJson)
 const desktop = meta.readJson(meta.paths.desktopPackageJson)
 const lock = meta.readJson(meta.paths.packageLock)
 const problems = []
-const required = ['apps/desktop/out/main/index.js', 'apps/desktop/out/preload/index.js', 'apps/desktop/out/renderer/index.html', 'apps/desktop/src/assets/icon.png', 'apps/desktop/src/assets/icon.ico', 'apps/desktop/src/assets/icon.icns']
+// Repository checks run before compilation on a fresh CI checkout.
+const required = ['apps/desktop/src/assets/icon.png', 'apps/desktop/src/assets/icon.ico', 'apps/desktop/src/assets/icon.icns']
+if (process.argv.includes('--require-build')) required.push('apps/desktop/out/main/index.js', 'apps/desktop/out/preload/index.js', 'apps/desktop/out/renderer/index.html')
 const missing = required.filter((file) => !fs.existsSync(path.join(meta.paths.repoRoot, file)))
 if (root.name !== 'doku' || desktop.name !== 'doku-desktop') problems.push('npm identity must remain doku / doku-desktop')
 if (root.productName !== 'Doku' || desktop.productName !== 'Doku') problems.push('productName must remain Doku')

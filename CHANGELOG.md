@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Corretti i test packaging su checkout pulito: le invarianti del repository non richiedono più file compilati prima della build; l’hook `beforePack` continua a imporre la presenza di main, preload e renderer compilati. Aggiunto test di regressione senza directory `out`.
+
 - Corretti entrambi i workflow Linux su Ubuntu 22.04: sostituito il pacchetto inesistente `libharfbuzz-subset0` con `libharfbuzz0b`. WeasyPrint 66 usa FontTools già incluso nel bundle per la riduzione dei font quando HarfBuzz Subset non è disponibile.
 
 ## [0.1.6] - 2026-09-08

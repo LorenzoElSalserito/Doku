@@ -107,3 +107,37 @@ test('packaging rejects an incomplete export runtime', () => {
     assert.throws(() => verifyExportRuntime(temp, 'linux'), /Bundled Python standard library missing/)
   } finally { fs.rmSync(temp, { recursive: true, force: true }) }
 })
+
+
+test('fresh checkout passes repository checks but cannot package without compiled output', () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'doku-clean-checkout-'))
+  try {
+    for (const file of ['package.json', 'package-lock.json', 'CHANGELOG.md',
+      'apps/desktop/package.json', 'scripts/release-history.json',
+      'scripts/lib/release-meta.js', 'scripts/verify-packaging-assets.js',
+      'apps/desktop/src/assets/icon.png', 'apps/desktop/src/assets/icon.ico',
+      'apps/desktop/src/assets/icon.icns']) {
+      const target = path.join(temp, file)
+      fs.mkdirSync(path.dirname(target), { recursive: true })
+      fs.copyFileSync(path.join(meta.paths.repoRoot, file), target)
+    }
+    const check = (args = []) => spawnSync(process.execPath,
+      ['scripts/verify-packaging-assets.js', ...args], { cwd: temp, encoding: 'utf8' })
+    const repository = check()
+    assert.equal(repository.status, 0, repository.stderr)
+    const unbuilt = check(['--require-build'])
+    assert.equal(unbuilt.status, 1)
+    for (const entry of ['main/index.js', 'preload/index.js', 'renderer/index.html']) {
+      assert.ok(unbuilt.stderr.includes(`apps/desktop/out/${entry}`))
+      const target = path.join(temp, 'apps/desktop/out', entry)
+      fs.mkdirSync(path.dirname(target), { recursive: true })
+      fs.writeFileSync(target, 'compiled fixture')
+    }
+    const built = check(['--require-build'])
+    assert.equal(built.status, 0, built.stderr)
+    fs.unlinkSync(path.join(temp, 'apps/desktop/src/assets/icon.ico'))
+    const missingIcon = check()
+    assert.equal(missingIcon.status, 1)
+    assert.match(missingIcon.stderr, /icon\.ico/)
+  } finally { fs.rmSync(temp, { recursive: true, force: true }) }
+})
