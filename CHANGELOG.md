@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Corretti entrambi i workflow Linux su Ubuntu 22.04: sostituito il pacchetto inesistente `libharfbuzz-subset0` con `libharfbuzz0b`. WeasyPrint 66 usa FontTools già incluso nel bundle per la riduzione dei font quando HarfBuzz Subset non è disponibile.
+
 ## [0.1.6] - 2026-09-08
 
 - Added: Nuova icona applicativa Doku rigenerata da sorgente 1080×1080 per tutti i formati: `icon.png`, `icon.ico` (16→256), `icon.icns` (ic07–ic14 + is32/s8mk/il32/l8mk) e le renditions Linux 16→1080.
