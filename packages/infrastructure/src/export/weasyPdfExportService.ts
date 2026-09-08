@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { copyFile, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { PdfExportRequestSchema, type PdfExportRequest, type PdfExportResult } from '@doku/schemas';
@@ -94,6 +94,7 @@ async function renderHtml(
   try {
     const args = [
       markdownPath,
+      ...(isAbsolute(pandocPath) ? [`--data-dir=${join(dirname(pandocPath), '../share/pandoc')}`] : []),
       '--from=gfm',
       '--to=html5',
       '--standalone',
@@ -134,11 +135,17 @@ function buildNativeRuntimeEnvironment(
 ): NodeJS.ProcessEnv {
   const env = { ...process.env };
   if (nativeLibraryDir) {
+    env.FONTCONFIG_FILE = join(dirname(nativeLibraryDir), 'fontconfig.conf');
+    if (process.platform === 'darwin') env.DYLD_LIBRARY_PATH = nativeLibraryDir;
+    if (process.platform === 'win32') env.WEASYPRINT_DLL_DIRECTORIES = nativeLibraryDir;
     env.LD_LIBRARY_PATH = env.LD_LIBRARY_PATH
       ? `${nativeLibraryDir}:${env.LD_LIBRARY_PATH}`
       : nativeLibraryDir;
   }
-  if (pythonHome) env.PYTHONHOME = pythonHome;
+  if (pythonHome) {
+    env.PYTHONHOME = pythonHome;
+    env.PYTHONNOUSERSITE = '1';
+  }
   if (pythonPath) env.PYTHONPATH = pythonPath;
   return env;
 }

@@ -27,6 +27,14 @@ async function main() {
     join(runtimeDir, 'fonts'),
   );
 
+  await fs.writeFile(join(runtimeDir, 'fontconfig.conf'), `<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<fontconfig>
+  <dir prefix="relative">fonts</dir>
+  <cachedir prefix="xdg">fontconfig</cachedir>
+</fontconfig>
+`);
+
   console.log(`Portable export assets ready at ${runtimeDir}`);
 }
 

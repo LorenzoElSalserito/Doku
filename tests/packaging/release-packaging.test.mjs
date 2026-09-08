@@ -69,6 +69,7 @@ test('synthetic FPM-shaped deb is finalized end-to-end', { skip: !has('fakeroot'
     fs.writeFileSync(path.join(root, 'DEBIAN', 'control'), 'Package: doku\nVersion: 0.1.4\nSection: default\nPriority: optional\nArchitecture: amd64\nMaintainer: Lorenzo DM <commercial.lorenzodm@gmail.com>\nLicense: AGPL\nVendor: Doku\nDescription: Your Second Mind\n')
     fs.writeFileSync(path.join(root, 'opt', 'Doku', 'doku'), '#!/bin/sh\n', { mode: 0o775 })
     fs.writeFileSync(path.join(root, 'opt', 'Doku', 'libdemo.so'), 'x', { mode: 0o775 })
+    fs.writeFileSync(path.join(root, 'opt', 'Doku', 'ld-linux-x86-64.so.2'), 'x', { mode: 0o755 })
     fs.writeFileSync(path.join(root, 'usr', 'share', 'doc', 'doku', 'LICENSE'), 'stale', { mode: 0o444 })
     execFileSync('fakeroot', ['dpkg-deb', '--build', root, artifact], { stdio: 'ignore' })
     execFileSync('fakeroot', [process.execPath, 'scripts/deb-finalize.js', artifact], { cwd: meta.paths.repoRoot, stdio: 'inherit' })
@@ -81,9 +82,12 @@ test('synthetic FPM-shaped deb is finalized end-to-end', { skip: !has('fakeroot'
     assert.match(list, /etc\/xdg\/autostart\/doku\.desktop/)
     assert.doesNotMatch(list, /usr\/share\/doc\/doku\/LICENSE/)
     const extracted = path.join(temp, 'extracted'); execFileSync('dpkg-deb', ['-R', artifact, extracted])
+    assert.equal(fs.statSync(path.join(extracted, 'opt/Doku/ld-linux-x86-64.so.2')).mode & 0o777, 0o755)
     const changelog = zlib.gunzipSync(fs.readFileSync(path.join(extracted, 'usr/share/doc/doku/changelog.gz')))
     const parsed = execFileSync('dpkg-parsechangelog', ['-l', '-'], { input: changelog, encoding: 'utf8' })
-    assert.match(parsed, /^Version: 0\.1\.4$/m)
+    const releaseVersion = meta.readJson(meta.paths.desktopPackageJson).version
+    assert.equal(deb.parseControl(control).get('Version'), releaseVersion)
+    assert.equal(parsed.match(/^Version: (.+)$/m)?.[1], releaseVersion)
     execFileSync('md5sum', ['-c', '--quiet', path.join(extracted, 'DEBIAN/md5sums')], { cwd: extracted })
     const firstPayload = crypto.createHash('sha256').update(changelog).digest('hex')
     execFileSync('fakeroot', [process.execPath, 'scripts/deb-finalize.js', artifact], { cwd: meta.paths.repoRoot, stdio: 'ignore' })
@@ -91,5 +95,15 @@ test('synthetic FPM-shaped deb is finalized end-to-end', { skip: !has('fakeroot'
     const secondChangelog = zlib.gunzipSync(fs.readFileSync(path.join(second, 'usr/share/doc/doku/changelog.gz')))
     assert.equal(crypto.createHash('sha256').update(secondChangelog).digest('hex'), firstPayload)
     execFileSync('md5sum', ['-c', '--quiet', path.join(second, 'DEBIAN/md5sums')], { cwd: second })
+  } finally { fs.rmSync(temp, { recursive: true, force: true }) }
+})
+
+
+test('packaging rejects an incomplete export runtime', () => {
+  const { verifyExportRuntime } = require('../../scripts/verify-export-runtime.cjs')
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'doku-missing-runtime-'))
+  try {
+    assert.throws(() => verifyExportRuntime(temp, 'win32'), /Bundled export runtime incomplete/)
+    assert.throws(() => verifyExportRuntime(temp, 'linux'), /Bundled Python standard library missing/)
   } finally { fs.rmSync(temp, { recursive: true, force: true }) }
 })

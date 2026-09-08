@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "version": "0.1.6",
+      "date": "Tue, 08 Sep 2026 20:52:15 +0200",
+      "distribution": "unstable",
+      "urgency": "medium",
+      "maintainer": "Lorenzo DM <commercial.lorenzodm@gmail.com>",
+      "entries": [
+        "Added: Nuova icona applicativa Doku rigenerata da sorgente 1080×1080 per tutti i formati: `icon.png`, `icon.ico` (16→256), `icon.icns` (ic07–ic14 + is32/s8mk/il32/l8mk) e le renditions Linux 16→1080.",
+        "Added: Sorgente icona tracciata in `apps/desktop/src/assets/icon-source.png` (non entra nel pacchetto: `files` include solo `out/**` e `package.json`).",
+        "Added: Script riproducibile `npm run icons:generate -- <sorgente.png>` che rigenera l'intero set di icone, ICNS incluso.",
+        "Added: Test e2e Playwright `app-icon.spec.js`: ogni rendition deriva dalla nuova sorgente, l'icns conserva tutti i tipi e la dialog \"About\" mostra l'icona nuova nell'app avviata.",
+        "Added: Test e2e Playwright `preview-theme-sync.spec.js`: anteprima invertita all'avvio con tema scuro, cambio tema a runtime e precedenza del tema su un'inversione manuale.",
+        "Changed: L'anteprima segue automaticamente il tema chiaro/scuro dell'app: pagina scura in dark mode, pagina chiara in light mode. Il pulsante \"inverti colori\" resta un override manuale valido fino al successivo cambio di tema.",
+        "Fixed: Corretta la preparazione del runtime Windows portable: CPython completo, libreria standard, pacchetti WeasyPrint e DLL Pango/GObject incluse nel bundle, senza dipendenza dal Python del sistema.",
+        "Fixed: Corretto il bundle Linux includendo librerie caricate con `dlopen`, dipendenze delle estensioni Python, dati Pandoc, alberi TeX Debian e font; eliminati i symlink TeX verso percorsi host.",
+        "Fixed: Completata la preparazione del runtime macOS con raccolta delle librerie Mach-O, riferimenti relativi e firma dei binari modificati.",
+        "Fixed: Corretti i percorsi Python Windows e gli URL dei font locali; la modalità portable mantiene i dati in `AppUser` senza importare automaticamente impostazioni host.",
+        "Fixed: Allineati i workflow desktop a Node 22 e `npm ci`, con preparazione delle dipendenze per piattaforma e raccolta di AppImage, DEB, RPM, EXE e DMG.",
+        "Fixed: Aggiunti controlli obbligatori prima e dopo il packaging: runtime incompleti o export PDF falliti interrompono la build. Su Linux gli export vengono verificati anche senza filesystem host né rete e sul DEB finale estratto.",
+        "Fixed: Corretti gli hook electron-builder per il workspace desktop, i permessi del loader ELF nel DEB e i test di coerenza della versione di release.",
+        "Validation: Verificati localmente i pacchetti Linux, gli export PDF isolati e la persistenza `AppUser`; aggiunti controlli CI per il launcher Windows portable e il runtime macOS. La validazione nativa Windows/macOS resta affidata ai rispettivi runner."
+      ]
+    },
+    {
       "version": "0.1.5",
       "date": "Sun, 30 Aug 2026 16:40:06 +0200",
       "distribution": "unstable",

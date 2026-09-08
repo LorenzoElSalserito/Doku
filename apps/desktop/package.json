@@ -2,7 +2,7 @@
   "name": "doku-desktop",
   "productName": "Doku",
   "desktopName": "doku.desktop",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "icon": "src/assets/icon.png",
   "description": "Doku — Your Second Mind",
@@ -35,7 +35,9 @@
     "productName": "Doku",
     "electronVersion": "43.2.0",
     "artifactName": "doku_v${version}.${ext}",
-    "afterAllArtifactBuild": "../../scripts/after-all-artifact-build.js",
+    "afterPack": "build-hooks/certify-runtime.cjs",
+    "beforePack": "build-hooks/verify-runtime.cjs",
+    "afterAllArtifactBuild": "build-hooks/finalize-artifacts.cjs",
     "directories": {
       "output": "../../build/desktop",
       "buildResources": "src/assets"
@@ -50,6 +52,7 @@
         "to": "export-runtime",
         "filter": [
           "printStylesheet.css",
+          "fontconfig.conf",
           "scripts/**",
           "fonts/**",
           "lib/**",

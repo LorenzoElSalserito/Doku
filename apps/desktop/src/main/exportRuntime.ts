@@ -42,7 +42,7 @@ export function resolveExportRuntimePaths(baseDir: string): ExportRuntimePaths {
       : sourceRuntime;
 
   const weasyPythonPath = process.platform === 'win32'
-    ? join(exportRoot, 'weasy-python/Scripts/python.exe')
+    ? join(exportRoot, 'weasy-python/python.exe')
     : join(exportRoot, 'weasy-python/bin/python');
   const latexRuntimeRoot = join(exportRoot, 'latex');
   const nativeLibraryDir = join(exportRoot, 'lib');
@@ -66,6 +66,8 @@ export function resolveExportRuntimePaths(baseDir: string): ExportRuntimePaths {
 }
 
 function resolvePythonSitePackages(pythonHome: string): string | undefined {
+  const windowsPackages = join(pythonHome, 'Lib/site-packages');
+  if (existsSync(windowsPackages)) return windowsPackages;
   const libDir = join(pythonHome, 'lib');
   if (!existsSync(libDir)) return undefined;
   const versionDir = readdirSync(libDir).find((entry) => entry.startsWith('python'));

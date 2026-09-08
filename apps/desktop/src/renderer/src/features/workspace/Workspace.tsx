@@ -12,7 +12,15 @@ import {
   type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
-import { Button, Card, IconButton, Input, SegmentedControl, type SegmentedOption } from '@doku/ui';
+import {
+  Button,
+  Card,
+  IconButton,
+  Input,
+  SegmentedControl,
+  useTheme,
+  type SegmentedOption,
+} from '@doku/ui';
 import type {
   ContentColors,
   DocumentSession,
@@ -119,7 +127,16 @@ export function Workspace({
   const [immersive, setImmersive] = useState(false);
   const [contentColors, setContentColors] = useState<ContentColors>(settings.contentColors);
   const [previewZoom, setPreviewZoom] = useState(1);
-  const [previewInverted, setPreviewInverted] = useState(false);
+  // The preview follows the app theme by default; the invert button only holds
+  // an explicit override until the theme changes again.
+  const { resolved: resolvedTheme } = useTheme();
+  const [previewInvertOverride, setPreviewInvertOverride] = useState<boolean | null>(null);
+  const previewInverted = previewInvertOverride ?? resolvedTheme === 'dark';
+  // A theme switch wins over a previous manual override: the preview goes back
+  // to matching the app.
+  useEffect(() => {
+    setPreviewInvertOverride(null);
+  }, [resolvedTheme]);
   const [zoomEditing, setZoomEditing] = useState(false);
   const [zoomDraft, setZoomDraft] = useState('');
   const zoomClickTimerRef = useRef<number | null>(null);
@@ -1220,12 +1237,15 @@ export function Workspace({
   );
 
   const togglePreviewInverted = useCallback(() => {
-    setPreviewInverted((current) => {
-      const next = !current;
-      logWorkspaceEvent('workspace-preview-inverted-toggled', { inverted: next });
+    setPreviewInvertOverride((current) => {
+      const next = !(current ?? resolvedTheme === 'dark');
+      logWorkspaceEvent('workspace-preview-inverted-toggled', {
+        inverted: next,
+        theme: resolvedTheme,
+      });
       return next;
     });
-  }, []);
+  }, [resolvedTheme]);
 
   const toggleImmersive = useCallback(() => {
     setImmersive((current) => {

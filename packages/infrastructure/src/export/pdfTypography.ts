@@ -71,5 +71,7 @@ function buildBundledFontFaces(fontAssetsDir: string): string {
 }
 
 function pathToFileUrl(path: string): string {
-  return `file://${path.replace(/\\/g, '/').replace(/"/g, '%22')}`;
+  const normalized = path.replace(/\\/g, '/');
+  const absolute = /^[A-Za-z]:\//.test(normalized) ? `/${normalized}` : normalized;
+  return `file://${encodeURI(absolute).replace(/#/g, '%23').replace(/\?/g, '%3F')}`;
 }

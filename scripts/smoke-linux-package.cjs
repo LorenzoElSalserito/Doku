@@ -3,7 +3,7 @@
 const { existsSync, readdirSync, readFileSync, statSync } = require('node:fs');
 const { join } = require('node:path');
 const { listPackage } = require('@electron/asar');
-const { execFileSync, spawnSync } = require('node:child_process');
+const { certifyExportRuntime } = require('./lib/smoke-export-runtime.cjs');
 
 const rootDir = process.cwd();
 const outputDir = join(rootDir, 'build/desktop');
@@ -39,66 +39,11 @@ if (asarEntries.some((entry) => entry === '/node_modules' || entry.startsWith('/
   fail('app.asar contiene node_modules: dipendenze non pre-bundled');
 }
 console.log('- app.asar senza node_modules runtime');
-certifyOfflineExportRuntime();
+certifyExportRuntime(join(unpackedDir, 'resources/export-runtime'));
 
 console.log(`Certificazione bundle Linux superata: ${appImage}`);
 console.log(`Dimensione: ${formatBytes(statSync(appImage).size)}`);
 console.log('Runtime applicativi richiesti inclusi: Electron, Pandoc, LuaLaTeX, Python, WeasyPrint.');
-
-function certifyOfflineExportRuntime() {
-  const runtime = join(unpackedDir, 'resources/export-runtime');
-  const libraryDir = join(runtime, 'lib');
-  const pythonHome = join(runtime, 'weasy-python');
-  const pythonBin = join(pythonHome, 'bin/python');
-  const pythonPath = resolvePythonSitePackages(pythonHome);
-  const env = {
-    PATH: '/nonexistent',
-    XDG_CACHE_HOME: '/tmp/doku-zero-dependency-cache',
-    LD_LIBRARY_PATH: libraryDir,
-    PYTHONHOME: pythonHome,
-    PYTHONPATH: pythonPath,
-    TEXMFROOT: join(runtime, 'latex/share/texlive'),
-    TEXMFDIST: join(runtime, 'latex/share/texlive/texmf-dist'),
-    TEXMFLOCAL: join(runtime, 'latex/share/texmf'),
-    TEXMFSYSVAR: join(runtime, 'latex/var/lib/texmf'),
-    TEXMFSYSCONFIG: join(runtime, 'latex/etc/texmf'),
-    TEXMFCNF: [
-      join(runtime, 'latex/etc/texmf/web2c'),
-      join(runtime, 'latex/share/texlive/texmf-dist/web2c'),
-    ].join(':'),
-  };
-
-  execFileSync(join(runtime, 'latex/bin/pandoc'), ['--version'], { env, stdio: 'ignore' });
-  execFileSync(join(runtime, 'latex/bin/lualatex'), ['--version'], { env, stdio: 'ignore' });
-  execFileSync(
-    pythonBin,
-    ['-c', 'from weasyprint import HTML; HTML(string="<p>Doku</p>").write_pdf("/tmp/doku-zero-dependency.pdf")'],
-    { env, stdio: 'inherit' },
-  );
-
-  for (const executable of [
-    join(runtime, 'latex/bin/pandoc'),
-    join(runtime, 'latex/bin/lualatex'),
-    pythonBin,
-  ]) {
-    const result = spawnSync('/usr/bin/ldd', [executable], { env, encoding: 'utf8' });
-    const output = result.stdout ?? '';
-    if (result.status !== 0 && !output) fail(`ldd non eseguibile per ${executable}`);
-    if (output.includes('not found')) fail(`dipendenza ELF irrisolta: ${output}`);
-  }
-  console.log('- export runtime funziona con PATH host disabilitato');
-  console.log('- dipendenze ELF risolte dal bundle');
-}
-
-function resolvePythonSitePackages(pythonHome) {
-  const config = readFileSync(join(pythonHome, 'pyvenv.cfg'), 'utf8');
-  const version = config.match(/^version\s*=\s*(\d+\.\d+)/m)?.[1];
-  if (!version) fail(`versione Python non rilevabile in ${join(pythonHome, 'pyvenv.cfg')}`);
-
-  const sitePackages = join(pythonHome, 'lib', `python${version}`, 'site-packages');
-  if (!existsSync(sitePackages)) fail(`pacchetti Python mancanti in ${sitePackages}`);
-  return sitePackages;
-}
 
 function assertExists(path, label) {
   if (!existsSync(path)) fail(`${label}: mancante in ${path}`);

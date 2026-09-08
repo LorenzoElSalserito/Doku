@@ -6,6 +6,11 @@ import {
 } from './pdfTypography.js';
 
 describe('PDF typography', () => {
+  it('encodes portable Windows font URLs including spaces and URL delimiters', () => {
+    const css = buildWeasyTypographyCss(resolvePdfTypography(undefined), 'C:\\Doku portabile #1\\fonts');
+    expect(css).toContain('file:///C:/Doku%20portabile%20%231/fonts/Inter.ttf');
+  });
+
   it('normalizes typography to one selected font for every output surface', () => {
     const typography = resolvePdfTypography({
       profile: 'professional',

@@ -32,7 +32,10 @@ async function main() {
   await fs.mkdir(libraryDir, { recursive: true });
   await bundlePythonStandardLibrary();
 
-  const queue = [...seeds, ...probeWeasyLoadedLibraries()];
+  const loadedLibraries = probeWeasyLoadedLibraries();
+  // dlopen libraries are roots, not dependencies reported by ldd.
+  for (const library of loadedLibraries) await copyLibrary(library);
+  const queue = [...seeds, ...loadedLibraries, ...await pythonExtensions(pythonHome)];
   const visited = new Set();
   while (queue.length > 0) {
     const binary = queue.shift();
@@ -40,19 +43,29 @@ async function main() {
     visited.add(binary);
 
     for (const dependency of resolveLddDependencies(binary)) {
-      const names = new Set([basename(dependency), resolveSoname(dependency)].filter(Boolean));
-      for (const name of names) {
-        const target = join(libraryDir, name);
-        if (!existsSync(target)) {
-          await fs.copyFile(dependency, target);
-          await fs.chmod(target, 0o755);
-        }
-      }
+      await copyLibrary(dependency);
       if (!visited.has(dependency)) queue.push(dependency);
     }
   }
 
   console.log(`Linux native runtime bundled at ${libraryDir} (${visited.size} ELF objects scanned)`);
+}
+
+async function pythonExtensions(directory) {
+  const result = [];
+  for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
+    const file = join(directory, entry.name);
+    if (entry.isDirectory()) result.push(...await pythonExtensions(file));
+    else if (entry.isFile() && /\.so(?:\.|$)/.test(entry.name)) result.push(file);
+  }
+  return result;
+}
+
+async function copyLibrary(library) {
+  for (const name of new Set([basename(library), resolveSoname(library)].filter(Boolean))) {
+    await fs.copyFile(library, join(libraryDir, name));
+    await fs.chmod(join(libraryDir, name), 0o755);
+  }
 }
 
 function resolveSoname(binary) {
@@ -97,8 +110,12 @@ function probeWeasyLoadedLibraries() {
 }
 
 function resolveLddDependencies(binary) {
-  const result = spawnSync('ldd', [binary], { encoding: 'utf8' });
-  if (result.status !== 0) return [];
+  const result = spawnSync('ldd', [binary], { encoding: 'utf8',
+    env: { ...process.env, LD_LIBRARY_PATH: `${dirname(binary)}:${libraryDir}:${process.env.LD_LIBRARY_PATH || ''}` },
+  });
+  if (result.status !== 0 || result.stdout.includes('not found')) {
+    throw new Error(`Unresolved ELF dependencies for ${binary}\n${result.stdout}\n${result.stderr}`);
+  }
   const dependencies = [];
   for (const line of result.stdout.split('\n')) {
     const match = line.match(/=>\s+(\/[^\s]+)|^\s*(\/[^\s]+)/);

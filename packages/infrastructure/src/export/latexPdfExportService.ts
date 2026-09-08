@@ -87,6 +87,7 @@ async function runPandoc(
   try {
     const args = [
       markdownPath,
+      ...(runtime.latexRuntimeRoot ? [`--data-dir=${join(runtime.latexRuntimeRoot, 'share/pandoc')}`] : []),
       '--from=gfm',
       '--standalone',
       `--pdf-engine=${runtime.lualatexPath}`,
@@ -141,7 +142,7 @@ function buildLatexEnvironment(
 
   const runtimeFontAssetsDir = latexRuntimeRoot ? join(dirname(latexRuntimeRoot), 'fonts') : null;
   const fontAssetsDir = runtimeFontAssetsDir ?? bundledFontAssetsDir;
-  env.OSFONTDIR = env.OSFONTDIR ? `${fontAssetsDir}${delimiter}${env.OSFONTDIR}` : fontAssetsDir;
+  env.OSFONTDIR = fontAssetsDir;
 
   if (!latexRuntimeRoot) {
     return env;
@@ -149,6 +150,9 @@ function buildLatexEnvironment(
 
   env.TEXMFROOT = join(latexRuntimeRoot, 'share/texlive');
   env.TEXMFDIST = join(latexRuntimeRoot, 'share/texlive/texmf-dist');
+  env.TEXMFHOME = cacheDir;
+  env.TEXMFCONFIG = cacheDir;
+  env.TEXMFDEBIAN = join(latexRuntimeRoot, 'share/texmf-debian');
   env.TEXMFLOCAL = join(latexRuntimeRoot, 'share/texmf');
   env.TEXMFSYSVAR = join(latexRuntimeRoot, 'var/lib/texmf');
   env.TEXMFSYSCONFIG = join(latexRuntimeRoot, 'etc/texmf');

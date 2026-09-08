@@ -85,7 +85,7 @@ function hasWeasyExportRuntime() {
   const pythonBin = resolve(
     process.cwd(),
     process.platform === 'win32'
-      ? 'build/export-runtime/weasy-python/Scripts/python.exe'
+      ? 'build/export-runtime/weasy-python/python.exe'
       : 'build/export-runtime/weasy-python/bin/python',
   );
 
@@ -93,11 +93,20 @@ function hasWeasyExportRuntime() {
     return false;
   }
 
-  if (spawnSync('which', ['pandoc'], { encoding: 'utf-8' }).status !== 0) {
+  const runtime = resolve(process.cwd(), 'build/export-runtime');
+  const suffix = process.platform === 'win32' ? '.exe' : '';
+  if (!existsSync(join(runtime, `latex/bin/pandoc${suffix}`))) {
     return false;
   }
 
-  return spawnSync(pythonBin, ['-c', 'import weasyprint']).status === 0;
+  return spawnSync(pythonBin, ['-c', 'import weasyprint'], {
+    env: {
+      ...process.env,
+      LD_LIBRARY_PATH: join(runtime, 'lib'),
+      DYLD_LIBRARY_PATH: join(runtime, 'lib'),
+      WEASYPRINT_DLL_DIRECTORIES: join(runtime, 'lib'),
+    },
+  }).status === 0;
 }
 
 async function cleanupDokuE2EContext(context) {

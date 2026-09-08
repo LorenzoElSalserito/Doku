@@ -90,6 +90,7 @@ function normalizePermissions(root) {
     const mode = parseInt(match[1], 8); const file = match[3]; let target
     if (match[2] === 'd') target = 0o755
     else if (file.startsWith(`${control}${path.sep}`)) target = ['preinst', 'postinst', 'prerm', 'postrm', 'config'].includes(path.basename(file)) ? 0o755 : 0o644
+    else if (/^ld-linux.*\.so\.\d+$/.test(path.basename(file))) target = 0o755
     else if (/\.so(\.\d+)*$/.test(file)) target = 0o644
     else target = mode & 0o111 ? 0o755 : 0o644
     fs.chmodSync(file, (mode & 0o7000) | target)

@@ -5,29 +5,45 @@ on:
   push:
     tags:
       - 'v*'
+  pull_request:
+    paths:
+      - '.github/workflows/package-desktop.yml'
+      - 'scripts/**'
+      - 'apps/desktop/package.json'
+      - 'apps/desktop/build-hooks/**'
+      - 'apps/desktop/src/main/**'
+      - 'packages/infrastructure/src/export/**'
+      - 'package*.json'
+
+permissions:
+  contents: read
 
 jobs:
   package:
     name: Package ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             label: Linux
-            package_script: package:linux
-            artifact_glob: build/desktop/**/*.deb
-          - os: windows-latest
+            package_script: package:linux:all
+            artifact_glob: |
+              build/desktop/*.AppImage
+              build/desktop/*.deb
+              build/desktop/*.rpm
+          - os: windows-2022
             label: Windows
             package_script: package:win
-            artifact_glob: build/desktop/**/*.exe
-          - os: macos-latest
+            artifact_glob: build/desktop/doku_v*.exe
+          - os: macos-14
             label: macOS
             package_script: package:mac
-            artifact_glob: build/desktop/**/*.dmg
+            artifact_glob: build/desktop/*.dmg
 
     steps:
       - name: Checkout
@@ -36,32 +52,91 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '22.22.0'
           cache: npm
 
-      - name: Install dependencies
+      - name: Setup Python
+        if: runner.os != 'macOS'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+
+      - name: Install dependencies from lockfile
         run: npm ci
 
-      - name: Install electron-builder
-        run: npm install -D electron-builder
-
-      - name: Install Linux packaging dependencies
+      - name: Install Linux runtime and packaging dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y fakeroot dpkg pandoc texlive-luatex texlive-latex-recommended texlive-fonts-recommended
+          sudo apt-get install -y fakeroot dpkg rpm binutils bubblewrap python3-venv libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 pandoc texlive-luatex texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended
 
-      - name: Build installer
-        shell: bash
+      - name: Install Windows native libraries
+        if: runner.os == 'Windows'
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: mingw-w64-x86_64-pango mingw-w64-x86_64-harfbuzz mingw-w64-x86_64-fontconfig
+
+      - name: Configure Windows native bundle
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "DOKU_WEASY_DLL_DIR=${{ steps.msys2.outputs.msys2-location }}\mingw64\bin" >> $env:GITHUB_ENV
+          choco install pandoc --no-progress -y
+          "C:\Program Files\Pandoc" >> $env:GITHUB_PATH
+          "DOKU_PANDOC_BIN=C:\Program Files\Pandoc\pandoc.exe" >> $env:GITHUB_ENV
+
+      - name: Install macOS build dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew install python@3.12 pango harfbuzz fontconfig pandoc
+          echo "$(brew --prefix python@3.12)/libexec/bin" >> "$GITHUB_PATH"
+
+      - name: Install portable TeX Live
+        if: runner.os != 'Linux'
+        uses: r-lib/actions/setup-tinytex@v2
+
+      - name: Install TeX packages used by PDF export
+        if: runner.os != 'Linux'
+        run: tlmgr install collection-luatex collection-latexrecommended collection-latexextra collection-fontsrecommended
+
+      - name: Unit tests
+        if: runner.os == 'Linux'
+        run: npm test
+
+      - name: Portable runtime unit tests
+        if: runner.os != 'Linux'
+        run: npm test -- apps/desktop/src/main/portableData.test.ts apps/desktop/src/main/exportRuntime.test.ts packages/infrastructure/src/export/pdfTypography.test.ts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build and certify packages
+        env:
+          DOKU_SMOKE_ISOLATE: ${{ runner.os == 'Linux' && '1' || '0' }}
         run: npm run ${{ matrix.package_script }}
 
-      - name: Smoke Linux package
-        if: runner.os == 'Linux'
-        run: npm run smoke:linux
+      - name: Verify portable Windows launcher
+        if: runner.os == 'Windows'
+        run: node scripts/smoke-windows-launcher.cjs
 
-      - name: Upload artifacts
+      - name: Upload certified artifacts
         uses: actions/upload-artifact@v4
         with:
           name: doku-${{ matrix.label }}-artifacts
           path: ${{ matrix.artifact_glob }}
           if-no-files-found: error
+          compression-level: 0
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: doku-${{ matrix.label }}-diagnostics
+          path: |
+            build/desktop/builder-debug.yml
+            build/desktop/builder-effective-config.yaml
+            build/smoke-diagnostics/**
+          if-no-files-found: ignore

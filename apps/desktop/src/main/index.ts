@@ -101,11 +101,11 @@ async function bootstrap(): Promise<void> {
     sourceDir: ORIGINAL_USER_DATA_DIR,
     targetDir: DOCUMENTS_DATA_DIR,
   });
-  await migrateLegacyUserData(ORIGINAL_USER_DATA_DIR, DOCUMENTS_DATA_DIR);
+  if (!PORTABLE_DATA_PATHS) await migrateLegacyUserData(ORIGINAL_USER_DATA_DIR, DOCUMENTS_DATA_DIR);
   logStartup('legacy-user-data-migration-finished');
   const repo = new SettingsRepository({
     userDataDir: DOCUMENTS_DATA_DIR,
-    legacyFilePaths: [join(ORIGINAL_USER_DATA_DIR, 'settings.json')],
+    legacyFilePaths: PORTABLE_DATA_PATHS ? [] : [join(ORIGINAL_USER_DATA_DIR, 'settings.json')],
     logger,
   });
   // Ensure defaults exist on disk (idempotent).
