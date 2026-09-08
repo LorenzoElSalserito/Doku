@@ -30,7 +30,7 @@ async function main() {
   await fs.writeFile(join(runtimeDir, 'fontconfig.conf'), `<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
 <fontconfig>
-  <dir prefix="relative">fonts</dir>
+  <dir prefix="xdg">fonts</dir>
   <cachedir prefix="xdg">fontconfig</cachedir>
 </fontconfig>
 `);

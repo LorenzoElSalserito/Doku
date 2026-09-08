@@ -135,6 +135,8 @@ function buildNativeRuntimeEnvironment(
 ): NodeJS.ProcessEnv {
   const env = { ...process.env };
   if (nativeLibraryDir) {
+    // Fontconfig 2.13 (Ubuntu 22.04) resolves this via <dir prefix="xdg">.
+    env.XDG_DATA_HOME = dirname(nativeLibraryDir);
     env.FONTCONFIG_FILE = join(dirname(nativeLibraryDir), 'fontconfig.conf');
     if (process.platform === 'darwin') env.DYLD_LIBRARY_PATH = nativeLibraryDir;
     if (process.platform === 'win32') env.WEASYPRINT_DLL_DIRECTORIES = nativeLibraryDir;

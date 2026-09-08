@@ -22,6 +22,7 @@ function certifyExportRuntime(source) {
       PATH: bin,
       HOME: temporary, USERPROFILE: temporary, TEMP: temporary, TMP: temporary,
       XDG_CACHE_HOME: temporary,
+      XDG_DATA_HOME: runtime,
       PYTHONHOME: pythonHome, PYTHONPATH: pythonPath, PYTHONNOUSERSITE: '1',
       LD_LIBRARY_PATH: join(runtime, 'lib'),
       DYLD_LIBRARY_PATH: join(runtime, 'lib'),
@@ -50,6 +51,13 @@ function certifyExportRuntime(source) {
         '--proc', '/proc', '--dev', '/dev', '--chdir', temporary, '--', command, ...args,
       ], options);
     };
+    run(python, ['-c', [
+      'from weasyprint.text.ffi import ffi, fontconfig',
+      'config = ffi.gc(fontconfig.FcInitLoadConfigAndFonts(), fontconfig.FcConfigDestroy)',
+      'fonts = fontconfig.FcConfigGetFonts(config, fontconfig.FcSetSystem)',
+      'assert fonts != ffi.NULL and fonts.nfont > 0, "Bundled Fontconfig found no fonts"',
+      'print("Bundled Fontconfig fonts:", fonts.nfont)',
+    ].join('; ')]);
     const markdown = join(temporary, 'document.md');
     const html = join(temporary, 'document.html');
     fs.writeFileSync(markdown, '# Doku\n\nDocumento portabile: accenti àèìòù, **grassetto**, formula $x^2$.\n');

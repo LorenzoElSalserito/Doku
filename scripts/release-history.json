@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "version": "0.1.7",
+      "date": "Tue, 08 Sep 2026 23:47:23 +0200",
+      "distribution": "unstable",
+      "urgency": "medium",
+      "maintainer": "Lorenzo DM <commercial.lorenzodm@gmail.com>",
+      "entries": [
+        "Fixed: Corretta la ricerca dei font con Fontconfig 2.13 su Ubuntu 22.04: configurazione XDG ancorata al bundle anche dopo spostamento; lo smoke controlla la presenza di font prima dell’export PDF.",
+        "Fixed: Attivata la generazione automatica dei pacchetti desktop a ogni push su `main`, mantenendo trigger tag e manuale e upload degli artefatti verificati.",
+        "Fixed: Corretti i test packaging su checkout pulito: le invarianti del repository non richiedono più file compilati prima della build; l’hook `beforePack` continua a imporre la presenza di main, preload e renderer compilati. Aggiunto test di regressione senza directory `out`.",
+        "Fixed: Corretti entrambi i workflow Linux su Ubuntu 22.04: sostituito il pacchetto inesistente `libharfbuzz-subset0` con `libharfbuzz0b`. WeasyPrint 66 usa FontTools già incluso nel bundle per la riduzione dei font quando HarfBuzz Subset non è disponibile."
+      ]
+    },
+    {
       "version": "0.1.6",
       "date": "Tue, 08 Sep 2026 20:52:15 +0200",
       "distribution": "unstable",

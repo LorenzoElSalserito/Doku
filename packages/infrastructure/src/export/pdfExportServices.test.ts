@@ -86,6 +86,7 @@ describe('PDF export services', () => {
     const service = new WeasyPdfExportService({
       printStylesheetPath: 'packages/infrastructure/src/export/printStylesheet.css',
       weasyScriptPath: 'packages/infrastructure/src/export/scripts/render_weasy_pdf.py',
+      nativeLibraryDir: '/opt/Doku portable/resources/export-runtime/lib',
       pythonExecutablePath: '/opt/Doku/resources/export-runtime/weasy-python/bin/python',
       pandocPath: '/opt/Doku/resources/export-runtime/latex/bin/pandoc',
     });
@@ -110,14 +111,20 @@ describe('PDF export services', () => {
       1,
       '/opt/Doku/resources/export-runtime/latex/bin/pandoc',
       expect.arrayContaining(['--to=html5', '--output']),
-      expect.objectContaining({ env: expect.any(Object) }),
+      expect.objectContaining({ env: expect.objectContaining({
+        XDG_DATA_HOME: '/opt/Doku portable/resources/export-runtime',
+        FONTCONFIG_FILE: '/opt/Doku portable/resources/export-runtime/fontconfig.conf',
+      }) }),
       expect.any(Function),
     );
     expect(execFileMock).toHaveBeenNthCalledWith(
       2,
       '/opt/Doku/resources/export-runtime/weasy-python/bin/python',
       expect.arrayContaining(['packages/infrastructure/src/export/scripts/render_weasy_pdf.py', outputPath]),
-      expect.objectContaining({ env: expect.any(Object) }),
+      expect.objectContaining({ env: expect.objectContaining({
+        XDG_DATA_HOME: '/opt/Doku portable/resources/export-runtime',
+        FONTCONFIG_FILE: '/opt/Doku portable/resources/export-runtime/fontconfig.conf',
+      }) }),
       expect.any(Function),
     );
   });
