@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const { basename, dirname, join, relative, resolve } = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
 const { copyWritable, createLibraryStore } = require('./lib/macos-library-store.cjs');
+const { parseDependencies } = require('./lib/macho-dependencies.cjs');
 
 if (process.platform !== 'darwin') process.exit(0);
 const runtime = resolve(__dirname, '../build/export-runtime');
@@ -52,8 +53,7 @@ while (queue.length) {
   const inspect = spawnSync('otool', ['-L', binary], { encoding: 'utf8' });
   if (inspect.status !== 0) continue;
   const original = origins.get(binary) || binary;
-  const dependencies = inspect.stdout.split('\n').slice(1)
-    .map((line) => line.trim().split(' (compatibility version')[0]).filter(Boolean);
+  const dependencies = parseDependencies(inspect.stdout);
   for (const dependency of dependencies) {
     if (dependency.startsWith('/usr/lib/') || dependency.startsWith('/System/Library/')) continue;
     let source = dependency.replace('@loader_path', dirname(original)).replace('@executable_path', dirname(python));

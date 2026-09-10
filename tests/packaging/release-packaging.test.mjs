@@ -14,6 +14,25 @@ const bump = require('../../scripts/version-bump.js')
 const deb = require('../../scripts/deb-finalize.js')
 const has = (command) => spawnSync('sh', ['-c', `command -v ${command}`], { stdio: 'ignore' }).status === 0
 
+test('RPM certification rejects build paths, interpreters and bundled library requirements', () => {
+  const { verifyRequirements } = require('../../scripts/lib/rpm-runtime.cjs')
+  const allowed = ['/bin/sh', 'rpmlib(PayloadIsXz) <= 5.2-1']
+  assert.doesNotThrow(() => verifyRequirements(allowed))
+  for (const dependency of ['/bin/python3', '/home/lorenzo/IdeaProjects/Doku/build/export-runtime/weasy-python/bin/python',
+    'libdb-5.3.so(DB5_3)(64bit)', 'libjpeg-8296d2fa.so.62.4.0(LIBJPEG_6.2)(64bit)',
+    'libncursesw.so.6(NCURSESW6_5.1.20000708)(64bit)']) {
+    assert.throws(() => verifyRequirements([...allowed, dependency]), (error) => error.message.includes(dependency))
+  }
+})
+
+test('Mach-O dependency parser ignores universal architecture headers and deduplicates libraries', () => {
+  const { parseDependencies } = require('../../scripts/lib/macho-dependencies.cjs')
+  const library = '\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)'
+  assert.deepEqual(parseDependencies(`/tmp/path with spaces/kpsewhich (architecture x86_64):\n${library}\n/tmp/path with spaces/kpsewhich (architecture arm64):\n${library}\n\t@rpath/libtest.dylib (compatibility version 2.0.0, current version 2.1.0)\n`),
+    ['/usr/lib/libSystem.B.dylib', '@rpath/libtest.dylib'])
+  assert.deepEqual(parseDependencies(`/tmp/python:\n${library}\n`), ['/usr/lib/libSystem.B.dylib'])
+})
+
 test('Pandoc data survives file-only packaging with embedded or external defaults', async () => {
   const { preparePandocData } = require('../../scripts/lib/pandoc-data.cjs')
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'doku-pandoc-data-'))
@@ -178,6 +197,18 @@ test('fresh checkout passes repository checks but cannot package without compile
       ['scripts/verify-packaging-assets.js', ...args], { cwd: temp, encoding: 'utf8' })
     const repository = check()
     assert.equal(repository.status, 0, repository.stderr)
+    const desktopPath = path.join(temp, 'apps/desktop/package.json')
+    const desktopSource = fs.readFileSync(desktopPath, 'utf8')
+    for (const invalid of [{ depends: [] }, { depends: ['python3'], fpm: ['--no-rpm-autoreqprov'] },
+      { depends: [], fpm: ['--no-rpm-autoreqprov', '--rpm-autoreq'] }]) {
+      const desktop = JSON.parse(desktopSource)
+      desktop.build.rpm = invalid
+      fs.writeFileSync(desktopPath, JSON.stringify(desktop))
+      const result = check()
+      assert.equal(result.status, 1)
+      assert.match(result.stderr, /RPM must disable/)
+    }
+    fs.writeFileSync(desktopPath, desktopSource)
     const unbuilt = check(['--require-build'])
     assert.equal(unbuilt.status, 1)
     for (const entry of ['main/index.js', 'preload/index.js', 'renderer/index.html']) {

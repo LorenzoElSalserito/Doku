@@ -19,17 +19,24 @@ async function launch(directory) {
   for (const key of ['DOKU_DATA_DIR', 'PORTABLE_EXECUTABLE_DIR', 'PORTABLE_EXECUTABLE_FILE', 'PYTHONHOME', 'PYTHONPATH', 'WEASYPRINT_DLL_DIRECTORIES', 'ELECTRON_RUN_AS_NODE']) delete env[key];
   const child = spawn(join(directory, 'Doku.exe'), [], { env, stdio: 'inherit' });
   let failure;
+  let exit;
   child.on('error', (error) => { failure = error; });
+  child.on('exit', (code, signal) => { exit = { code, signal }; });
+  const started = Date.now();
+  let bootstrapStarted;
   try {
-    const deadline = Date.now() + 120_000;
-    while (Date.now() < deadline) {
+    // NSIS extracts the complete Python/TeX bundle before Electron starts.
+    // Give extraction its own budget, then enforce the window startup budget.
+    while (Date.now() < (bootstrapStarted ? bootstrapStarted + 120_000 : started + 600_000)) {
       if (failure) throw failure;
+      if (exit) throw new Error(`Portable launcher exited before window reveal: ${JSON.stringify(exit)}`);
       if (fs.existsSync(logs)) {
         const entries = fs.readdirSync(logs).filter((name) => name.endsWith('.log'))
           .flatMap((name) => fs.readFileSync(join(logs, name), 'utf8').split('\n'))
           .filter(Boolean).flatMap((line) => { try { return [JSON.parse(line)]; } catch { return []; } });
         const fatal = entries.find((entry) => entry.event === 'app:fatal-bootstrap-error');
         if (fatal) throw new Error(JSON.stringify(fatal));
+        if (!bootstrapStarted && entries.length) bootstrapStarted = Date.now();
         if (entries.some((entry) => entry.event === 'window:reveal-end')) {
           const start = entries.find((entry) => entry.event === 'startup:process-created');
           assert.equal(start.context.appDataDir, appUser);
@@ -39,8 +46,18 @@ async function launch(directory) {
       }
       await delay(500);
     }
-    throw new Error('Portable EXE did not show its window within 120 seconds');
+    throw new Error(bootstrapStarted
+      ? 'Electron did not show its window within 120 seconds after bootstrap'
+      : 'Portable EXE did not start Electron within 600 seconds (extraction/startup phase)');
   } finally {
+    fs.mkdirSync(diagnostics, { recursive: true });
+    fs.writeFileSync(join(diagnostics, `launcher-${started}.json`), JSON.stringify({
+      directory, pid: child.pid, exit, elapsedMs: Date.now() - started,
+      bootstrapStarted, error: failure?.message,
+    }, null, 2));
+    const processes = spawnSync('powershell.exe', ['-NoProfile', '-Command',
+      'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,ExecutablePath | ConvertTo-Json'], { encoding: 'utf8' });
+    fs.writeFileSync(join(diagnostics, `processes-${started}.txt`), `${processes.stdout || ''}\n${processes.stderr || ''}`);
     if (child.pid) spawnSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
     await delay(1500);
     if (fs.existsSync(logs)) fs.cpSync(logs, join(diagnostics, String(Date.now())), { recursive: true });

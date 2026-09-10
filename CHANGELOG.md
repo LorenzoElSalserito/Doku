@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Impedita la regressione delle dipendenze RPM esterne generate dai runtime inclusi: verifica obbligatoria della configurazione prima del packaging e controllo dei requisiti di ogni RPM nell’hook finale, anche per build avviate direttamente dal workspace desktop.
+
+- Corretto il parser macOS di `otool -L` per binari universali: escluse le intestazioni per architettura dalle dipendenze.
+- Separati i timeout dello smoke Windows per estrazione NSIS e avvio Electron; aggiunti rilevamento uscita prematura e diagnostica processi.
 - Conservata la directory dati Pandoc nei pacchetti Windows/macOS anche quando i dati predefiniti sono incorporati nel binario: i packager non eliminano più la directory vuota necessaria al controllo runtime.
 - Corretto il bundle macOS: librerie copiate con permessi scrivibili e nomi distinti per origine, evitando sovrascritture e collisioni tra librerie dinamiche omonime di Homebrew e Python/Pillow.
 

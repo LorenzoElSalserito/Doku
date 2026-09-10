@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 const { existsSync, readdirSync, readFileSync, statSync } = require('node:fs');
-const { execFileSync } = require('node:child_process');
 const { join } = require('node:path');
 
 const rootDir = process.cwd();
@@ -14,21 +13,7 @@ const rpmPath = readdirSync(outputDir)
 
 if (!rpmPath || !existsSync(rpmPath)) fail(`RPM ${version} mancante in ${outputDir}`);
 
-const requirements = execFileSync('rpm', ['-qpR', '--dbpath', '/tmp/doku-rpmdb', rpmPath], {
-  cwd: rootDir,
-  encoding: 'utf8',
-  stdio: ['ignore', 'pipe', 'pipe'],
-}).trim().split('\n').filter(Boolean);
-
-// electron-builder uses /bin/sh scriptlets to install the command symlink,
-// configure Chromium sandbox permissions, and refresh desktop/MIME caches.
-// No application, Python, or ELF dependency may escape the bundled runtime.
-const externalRequirements = requirements.filter(
-  (entry) => entry !== '/bin/sh' && !entry.startsWith('rpmlib('),
-);
-if (externalRequirements.length > 0) {
-  fail(`dipendenze esterne trovate:\n${externalRequirements.join('\n')}`);
-}
+require('./lib/rpm-runtime.cjs').certifyRpm(rpmPath);
 
 console.log(`Certificazione RPM senza dipendenze superata: ${rpmPath}`);
 

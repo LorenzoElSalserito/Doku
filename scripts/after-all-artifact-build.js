@@ -5,6 +5,9 @@ const meta = require('./lib/release-meta')
 
 function hasCommand(command) { return spawnSync('sh', ['-c', `command -v ${command}`], { stdio: 'ignore' }).status === 0 }
 exports.default = async function (context) {
+  for (const rpm of (context.artifactPaths || []).filter((file) => file.endsWith('.rpm'))) {
+    require('./lib/rpm-runtime.cjs').certifyRpm(rpm)
+  }
   const debs = (context.artifactPaths || []).filter((file) => file.endsWith('.deb'))
   if (debs.length && !hasCommand('fakeroot')) throw new Error('fakeroot is required to finalize .deb packages (apt install fakeroot)')
   for (const deb of debs) {

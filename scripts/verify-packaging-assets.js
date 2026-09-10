@@ -7,6 +7,12 @@ const root = meta.readJson(meta.paths.packageJson)
 const desktop = meta.readJson(meta.paths.desktopPackageJson)
 const lock = meta.readJson(meta.paths.packageLock)
 const problems = []
+const rpm = desktop.build?.rpm
+if (!Array.isArray(rpm?.depends) || rpm.depends.length !== 0 ||
+    !rpm?.fpm?.includes('--no-rpm-autoreqprov') ||
+    rpm.fpm.some((arg) => /^--rpm-auto(req|prov)/.test(arg))) {
+  problems.push('RPM must disable automatic runtime dependencies and declare depends: []')
+}
 // Repository checks run before compilation on a fresh CI checkout.
 const required = ['apps/desktop/src/assets/icon.png', 'apps/desktop/src/assets/icon.ico', 'apps/desktop/src/assets/icon.icns']
 if (process.argv.includes('--require-build')) required.push('apps/desktop/out/main/index.js', 'apps/desktop/out/preload/index.js', 'apps/desktop/out/renderer/index.html')

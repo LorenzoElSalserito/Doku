@@ -109,6 +109,10 @@ jobs:
         if: runner.os == 'Linux'
         run: npm test
 
+      - name: Packaging regression tests
+        if: runner.os == 'Linux'
+        run: npm run test:packaging
+
       - name: Portable runtime unit tests
         if: runner.os != 'Linux'
         run: npm test -- apps/desktop/src/main/portableData.test.ts apps/desktop/src/main/exportRuntime.test.ts packages/infrastructure/src/export/pdfTypography.test.ts
