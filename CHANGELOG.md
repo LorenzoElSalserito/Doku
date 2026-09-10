@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Fixed: Compressione RPM impostata a gzip: evitato il consumo di circa 8 GB di RAM di xzmt che causava la terminazione di rpmbuild da parte dell’OOM killer. Verifica preventiva impedisce il ritorno al default xzmt.
+
 ### Fixed
 
 - Impedita la regressione delle dipendenze RPM esterne generate dai runtime inclusi: verifica obbligatoria della configurazione prima del packaging e controllo dei requisiti di ogni RPM nell’hook finale, anche per build avviate direttamente dal workspace desktop.

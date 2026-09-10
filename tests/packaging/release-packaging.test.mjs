@@ -208,6 +208,14 @@ test('fresh checkout passes repository checks but cannot package without compile
       assert.equal(result.status, 1)
       assert.match(result.stderr, /RPM must disable/)
     }
+    for (const compression of [undefined, 'xz', 'xzmt']) {
+      const desktop = JSON.parse(desktopSource)
+      desktop.build.rpm.compression = compression
+      fs.writeFileSync(desktopPath, JSON.stringify(desktop))
+      const result = check()
+      assert.equal(result.status, 1)
+      assert.match(result.stderr, /RPM compression must be gzip/)
+    }
     fs.writeFileSync(desktopPath, desktopSource)
     const unbuilt = check(['--require-build'])
     assert.equal(unbuilt.status, 1)

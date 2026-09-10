@@ -8,6 +8,7 @@ const desktop = meta.readJson(meta.paths.desktopPackageJson)
 const lock = meta.readJson(meta.paths.packageLock)
 const problems = []
 const rpm = desktop.build?.rpm
+if (rpm?.compression !== 'gzip') problems.push('RPM compression must be gzip to avoid unbounded xzmt memory usage')
 if (!Array.isArray(rpm?.depends) || rpm.depends.length !== 0 ||
     !rpm?.fpm?.includes('--no-rpm-autoreqprov') ||
     rpm.fpm.some((arg) => /^--rpm-auto(req|prov)/.test(arg))) {

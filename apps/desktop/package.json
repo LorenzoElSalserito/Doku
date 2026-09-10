@@ -96,7 +96,8 @@
       "depends": [],
       "fpm": [
         "--no-rpm-autoreqprov"
-      ]
+      ],
+      "compression": "gzip"
     },
     "mac": {
       "target": [
