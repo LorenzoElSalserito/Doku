@@ -11,10 +11,14 @@ describe('findMissingExportRuntimeEntries', () => {
     expect(
       findMissingExportRuntimeEntries({
         printStylesheetPath: '/missing/printStylesheet.css',
+        latexPreamblePath: '/missing/latexPreamble.tex',
+        tableFilterPath: '/missing/tableWidths.lua',
         weasyScriptPath: '/missing/render_weasy_pdf.py',
       }),
     ).toEqual([
       'printStylesheet.css',
+      'latexPreamble.tex',
+      'tableWidths.lua',
       'scripts/render_weasy_pdf.py',
       'weasy-python',
       'latex/bin/pandoc',
@@ -33,7 +37,7 @@ it('resolves a self-contained Windows Python layout without a venv launcher', ()
   const runtime = join(temp, 'build/export-runtime');
   const original = Object.getOwnPropertyDescriptor(process, 'platform')!;
   try {
-    for (const entry of ['scripts/render_weasy_pdf.py', 'printStylesheet.css',
+    for (const entry of ['scripts/render_weasy_pdf.py', 'printStylesheet.css', 'latexPreamble.tex', 'tableWidths.lua',
       'weasy-python/python.exe', 'weasy-python/Lib/site-packages/weasyprint/__init__.py',
       'latex/bin/pandoc.exe', 'latex/bin/lualatex.exe', 'lib/libgobject-2.0-0.dll']) {
       const file = join(runtime, entry);

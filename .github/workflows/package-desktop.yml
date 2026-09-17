@@ -41,7 +41,9 @@ jobs:
           - os: windows-2022
             label: Windows
             package_script: package:win
-            artifact_glob: build/desktop/doku_v*.exe
+            artifact_glob: |
+              build/desktop/doku_v*-setup.exe
+              build/desktop/doku_v*-portable.zip
           - os: macos-14
             label: macOS
             package_script: package:mac
@@ -117,6 +119,9 @@ jobs:
         if: runner.os != 'Linux'
         run: npm test -- apps/desktop/src/main/portableData.test.ts apps/desktop/src/main/exportRuntime.test.ts packages/infrastructure/src/export/pdfTypography.test.ts
 
+      - name: Embedded Bootstrap icons are in sync
+        run: npm run icons:bootstrap:check
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -125,7 +130,7 @@ jobs:
           DOKU_SMOKE_ISOLATE: ${{ runner.os == 'Linux' && '1' || '0' }}
         run: npm run ${{ matrix.package_script }}
 
-      - name: Verify portable Windows launcher
+      - name: Verify Windows portable archive and installer launch
         if: runner.os == 'Windows'
         run: node scripts/smoke-windows-launcher.cjs
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Dialog } from '@doku/ui';
+import { Button, Dialog, Icon } from '@doku/ui';
 import { useDict } from '../../i18n/I18nProvider.js';
 import { PRODUCT_ICON_URL } from '../../branding.js';
 
@@ -92,9 +92,6 @@ export function InfoDialog({ open, onClose }: InfoDialogProps) {
       subtitle={dict.info.subtitle}
       footer={
         <div className="info-dialog__links">
-          <Button variant="secondary" onClick={() => openExternal(DONATE_URL)}>
-            {dict.info.donations}
-          </Button>
           <Button variant="secondary" onClick={() => void handleReportBug()}>
             {dict.info.reportBug}
           </Button>
@@ -120,6 +117,31 @@ export function InfoDialog({ open, onClose }: InfoDialogProps) {
         </div>
       </dl>
       <p className="info-dialog__local">{dict.info.local}</p>
+      <section className="info-dialog__support" aria-labelledby="info-dialog-support-title">
+        <span className="info-dialog__support-glow" aria-hidden="true" />
+        <div className="info-dialog__support-copy">
+          <span className="info-dialog__support-eyebrow">
+            <Icon name="heart-fill" size={12} />
+            {dict.info.donations}
+          </span>
+          <h3 id="info-dialog-support-title" className="info-dialog__support-title">
+            {dict.info.support.title}
+          </h3>
+          <p className="info-dialog__support-body">{dict.info.support.body}</p>
+        </div>
+        <div className="info-dialog__support-action">
+          <button
+            type="button"
+            className="info-dialog__support-cta"
+            onClick={() => openExternal(DONATE_URL)}
+            title={DONATE_URL}
+          >
+            <Icon name="gift" size={18} />
+            <span>{dict.info.support.cta}</span>
+          </button>
+          <span className="info-dialog__support-note">{dict.info.support.note}</span>
+        </div>
+      </section>
     </Dialog>
   );
 }

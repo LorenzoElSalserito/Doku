@@ -25,7 +25,7 @@ The result is a desktop Markdown editor that feels closer to a digital editorial
 - **Comfort and focus controls**: top tabs for your open documents, an adjustable and centered preview zoom, an immersive distraction-free mode, scrollable side panels and personalizable preview colors.
 - **Integrated guidance**: product help and Markdown guidance are available inside the app, so you do not need to leave your writing context.
 - **Beautiful light and dark themes**: Warm Ivory and Deep Slate are treated as two first-class editorial identities.
-- **Bundled typography and app zoom**: Doku ships its font catalog with the app and offers 75%, 100%, 125% and 150% interface zoom without requiring system font installation.
+- **Bundled typography and app zoom**: Doku ships its 42-family open-source font catalog (SIL OFL / Apache / Ubuntu Font License) with the app and offers 75%, 100%, 125% and 150% interface zoom without requiring system font installation.
 - **Multilingual from the start**: the interface supports English, Italian, Spanish, German, French and Portuguese.
 - **Local export flow**: save Markdown and export PDFs through local document pipelines.
 - **Privacy-first posture**: no content upload, no content analytics and no telemetry-driven writing experience.
@@ -97,8 +97,8 @@ Some user-triggered actions may open system applications, such as a browser for 
 
 When you have a generated installer, use the standard installer for your platform:
 
-- Linux: `.deb`
-- Windows: `.exe`
+- Linux: `.deb`, `.rpm` or `.AppImage`
+- Windows: `doku_v<version>-setup.exe` (installer) or `doku_v<version>-portable.zip` (extract the archive anywhere and run `Doku.exe`; settings and autosaves stay in an `AppUser` folder next to the executable)
 - macOS: `.dmg`
 
 After installation:

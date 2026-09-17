@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
-import { Button, Dialog, SegmentedControl, type SegmentedOption } from '@doku/ui';
+import { useEffect, useRef, useState } from 'react';
+import { Button, Dialog, Icon, SegmentedControl, type SegmentedOption } from '@doku/ui';
 import type { DokuTypography, PdfExportResult, PdfExportRequest } from '@doku/application';
 import { useDict } from '../../i18n/I18nProvider.js';
+import { MarkdownPreview } from '../workspace/MarkdownPreview.js';
+import { captureVisualAssets, hasVisualBlocks, waitForVisualBlocks } from './captureVisualAssets.js';
 
 interface ExportDialogProps {
   open: boolean;
@@ -14,6 +16,7 @@ interface ExportDialogProps {
 
 type ExportState =
   | { status: 'idle'; error: null; result: null }
+  | { status: 'capturing'; error: null; result: null }
   | { status: 'exporting'; error: null; result: null }
   | { status: 'error'; error: string; result: null }
   | { status: 'success'; error: null; result: PdfExportResult };
@@ -35,7 +38,9 @@ export function ExportDialog({
   const dict = useDict();
   const [state, setState] = useState<ExportState>(INITIAL_STATE);
   const [engine, setEngine] = useState<PdfExportRequest['engine']>('lualatex');
+  const offscreenPreviewRef = useRef<HTMLDivElement | null>(null);
   const suggestedOutputPath = buildSuggestedOutputPath(documentTitle, documentPath);
+  const documentHasVisualBlocks = hasVisualBlocks(documentContent);
   const profileOptions: SegmentedOption<PdfExportRequest['engine']>[] = [
     { value: 'lualatex', label: dict.exportDialog.profiles.lualatex.label },
     { value: 'weasy', label: dict.exportDialog.profiles.weasy.label },
@@ -50,6 +55,14 @@ export function ExportDialog({
   }, [open]);
 
   const handleExport = async () => {
+    let visualAssets: PdfExportRequest['visualAssets'];
+    if (documentHasVisualBlocks && offscreenPreviewRef.current) {
+      // Diagrams are rendered by the app itself (off-screen) and captured, so
+      // the PDF carries the same picture the preview shows.
+      setState({ status: 'capturing', error: null, result: null });
+      await waitForVisualBlocks(offscreenPreviewRef.current);
+      visualAssets = await captureVisualAssets(offscreenPreviewRef.current);
+    }
     setState({ status: 'exporting', error: null, result: null });
 
     try {
@@ -59,6 +72,7 @@ export function ExportDialog({
         content: documentContent,
         sourcePath: documentPath,
         typography,
+        visualAssets,
       });
       setState({ status: 'success', error: null, result });
     } catch (error: unknown) {
@@ -83,8 +97,16 @@ export function ExportDialog({
           <Button variant="secondary" onClick={onClose}>
             {dict.exportDialog.close}
           </Button>
-          <Button variant="primary" onClick={() => void handleExport()} disabled={state.status === 'exporting'}>
-            {state.status === 'exporting' ? dict.exportDialog.exporting : dict.exportDialog.confirm}
+          <Button
+            variant="primary"
+            onClick={() => void handleExport()}
+            disabled={state.status === 'exporting' || state.status === 'capturing'}
+          >
+            {state.status === 'capturing'
+              ? dict.exportDialog.capturing
+              : state.status === 'exporting'
+                ? dict.exportDialog.exporting
+                : dict.exportDialog.confirm}
           </Button>
         </div>
       }
@@ -102,6 +124,18 @@ export function ExportDialog({
           />
           <h3 className="export-dialog__title">{selectedProfile.title}</h3>
           <p className="export-dialog__body">{selectedProfile.description}</p>
+          <ul className="export-dialog__guarantees">
+            <li>
+              <Icon name="file-earmark-pdf" size={14} />
+              <span>{dict.exportDialog.a4Note}</span>
+            </li>
+            {documentHasVisualBlocks ? (
+              <li>
+                <Icon name="diagram-3" size={14} />
+                <span>{dict.exportDialog.visualNote}</span>
+              </li>
+            ) : null}
+          </ul>
         </div>
 
         <dl className="export-dialog__meta">
@@ -117,12 +151,36 @@ export function ExportDialog({
           </div>
         </dl>
 
-        {state.status === 'exporting' && (
+        {(state.status === 'exporting' || state.status === 'capturing') && (
           <div className="export-dialog__result" role="status" aria-live="polite">
-            <strong>{dict.exportDialog.exporting}</strong>
+            <strong>
+              {state.status === 'capturing' ? dict.exportDialog.capturing : dict.exportDialog.exporting}
+            </strong>
             <p>{dict.exportDialog.outputHint}</p>
           </div>
         )}
+
+        {open && documentHasVisualBlocks ? (
+          <div
+            ref={offscreenPreviewRef}
+            className="export-dialog__offscreen-preview"
+            aria-hidden="true"
+            data-testid="export-offscreen-preview"
+          >
+            <div className="markdown-preview-page-frame">
+              <MarkdownPreview
+                content={documentContent}
+                sourcePath={documentPath}
+                emptyLabel=""
+                visualLabels={{
+                  loading: dict.workspace.visualBlocks.loading,
+                  fallback: dict.workspace.visualBlocks.fallback,
+                  errorTitle: dict.workspace.visualBlocks.errorTitle,
+                }}
+              />
+            </div>
+          </div>
+        ) : null}
 
         {state.status === 'success' && state.result && (
           <div className="export-dialog__result export-dialog__result--success" role="status">

@@ -87,7 +87,9 @@ function certifyExportRuntime(source) {
       ].join('; ')]);
     }
     run(join(bin, `pandoc${suffix}`), [markdown, `--data-dir=${join(latex, 'share/pandoc')}`, '--standalone', `--pdf-engine=${join(bin, `lualatex${suffix}`)}`,
-      '--pdf-engine-opt=-halt-on-error', '-V', 'mainfont=Inter', '--output', join(temporary, 'latex.pdf')]);
+      '--pdf-engine-opt=-halt-on-error', '-V', 'mainfont=Inter', '-V', 'colorlinks=true', '-V', 'linkcolor=dokuaccent', '-V', 'urlcolor=dokuaccent',
+      `--include-in-header=${join(runtime, 'latexPreamble.tex')}`, `--lua-filter=${join(runtime, 'tableWidths.lua')}`, '--no-highlight',
+      '--output', join(temporary, 'latex.pdf')]);
     for (const name of ['weasy.pdf', 'latex.pdf']) {
       const pdf = fs.readFileSync(join(temporary, name));
       if (pdf.length < 500 || pdf.subarray(0, 5).toString() !== '%PDF-') throw new Error(`Invalid PDF: ${name}`);

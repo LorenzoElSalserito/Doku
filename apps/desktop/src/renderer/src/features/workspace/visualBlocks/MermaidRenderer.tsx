@@ -15,7 +15,11 @@ async function loadMermaid(): Promise<typeof import('mermaid').default> {
         startOnLoad: false,
         securityLevel: 'strict',
         theme: 'default',
-        fontFamily: 'inherit',
+        fontFamily: 'Inter, "Source Sans 3", sans-serif',
+        // Plain SVG text instead of HTML <foreignObject> labels: the diagram
+        // can then be captured and embedded as-is in the exported PDF.
+        htmlLabels: false,
+        flowchart: { htmlLabels: false },
       });
       return mermaid;
     });

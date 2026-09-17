@@ -35,11 +35,15 @@ async function createMarkdownFile(context, fileName, content) {
   return filePath;
 }
 
-async function launchDokuApp(context, filePath) {
-  return launchDokuAppWithEnv(context, buildDokuEnv(context), filePath);
+async function launchDokuApp(context, filePath, options = {}) {
+  return launchDokuAppWithEnv(context, buildDokuEnv(context), filePath, options);
 }
 
-async function launchDokuAppWithEnv(context, env, filePath) {
+/**
+ * `options.readyLabel` is the accessible name of the document tab list in the
+ * profile's language (default: English "Open documents").
+ */
+async function launchDokuAppWithEnv(context, env, filePath, options = {}) {
   const app = await electron.launch({
     executablePath: electronExecutable,
     args: [mainEntry, ...(filePath ? [filePath] : [])],
@@ -49,7 +53,7 @@ async function launchDokuAppWithEnv(context, env, filePath) {
     },
   });
   const page = await app.firstWindow();
-  await waitForWorkspaceReady(page);
+  await waitForWorkspaceReady(page, options.readyLabel);
   return { app, page };
 }
 
@@ -109,6 +113,19 @@ function hasWeasyExportRuntime() {
   }).status === 0;
 }
 
+/** True when the bundled Pandoc and LuaLaTeX runtime is available. */
+function hasLatexExportRuntime() {
+  const { existsSync } = require('node:fs');
+  const runtime = resolve(process.cwd(), 'build/export-runtime');
+  const suffix = process.platform === 'win32' ? '.exe' : '';
+  return (
+    existsSync(join(runtime, `latex/bin/pandoc${suffix}`)) &&
+    existsSync(join(runtime, `latex/bin/lualatex${suffix}`)) &&
+    existsSync(join(runtime, 'latexPreamble.tex')) &&
+    existsSync(join(runtime, 'tableWidths.lua'))
+  );
+}
+
 async function cleanupDokuE2EContext(context) {
   await fs.rm(context.rootDir, { recursive: true, force: true });
 }
@@ -142,8 +159,8 @@ async function readLogEntries(context) {
   });
 }
 
-async function waitForWorkspaceReady(page) {
-  await page.getByRole('tablist', { name: 'Open documents' }).waitFor({ state: 'visible' });
+async function waitForWorkspaceReady(page, readyLabel = 'Open documents') {
+  await page.getByRole('tablist', { name: readyLabel }).waitFor({ state: 'visible' });
 }
 
 function tabIdForPath(filePath) {
@@ -212,6 +229,7 @@ module.exports = {
   createDokuE2EContext,
   createMarkdownFile,
   hasWeasyExportRuntime,
+  hasLatexExportRuntime,
   stubSaveDialog,
   launchDokuApp,
   launchDokuAppWithEnv,

@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { Icon } from '@doku/ui';
 import type { WorkspaceNode } from '@doku/application';
 import { useDict } from '../../i18n/I18nProvider.js';
 
@@ -34,17 +35,23 @@ export function WorkspaceExplorer({
     <>
       <div className="workspace-explorer__actions" aria-label={dict.workspace.workspaceExplorer.openFolder}>
         <button type="button" className="workspace-explorer__action" onClick={onCreateFile}>
-          {dict.workspace.workspaceExplorer.newFile}
+          <Icon name="file-earmark-plus" size={14} />
+          <span>{dict.workspace.workspaceExplorer.newFile}</span>
         </button>
         <button type="button" className="workspace-explorer__action" onClick={onCreateFolder}>
-          {dict.workspace.workspaceExplorer.newFolder}
+          <Icon name="folder-plus" size={14} />
+          <span>{dict.workspace.workspaceExplorer.newFolder}</span>
         </button>
       </div>
 
       {nodes.length === 0 ? (
         <p className="workspace-explorer__empty">{dict.workspace.workspaceExplorer.empty}</p>
       ) : (
-        <div className="workspace-explorer" role="tree" aria-label={dict.workspace.workspaceExplorer.title}>
+        <div
+          className="workspace-explorer"
+          role="tree"
+          aria-label={dict.workspace.workspaceExplorer.title}
+        >
           {nodes.map((node) => (
             <WorkspaceExplorerNode
               key={node.path}
@@ -98,7 +105,7 @@ function WorkspaceExplorerNode({
         aria-expanded={isDirectory ? isExpanded : undefined}
         aria-current={isActive ? 'page' : undefined}
         className={`workspace-explorer__item${isActive ? ' workspace-explorer__item--active' : ''}`}
-        style={{ paddingLeft: `${depth * 18 + 12}px` }}
+        style={{ '--explorer-depth': depth } as CSSProperties}
         onClick={() => {
           if (isDirectory) {
             onToggle(node.path);
@@ -111,6 +118,12 @@ function WorkspaceExplorerNode({
         }}
         title={`${label}: ${node.name}`}
       >
+        <span
+          className={`workspace-explorer__chevron${isExpanded ? ' workspace-explorer__chevron--open' : ''}`}
+          aria-hidden="true"
+        >
+          {isDirectory ? <Icon name="chevron-right" size={10} /> : null}
+        </span>
         <span className="workspace-explorer__icon" aria-hidden="true">
           {iconForNode(node.kind, isExpanded)}
         </span>
@@ -118,7 +131,7 @@ function WorkspaceExplorerNode({
       </button>
 
       {isDirectory && isExpanded && node.children?.length ? (
-        <div role="group">
+        <div role="group" className="workspace-explorer__children">
           {node.children.map((child) => (
             <WorkspaceExplorerNode
               key={child.path}
@@ -136,17 +149,17 @@ function WorkspaceExplorerNode({
   );
 }
 
-function iconForNode(kind: WorkspaceNode['kind'], isExpanded: boolean): string {
+function iconForNode(kind: WorkspaceNode['kind'], isExpanded: boolean): ReactNode {
   if (kind === 'directory') {
-    return isExpanded ? '▾' : '▸';
+    return <Icon name={isExpanded ? 'folder2-open' : 'folder'} size={14} />;
   }
   if (kind === 'markdown') {
-    return 'M';
+    return <Icon name="file-earmark-text" size={14} />;
   }
   if (kind === 'asset') {
-    return 'I';
+    return <Icon name="file-earmark-image" size={14} />;
   }
-  return '•';
+  return <Icon name="file-earmark" size={14} />;
 }
 
 function resolveNodeLabel(

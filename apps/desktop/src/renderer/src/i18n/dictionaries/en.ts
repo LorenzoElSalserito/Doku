@@ -172,7 +172,7 @@ export const en: Dictionary = {
       other: 'File',
     },
     projectPanelEyebrow: 'Project',
-    projectPanelTitle: 'A quiet desk for your manuscript',
+    projectPanelTitle: 'Your Second Mind',
     projectPanelBody:
       'This side will host navigation, recent sections and project context. For now it defines rhythm, hierarchy and breathing space.',
     projectPanelMeta: 'Panel width is already persistent across sessions.',
@@ -326,16 +326,77 @@ export const en: Dictionary = {
     errorTitle: 'Export failed',
     errorGeneric: 'PDF export failed before the file could be generated.',
     resultEngineLabel: 'Profile used',
+    capturing: 'Rendering diagrams and charts for the PDF…',
+    visualNote: 'Mermaid diagrams, Markmap mind maps and charts are embedded as pictures, exactly as the preview shows them.',
+    a4Note: 'A4 sheet, mirrored binding margins, page numbers: the PDF matches the preview page.',
   },
   info: {
     title: 'Doku',
-    subtitle: 'A local editorial studio for Markdown writing.',
+    subtitle: 'Your Second Mind',
     versionLabel: 'Version',
     licenseLabel: 'License',
     local: 'Everything stays on this device.',
     donations: 'Donations',
+    support: {
+      title: 'Support Doku',
+      body: 'Doku is free, open source and lives only on your device. A donation keeps it that way and funds the next features.',
+      cta: 'Support me with a donation',
+      note: 'Secure PayPal page, opens in your browser.',
+    },
     reportBug: 'Report a bug',
     close: 'Close',
+  },
+  fontCatalog: {
+    use: {
+      'Inter': 'Modern interfaces and desktop apps',
+      'Roboto': 'General-purpose interface text',
+      'Open Sans': 'Professional apps and documents',
+      'IBM Plex Sans': 'Enterprise software and product copy',
+      'Ubuntu': 'Friendly desktop notes',
+      'Source Sans 3': 'Long documents and interfaces',
+      'Work Sans': 'Screen headings and UI',
+      'Nunito': 'Informal, soft-toned notes',
+      'Manrope': 'Minimal interfaces and dashboards',
+      'Source Serif 4': 'Reports, manuals, professional PDFs',
+      'Merriweather': 'Readable print and PDF pages',
+      'Lora': 'Editorial long-form documents',
+      'Libre Baskerville': 'Classic formal PDFs',
+      'EB Garamond': 'Books, essays, classic PDFs',
+      'Crimson Pro': 'Fiction and manuscripts',
+      'Playfair Display': 'Editorial headings and covers',
+      'JetBrains Mono': 'Code and technical data',
+      'Fira Code': 'Code with ligatures',
+      'Roboto Mono': 'Tables and code',
+      'Source Code Pro': 'Code and technical documentation',
+      'Inconsolata': 'Compact code and tables',
+      'OpenDyslexic': 'Dyslexia-friendly reading',
+      'Atkinson Hyperlegible': 'High legibility for everyone',
+      'Lexend': 'Fluent reading, less fatigue',
+      'Noto Sans': 'Universal coverage, any language',
+      'Montserrat': 'Geometric headings and posters',
+      'Raleway': 'Elegant titles and covers',
+      'Rubik': 'Rounded, friendly interfaces',
+      'Karla': 'Compact grotesque for notes',
+      'Public Sans': 'Neutral institutional documents',
+      'Outfit': 'Modern geometric headings',
+      'DM Sans': 'Clean interface and body text',
+      'Figtree': 'Light, friendly interface text',
+      'Noto Serif': 'Universal serif for any language',
+      'Literata': 'Long-form reading and e-books',
+      'Bitter': 'Slab serif for screen reading',
+      'Alegreya': 'Literary prose and essays',
+      'Vollkorn': 'Classic body text with warmth',
+      'Newsreader': 'Editorial and news typography',
+      'Cormorant Garamond': 'Display serif for covers',
+      'Red Hat Mono': 'Compact, legible code',
+      'Atkinson Hyperlegible Next': 'Maximum legibility, more weights',
+    },
+    preview: {
+      sans: 'Clear interface writing',
+      serif: 'Editorial long-form prose',
+      monospace: 'Code, tables, metadata',
+      accessibility: 'Accessible reading flow',
+    },
   },
   guideCenter: {
     title: 'Guide Center',
@@ -348,6 +409,11 @@ export const en: Dictionary = {
     copy: 'Copy snippet',
     copied: 'Snippet copied',
     livePreview: 'Live preview',
+    resultsCount: '{{count}} sections',
+    outlineTitle: 'Contents',
+    outlineBody: 'Jump to any chapter of the manual.',
+    shortcutKeysHeader: 'Keys',
+    shortcutActionHeader: 'Action',
     sections: {
       quickStart: {
         title: 'Quick start',
@@ -410,6 +476,101 @@ One paragraph with **emphasis** and \`inline code\`.
           'Use Cmd/Ctrl+S to save and Cmd/Ctrl+Shift+S to open Save as.',
           'Save regularly even with autosave on: the status feedback always tells you where you stand.',
           'Keep panels closed while drafting and reopen them only for review or structure checks.',
+        ],
+        items: [
+          { keys: 'Ctrl/Cmd + S', action: 'Save the document' },
+          { keys: 'Ctrl/Cmd + Shift + S', action: 'Save as…' },
+          { keys: 'Ctrl/Cmd + N', action: 'New empty document' },
+          { keys: 'Ctrl/Cmd + W', action: 'Close the active tab' },
+          { keys: 'Ctrl/Cmd + Tab', action: 'Next tab (Shift for previous)' },
+          { keys: 'Ctrl/Cmd + 1…9', action: 'Jump to tab 1…9' },
+          { keys: 'Esc', action: 'Close menus, dialogs and immersive mode' },
+          { keys: '↑ ↓ / PgUp PgDn / Home End / Space', action: 'Scroll the preview page' },
+          { keys: '← →', action: 'Scroll the preview sideways when it overflows' },
+        ],
+      },
+      visualBlocks: {
+        title: 'Diagrams and charts',
+        summary: 'Draw with text: Mermaid, Markmap, charts.',
+        intro:
+          'Three fenced blocks turn plain text into pictures rendered live in the preview and embedded as images in every PDF export.',
+        bullets: [
+          '`mermaid` draws flowcharts, sequences, class and state diagrams.',
+          '`markmap` turns a heading outline into a mind map.',
+          '`chart` takes a small JSON block (bar, line, area, pie) and renders it with the app palette.',
+          'Insert a ready template from the quick actions bar; invalid blocks show a clear error instead of breaking the page.',
+        ],
+        snippetLabel: 'Three blocks to copy',
+        snippet: `## Diagramma
+
+\`\`\`mermaid
+flowchart LR
+  A[Idea] --> B[Bozza]
+  B --> C[Revisione]
+  C --> D[PDF]
+\`\`\`
+
+## Mappa mentale
+
+\`\`\`markmap
+# Progetto
+## Ricerca
+## Scrittura
+### Capitoli
+## Pubblicazione
+\`\`\`
+
+## Grafico
+
+\`\`\`chart
+{
+  "kind": "chart",
+  "chartType": "bar",
+  "title": "Parole per capitolo",
+  "xKey": "capitolo",
+  "yKeys": ["parole"],
+  "data": [
+    { "capitolo": "1", "parole": 1200 },
+    { "capitolo": "2", "parole": 1850 },
+    { "capitolo": "3", "parole": 940 }
+  ]
+}
+\`\`\``,
+      },
+      exportPdf: {
+        title: 'Export to PDF',
+        summary: 'Two profiles, one A4 page.',
+        intro:
+          'The Export button produces a real A4 document, fully offline, from the bundled runtime. Nothing is ever clipped and the file matches what the preview shows.',
+        bullets: [
+          'Typographic (LuaLaTeX): book-like typesetting with microtypography, wrapped code, adaptive tables and mirrored binding margins.',
+          'Web/print (WeasyPrint): the printed twin of the preview page — same type scale, spacing, colours and fonts.',
+          'Wide tables shrink to the column, long words and URLs wrap, code never runs off the sheet, table headers repeat across pages.',
+          'Mermaid, Markmap and chart blocks are embedded as pictures; the chosen writing font is used for body, headings and code.',
+        ],
+      },
+      typography: {
+        title: 'Typography, theme and zoom',
+        summary: 'Make the page yours without leaving it.',
+        intro:
+          'Doku ships 24 open-source font families, three themes plus a custom palette, and interface zoom from 75% to 150%.',
+        bullets: [
+          'Choose the writing font in Preferences: it applies to the interface, the editor, the preview and the PDF export.',
+          'Accessibility mode switches to OpenDyslexic, Atkinson Hyperlegible or Lexend for effortless reading.',
+          'Light, dark and system themes follow the OS; the custom theme lets you set every colour of the shell.',
+          'Content colours (links, headings, code, quotes) can be tuned from the quick actions bar and reset in one click.',
+        ],
+      },
+      workspace: {
+        title: 'Workspace, panels and data',
+        summary: 'Where files and state live.',
+        intro:
+          'The left rail is a live explorer of the current folder; the right rail shows metrics, recent documents and session state. Everything is stored locally.',
+        bullets: [
+          'Open a saved file to turn the left rail into an explorer: create files and folders, expand directories, jump between documents.',
+          'Tabs remember what was open; the session and the active view mode are restored on the next launch.',
+          'Autosave keeps drafts safe; the status badge in the header always tells you whether the page is saved.',
+          'Data lives in Documents/Doku (or in AppUser next to the executable in the portable Windows build).',
         ],
       },
       manual: {

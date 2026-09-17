@@ -78,7 +78,7 @@ export function Dialog({
           <h2 id={titleId} className="doku-dialog__title">{title}</h2>
           {subtitle && <p id={subtitleId} className="doku-dialog__subtitle">{subtitle}</p>}
         </header>
-        <div>{children}</div>
+        <div className="doku-dialog__content">{children}</div>
         {footer && <div className="doku-dialog__footer">{footer}</div>}
       </div>
     </dialog>

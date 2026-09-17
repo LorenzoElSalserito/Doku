@@ -1,1 +1,1 @@
-export type { PdfExportRequest, PdfExportResult } from '@doku/schemas';
+export type { PdfExportRequest, PdfExportResult, PdfExportVisualAsset } from '@doku/schemas';

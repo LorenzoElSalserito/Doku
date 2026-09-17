@@ -6,7 +6,7 @@ function verifyExportRuntime(runtime, platform) {
   const windows = platform === 'win32';
   const suffix = windows ? '.exe' : '';
   const required = [
-    'fontconfig.conf', 'printStylesheet.css', 'scripts/render_weasy_pdf.py', 'fonts/Inter.ttf',
+    'fontconfig.conf', 'printStylesheet.css', 'latexPreamble.tex', 'tableWidths.lua', 'scripts/render_weasy_pdf.py', 'fonts/Inter.ttf',
     `weasy-python/${windows ? 'python.exe' : 'bin/python'}`,
     `latex/bin/pandoc${suffix}`, `latex/bin/lualatex${suffix}`,
     'latex/share/pandoc',

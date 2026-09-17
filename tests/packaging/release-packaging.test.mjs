@@ -188,7 +188,7 @@ test('fresh checkout passes repository checks but cannot package without compile
       'apps/desktop/package.json', 'scripts/release-history.json',
       'scripts/lib/release-meta.js', 'scripts/verify-packaging-assets.js',
       'apps/desktop/src/assets/icon.png', 'apps/desktop/src/assets/icon.ico',
-      'apps/desktop/src/assets/icon.icns']) {
+      'apps/desktop/src/assets/icon.icns', 'packages/ui/src/icons/bootstrapIcons.generated.ts']) {
       const target = path.join(temp, file)
       fs.mkdirSync(path.dirname(target), { recursive: true })
       fs.copyFileSync(path.join(meta.paths.repoRoot, file), target)
@@ -207,6 +207,26 @@ test('fresh checkout passes repository checks but cannot package without compile
       const result = check()
       assert.equal(result.status, 1)
       assert.match(result.stderr, /RPM must disable/)
+    }
+    // Windows must ship the NSIS installer plus the extract-and-run archive; the NSIS
+    // portable self-extractor (multi-GB extraction on every launch) is rejected.
+    for (const win of [{ target: ['portable'], artifactName: 'doku_v${version}-portable.${ext}' },
+      { target: ['nsis'], artifactName: 'doku_v${version}-portable.${ext}' },
+      { target: ['nsis', 'zip', 'portable'], artifactName: 'doku_v${version}-portable.${ext}' }]) {
+      const desktop = JSON.parse(desktopSource)
+      desktop.build.win = win
+      fs.writeFileSync(desktopPath, JSON.stringify(desktop))
+      const result = check()
+      assert.equal(result.status, 1)
+      assert.match(result.stderr, /Windows targets must be exactly nsis \+ zip/)
+    }
+    {
+      const desktop = JSON.parse(desktopSource)
+      desktop.dependencies = { 'bootstrap-icons': '1.13.1' }
+      fs.writeFileSync(desktopPath, JSON.stringify(desktop))
+      const result = check()
+      assert.equal(result.status, 1)
+      assert.match(result.stderr, /bootstrap-icons must not be a runtime dependency/)
     }
     for (const compression of [undefined, 'xz', 'xzmt']) {
       const desktop = JSON.parse(desktopSource)

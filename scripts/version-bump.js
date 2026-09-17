@@ -2,6 +2,8 @@
 const fs = require('node:fs')
 const meta = require('./lib/release-meta')
 const ARTIFACT_NAME = 'doku_v${version}.${ext}'
+const WINDOWS_PORTABLE_ARTIFACT_NAME = 'doku_v${version}-portable.${ext}'
+const WINDOWS_SETUP_ARTIFACT_NAME = 'doku_v${version}-setup.${ext}'
 
 function parseArgs(argv) {
   const options = { level: 'patch', explicit: null, dryRun: false, bump: true, force: false }
@@ -23,6 +25,8 @@ function updatePackageJson(raw, version, desktop = false) {
     pkg.build.artifactName = ARTIFACT_NAME
     if (pkg.build.appImage) pkg.build.appImage.artifactName = ARTIFACT_NAME
     if (pkg.build.portable) pkg.build.portable.artifactName = ARTIFACT_NAME
+    if (pkg.build.win) pkg.build.win.artifactName = WINDOWS_PORTABLE_ARTIFACT_NAME
+    if (pkg.build.nsis) pkg.build.nsis.artifactName = WINDOWS_SETUP_ARTIFACT_NAME
   }
   return `${JSON.stringify(pkg, null, 2)}\n`
 }

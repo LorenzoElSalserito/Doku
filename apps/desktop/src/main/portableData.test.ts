@@ -26,3 +26,44 @@ describe('resolvePortableDataPaths', () => {
     expect(resolvePortableDataPaths({})).toBeNull();
   });
 });
+
+describe('resolvePortableDataPaths (extract-and-run Windows archive)', () => {
+  const executableDir = join('D:', 'Apps', 'Doku');
+  const probe = (overrides: Partial<Parameters<typeof resolvePortableDataPaths>[1]> = {}) => ({
+    platform: 'win32' as NodeJS.Platform,
+    isPackaged: true,
+    execPath: join(executableDir, 'Doku.exe'),
+    exists: () => false,
+    ...overrides,
+  });
+
+  it('treats a packaged Windows executable without an uninstaller as portable', () => {
+    expect(resolvePortableDataPaths({}, probe())?.rootDir).toBe(
+      join(resolve(executableDir), 'AppUser'),
+    );
+  });
+
+  it('treats a packaged Windows executable next to the NSIS uninstaller as installed', () => {
+    const uninstaller = join(executableDir, 'Uninstall Doku.exe');
+    expect(
+      resolvePortableDataPaths({}, probe({ exists: (path) => path === uninstaller })),
+    ).toBeNull();
+  });
+
+  it('never applies the heuristic outside packaged Windows builds', () => {
+    expect(resolvePortableDataPaths({}, probe({ isPackaged: false }))).toBeNull();
+    expect(resolvePortableDataPaths({}, probe({ platform: 'linux' }))).toBeNull();
+    expect(resolvePortableDataPaths({}, probe({ platform: 'darwin' }))).toBeNull();
+  });
+
+  it('lets an explicit environment marker win over the executable heuristic', () => {
+    const marker = join('E:', 'Stick', 'Doku');
+    const uninstaller = join(executableDir, 'Uninstall Doku.exe');
+    expect(
+      resolvePortableDataPaths(
+        { PORTABLE_EXECUTABLE_DIR: marker },
+        probe({ exists: (path) => path === uninstaller }),
+      )?.rootDir,
+    ).toBe(join(resolve(marker), 'AppUser'));
+  });
+});

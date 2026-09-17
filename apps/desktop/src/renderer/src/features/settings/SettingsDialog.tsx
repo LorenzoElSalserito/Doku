@@ -217,6 +217,7 @@ function FontSelect({
   value: DokuFontFamily;
   onChange: (next: DokuFontFamily) => void;
 }) {
+  const dict = useDict();
   return (
     <label className="settings-font-select" htmlFor={id}>
       <span className="settings-field__hint">{label}</span>
@@ -233,7 +234,10 @@ function FontSelect({
         ))}
       </select>
       <span className="font-select-preview" style={{ fontFamily: quoteFontFamily(value) }}>
-        {DOKU_FONT_CATALOG.find((font) => font.family === value)?.previewText ?? value}
+        {(() => {
+          const font = DOKU_FONT_CATALOG.find((entry) => entry.family === value);
+          return font ? dict.fontCatalog.preview[font.category] : value;
+        })()}
       </span>
     </label>
   );

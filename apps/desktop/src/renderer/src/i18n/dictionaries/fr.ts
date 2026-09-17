@@ -174,7 +174,7 @@ export const fr: Dictionary = {
       other: 'Fichier',
     },
     projectPanelEyebrow: 'Projet',
-    projectPanelTitle: 'Un bureau silencieux pour votre manuscrit',
+    projectPanelTitle: 'Votre second esprit',
     projectPanelBody:
       'Ce côté accueillera navigation, sections récentes et contexte du projet. Pour l’instant il pose le rythme, la hiérarchie et la respiration.',
     projectPanelMeta: 'La largeur du panneau est déjà conservée entre les sessions.',
@@ -330,16 +330,77 @@ export const fr: Dictionary = {
     errorTitle: 'Échec de l’export',
     errorGeneric: 'L’export PDF a échoué avant la génération du fichier.',
     resultEngineLabel: 'Profil utilisé',
+    capturing: 'Rendu des diagrammes et graphiques pour le PDF…',
+    visualNote: 'Les diagrammes Mermaid, les cartes Markmap et les graphiques sont intégrés en images, exactement comme l’aperçu les affiche.',
+    a4Note: 'Feuille A4, marges de reliure en miroir, numéros de page : le PDF reflète la page de l’aperçu.',
   },
   info: {
     title: 'Doku',
-    subtitle: 'Un studio éditorial local pour l’écriture Markdown.',
+    subtitle: 'Votre second esprit',
     versionLabel: 'Version',
     licenseLabel: 'Licence',
     local: 'Tout reste sur cet appareil.',
     donations: 'Dons',
+    support: {
+      title: 'Soutenir Doku',
+      body: 'Doku est gratuit, open source et ne vit que sur votre appareil. Un don le maintient ainsi et finance les prochaines fonctions.',
+      cta: 'Soutenez-moi par un don',
+      note: 'Page PayPal sécurisée, ouverte dans votre navigateur.',
+    },
     reportBug: 'Signaler un bug',
     close: 'Fermer',
+  },
+  fontCatalog: {
+    use: {
+      'Inter': 'Interfaces modernes et apps de bureau',
+      'Roboto': 'Texte d’interface polyvalent',
+      'Open Sans': 'Apps professionnelles et documents',
+      'IBM Plex Sans': 'Logiciels d’entreprise et textes produit',
+      'Ubuntu': 'Notes de bureau au ton amical',
+      'Source Sans 3': 'Documents longs et interfaces',
+      'Work Sans': 'Titres à l’écran et interface',
+      'Nunito': 'Notes informelles au ton doux',
+      'Manrope': 'Interfaces minimalistes et tableaux de bord',
+      'Source Serif 4': 'Rapports, manuels, PDF professionnels',
+      'Merriweather': 'Pages imprimées et PDF lisibles',
+      'Lora': 'Documents éditoriaux de lecture longue',
+      'Libre Baskerville': 'PDF classiques et formels',
+      'EB Garamond': 'Livres, essais, PDF classiques',
+      'Crimson Pro': 'Fiction et manuscrits',
+      'Playfair Display': 'Titres éditoriaux et couvertures',
+      'JetBrains Mono': 'Code et données techniques',
+      'Fira Code': 'Code avec ligatures',
+      'Roboto Mono': 'Tableaux et code',
+      'Source Code Pro': 'Code et documentation technique',
+      'Inconsolata': 'Code compact et tableaux',
+      'OpenDyslexic': 'Lecture facilitée pour la dyslexie',
+      'Atkinson Hyperlegible': 'Haute lisibilité pour tous',
+      'Lexend': 'Lecture fluide, moins de fatigue',
+      'Noto Sans': 'Couverture universelle, toutes langues',
+      'Montserrat': 'Titres géométriques et affiches',
+      'Raleway': 'Titres élégants et couvertures',
+      'Rubik': 'Interfaces arrondies et amicales',
+      'Karla': 'Grotesque compacte pour notes',
+      'Public Sans': 'Documents institutionnels neutres',
+      'Outfit': 'Titres géométriques modernes',
+      'DM Sans': 'Interface et texte épurés',
+      'Figtree': 'Texte d’interface léger et amical',
+      'Noto Serif': 'Serif universelle pour toutes langues',
+      'Literata': 'Lecture longue et livres numériques',
+      'Bitter': 'Slab serif pour lecture à l’écran',
+      'Alegreya': 'Prose littéraire et essais',
+      'Vollkorn': 'Texte classique et chaleureux',
+      'Newsreader': 'Typographie éditoriale et presse',
+      'Cormorant Garamond': 'Serif display pour couvertures',
+      'Red Hat Mono': 'Code compact et lisible',
+      'Atkinson Hyperlegible Next': 'Lisibilité maximale, plus de graisses',
+    },
+    preview: {
+      sans: 'Écriture d’interface claire',
+      serif: 'Prose éditoriale de lecture longue',
+      monospace: 'Code, tableaux, métadonnées',
+      accessibility: 'Lecture accessible et fluide',
+    },
   },
   guideCenter: {
     title: 'Guide Center',
@@ -352,6 +413,11 @@ export const fr: Dictionary = {
     copy: 'Copier l’extrait',
     copied: 'Extrait copié',
     livePreview: 'Aperçu en direct',
+    resultsCount: '{{count}} sections',
+    outlineTitle: 'Sommaire',
+    outlineBody: 'Accédez à n’importe quel chapitre du manuel.',
+    shortcutKeysHeader: 'Touches',
+    shortcutActionHeader: 'Action',
     sections: {
       quickStart: {
         title: 'Démarrage rapide',
@@ -414,6 +480,101 @@ Un paragraphe avec **accent** et \`code inline\`.
           'Utilisez Cmd/Ctrl+S pour enregistrer et Cmd/Ctrl+Shift+S pour ouvrir Enregistrer sous.',
           'Enregistrez régulièrement même avec l’auto-enregistrement : l’état vous dit toujours où vous en êtes.',
           'Gardez les panneaux fermés pendant la rédaction et rouvrez-les seulement pour la relecture ou la structure.',
+        ],
+        items: [
+          { keys: 'Ctrl/Cmd + S', action: 'Enregistrer le document' },
+          { keys: 'Ctrl/Cmd + Maj + S', action: 'Enregistrer sous…' },
+          { keys: 'Ctrl/Cmd + N', action: 'Nouveau document vide' },
+          { keys: 'Ctrl/Cmd + W', action: 'Fermer l’onglet actif' },
+          { keys: 'Ctrl/Cmd + Tab', action: 'Onglet suivant (Maj pour le précédent)' },
+          { keys: 'Ctrl/Cmd + 1…9', action: 'Aller à l’onglet 1…9' },
+          { keys: 'Échap', action: 'Ferme menus, boîtes de dialogue et mode immersif' },
+          { keys: '↑ ↓ / PgPréc PgSuiv / Début Fin / Espace', action: 'Fait défiler la page d’aperçu' },
+          { keys: '← →', action: 'Fait défiler l’aperçu horizontalement lorsqu’il déborde' },
+        ],
+      },
+      visualBlocks: {
+        title: 'Diagrammes et graphiques',
+        summary: 'Dessinez avec du texte : Mermaid, Markmap, graphiques.',
+        intro:
+          'Trois blocs délimités transforment du texte simple en images rendues en direct dans l’aperçu et intégrées comme figures dans chaque PDF exporté.',
+        bullets: [
+          '`mermaid` dessine organigrammes, séquences, diagrammes de classes et d’états.',
+          '`markmap` transforme un plan de titres en carte mentale.',
+          '`chart` prend un petit bloc JSON (barres, lignes, aires, camembert) et le dessine avec la palette de l’app.',
+          'Insérez un modèle prêt depuis la barre d’actions rapides ; les blocs invalides affichent une erreur claire au lieu de casser la page.',
+        ],
+        snippetLabel: 'Trois blocs à copier',
+        snippet: `## Diagramma
+
+\`\`\`mermaid
+flowchart LR
+  A[Idea] --> B[Bozza]
+  B --> C[Revisione]
+  C --> D[PDF]
+\`\`\`
+
+## Mappa mentale
+
+\`\`\`markmap
+# Progetto
+## Ricerca
+## Scrittura
+### Capitoli
+## Pubblicazione
+\`\`\`
+
+## Grafico
+
+\`\`\`chart
+{
+  "kind": "chart",
+  "chartType": "bar",
+  "title": "Parole per capitolo",
+  "xKey": "capitolo",
+  "yKeys": ["parole"],
+  "data": [
+    { "capitolo": "1", "parole": 1200 },
+    { "capitolo": "2", "parole": 1850 },
+    { "capitolo": "3", "parole": 940 }
+  ]
+}
+\`\`\``,
+      },
+      exportPdf: {
+        title: 'Exporter en PDF',
+        summary: 'Deux profils, une page A4.',
+        intro:
+          'Le bouton Exporter produit un vrai document A4, entièrement hors ligne, avec le runtime intégré. Rien n’est jamais coupé et le fichier correspond à ce que montre l’aperçu.',
+        bullets: [
+          'Typographique (LuaLaTeX) : composition de livre avec microtypographie, code renvoyé à la ligne, tableaux adaptatifs et marges de reliure en miroir.',
+          'Web/impression (WeasyPrint) : le jumeau imprimé de la page d’aperçu — même échelle typographique, espacements, couleurs et polices.',
+          'Les tableaux larges se réduisent à la colonne, mots longs et URL passent à la ligne, le code ne sort jamais de la feuille, les en-têtes de tableau se répètent d’une page à l’autre.',
+          'Les blocs Mermaid, Markmap et chart sont intégrés comme images ; la police d’écriture choisie sert au corps, aux titres et au code.',
+        ],
+      },
+      typography: {
+        title: 'Typographie, thème et zoom',
+        summary: 'Faites la page à votre main sans la quitter.',
+        intro:
+          'Doku embarque 24 familles de polices open source, trois thèmes plus une palette personnalisée et un zoom d’interface de 75 % à 150 %.',
+        bullets: [
+          'Choisissez la police d’écriture dans les Préférences : elle s’applique à l’interface, à l’éditeur, à l’aperçu et à l’export PDF.',
+          'Le mode accessibilité passe à OpenDyslexic, Atkinson Hyperlegible ou Lexend pour une lecture sans effort.',
+          'Les thèmes clair, sombre et système suivent l’OS ; le thème personnalisé permet de régler chaque couleur de l’interface.',
+          'Les couleurs du contenu (liens, titres, code, citations) se règlent depuis la barre d’actions rapides et se réinitialisent en un clic.',
+        ],
+      },
+      workspace: {
+        title: 'Espace de travail, panneaux et données',
+        summary: 'Où vivent fichiers et état.',
+        intro:
+          'Le rail gauche est un explorateur en direct du dossier courant ; le droit montre métriques, documents récents et état de session. Tout reste en local.',
+        bullets: [
+          'Ouvrez un fichier enregistré pour transformer le rail gauche en explorateur : créez fichiers et dossiers, dépliez les répertoires, passez d’un document à l’autre.',
+          'Les onglets se souviennent de ce qui était ouvert ; la session et le mode d’affichage sont restaurés au prochain lancement.',
+          'L’enregistrement automatique protège les brouillons ; le badge d’état de l’en-tête dit toujours si la page est enregistrée.',
+          'Les données vivent dans Documents/Doku (ou dans AppUser à côté de l’exécutable dans la version portable pour Windows).',
         ],
       },
       manual: {

@@ -15,6 +15,7 @@ import {
 import {
   Button,
   Card,
+  Icon,
   IconButton,
   Input,
   SegmentedControl,
@@ -41,6 +42,10 @@ import {
 } from './markdownActions.js';
 import { WorkspaceExplorer } from './WorkspaceExplorer.js';
 import { ContentColorsControl } from './ContentColorsControl.js';
+import {
+  scrollPreviewWithKeyboard,
+  shouldPreviewHandleKeyboardScroll,
+} from './previewKeyboardScroll.js';
 
 const MonacoEditor = lazy(async () => {
   logWorkspaceEvent('monaco-module-load-started');
@@ -1139,6 +1144,63 @@ export function Workspace({
     [viewMode],
   );
 
+  // Entering the full preview hands the keyboard focus to the page scroller.
+  // Without this the focus stays on the toolbar tab that was just clicked, and
+  // arrow keys would switch view mode instead of scrolling the document.
+  useEffect(() => {
+    if (viewMode !== 'preview') {
+      return undefined;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const preview = previewScrollRef.current;
+      if (!preview) {
+        return;
+      }
+      const active = window.document.activeElement;
+      const focusInsideTextField =
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        (active instanceof HTMLElement && active.isContentEditable);
+      if (focusInsideTextField) {
+        return;
+      }
+      preview.focus({ preventScroll: true });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [viewMode]);
+
+  // Keyboard scrolling of the full preview must always work, regardless of
+  // which element ended up focused (body, a toolbar button, the page itself).
+  // Controls that own their arrow keys (inputs, sliders, tab lists, Monaco,
+  // dialogs) are left alone.
+  useEffect(() => {
+    if (viewMode !== 'preview') {
+      return undefined;
+    }
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+      const preview = previewScrollRef.current;
+      if (!preview || !shouldPreviewHandleKeyboardScroll(event.target, preview)) {
+        return;
+      }
+      if (scrollPreviewWithKeyboard(preview, event)) {
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [viewMode]);
+
   const toggleQuickActions = useCallback(() => {
     const nextVisible = !quickActionsVisible;
     setQuickActionsVisible(nextVisible);
@@ -1989,12 +2051,20 @@ export function Workspace({
               style={leftStyle}
               aria-label={dict.workspace.leftPanelLabel}
             >
-              <Card className="workspace__panel-card workspace__panel-card--feature">
-                <span className="workspace__panel-eyebrow">
-                  {dict.workspace.workspaceExplorer.openFolder}
-                </span>
-                <h2 className="workspace__panel-title">{dict.workspace.workspaceExplorer.title}</h2>
-                <p className="workspace__panel-body">{dict.workspace.workspaceExplorer.body}</p>
+              <Card className="workspace__panel-card workspace__panel-card--feature workspace__panel-card--explorer">
+                <header className="workspace__panel-head">
+                  <span className="workspace__panel-eyebrow">
+                    {dict.workspace.workspaceExplorer.openFolder}
+                  </span>
+                  <h2
+                    className="workspace__panel-title workspace__panel-title--compact"
+                    title={document?.path ? dirnameOf(document.path) : undefined}
+                  >
+                    {document?.path
+                      ? basenameOf(dirnameOf(document.path)) || dict.workspace.workspaceExplorer.title
+                      : dict.workspace.workspaceExplorer.title}
+                  </h2>
+                </header>
                 {document?.path ? (
                   <WorkspaceExplorer
                     nodes={workspaceTree}
@@ -2102,6 +2172,12 @@ export function Workspace({
                         ref={previewScrollRef}
                         className="workspace__preview-scroll"
                         onWheel={handlePreviewWheel}
+                        // In the full preview the scroller is a focusable
+                        // region so arrow / page keys reach it natively too.
+                        tabIndex={viewMode === 'preview' ? 0 : undefined}
+                        role={viewMode === 'preview' ? 'region' : undefined}
+                        aria-label={viewMode === 'preview' ? dict.workspace.previewEyebrow : undefined}
+                        data-testid="preview-scroll"
                       >
                         <div
                           className="workspace__preview-zoom"
@@ -2260,26 +2336,23 @@ export function Workspace({
                 <span className="workspace__panel-eyebrow">
                   {dict.workspace.projectPanelEyebrow}
                 </span>
-                <h2 className="workspace__panel-title">{dict.workspace.projectPanelTitle}</h2>
-                <p className="workspace__panel-body">{dict.workspace.projectPanelBody}</p>
                 <dl className="workspace__metrics">
-                  <div>
+                  <div className="workspace__metric">
                     <dt>{dict.workspace.wordCountLabel}</dt>
-                    <dd>{words}</dd>
+                    <dd>{words.toLocaleString()}</dd>
                   </div>
-                  <div>
+                  <div className="workspace__metric">
                     <dt>{dict.workspace.charCountLabel}</dt>
-                    <dd>{characters}</dd>
+                    <dd>{characters.toLocaleString()}</dd>
                   </div>
                 </dl>
               </Card>
 
               <Card className="workspace__panel-card workspace__panel-card--secondary">
-                <span className="workspace__panel-eyebrow">
-                  {dict.workspace.recentDocumentsTitle}
-                </span>
-                <h3 className="workspace__panel-subtitle">{dict.workspace.recentDocumentsTitle}</h3>
-                <p className="workspace__panel-body">{dict.workspace.recentDocumentsBody}</p>
+                <header className="workspace__panel-head workspace__panel-head--row">
+                  <Icon name="clock-history" size={14} className="workspace__panel-head-icon" />
+                  <h3 className="workspace__panel-subtitle">{dict.workspace.recentDocumentsTitle}</h3>
+                </header>
                 {recentDocuments.length > 0 ? (
                   <div className="workspace__recent-list">
                     {recentDocuments.map((summary) => (
@@ -2290,9 +2363,16 @@ export function Workspace({
                         onClick={() => handleSelectRecent(summary)}
                         title={summary.path ?? summary.title}
                       >
-                        <span className="workspace__recent-title">{summary.title}</span>
-                        <span className="workspace__recent-meta">
-                          {summary.snippet || formatTimestamp(summary.lastOpenedAt)}
+                        <Icon
+                          name="file-earmark-text"
+                          size={14}
+                          className="workspace__recent-icon"
+                        />
+                        <span className="workspace__recent-copy">
+                          <span className="workspace__recent-title">{summary.title}</span>
+                          <span className="workspace__recent-meta">
+                            {summary.snippet || formatTimestamp(summary.lastOpenedAt)}
+                          </span>
                         </span>
                       </button>
                     ))}
@@ -2303,11 +2383,17 @@ export function Workspace({
               </Card>
 
               <Card className="workspace__panel-card workspace__panel-card--secondary">
-                <span className="workspace__panel-eyebrow">{dict.workspace.sessionTitle}</span>
-                <h3 className="workspace__panel-subtitle">{dict.workspace.sessionTitle}</h3>
-                <p className="workspace__panel-body">{dict.workspace.sessionBody}</p>
+                <header className="workspace__panel-head workspace__panel-head--row">
+                  <span
+                    className={`workspace__session-status workspace__session-status--${saveState}`}
+                    aria-hidden="true"
+                  >
+                    <SaveStateIcon state={saveState} />
+                  </span>
+                  <h3 className="workspace__panel-subtitle">{dict.workspace.sessionTitle}</h3>
+                </header>
                 <dl className="workspace__session-list">
-                  <div>
+                  <div className="workspace__session-row">
                     <dt>{dict.workspace.savedAtLabel}</dt>
                     <dd>
                       {document?.lastSavedAt
@@ -2315,7 +2401,7 @@ export function Workspace({
                         : dict.workspace.autosaveLabel}
                     </dd>
                   </div>
-                  <div>
+                  <div className="workspace__session-row">
                     <dt>{dict.workspace.sessionUpdatedLabel}</dt>
                     <dd>
                       {document?.lastOpenedAt
@@ -2323,11 +2409,11 @@ export function Workspace({
                         : dict.workspace.autosaveLabel}
                     </dd>
                   </div>
-                  <div>
+                  <div className="workspace__session-row">
                     <dt>{dict.workspace.sessionViewModeLabel}</dt>
                     <dd>{viewModeLabel(viewMode, dict.workspace)}</dd>
                   </div>
-                  <div>
+                  <div className="workspace__session-row">
                     <dt>{dict.workspace.sessionStorageLabel}</dt>
                     <dd>
                       {document?.kind === 'file'
@@ -2336,7 +2422,11 @@ export function Workspace({
                     </dd>
                   </div>
                 </dl>
-                <p className="workspace__panel-meta">
+                <p
+                  className={`workspace__panel-meta workspace__session-note${
+                    errorMessage ? ' workspace__session-note--error' : ''
+                  }`}
+                >
                   {errorMessage ?? statusLabel(saveState, dict.workspace)}
                 </p>
               </Card>
@@ -2751,17 +2841,7 @@ function DocumentTabs({
 }
 
 function TabScrollIcon({ direction }: { direction: 'prev' | 'next' }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d={direction === 'prev' ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6'}
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Icon name={direction === 'prev' ? 'chevron-left' : 'chevron-right'} size={14} />;
 }
 
 interface ResizeHandleProps {
@@ -3025,6 +3105,17 @@ function extractSnippet(value: string): string {
   return normalized.length <= 220 ? normalized : `${normalized.slice(0, 219).trimEnd()}…`;
 }
 
+function dirnameOf(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, '/');
+  const index = normalized.lastIndexOf('/');
+  return index <= 0 ? normalized : normalized.slice(0, index);
+}
+
+function basenameOf(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, '/').replace(/\/+$/, '');
+  return normalized.slice(normalized.lastIndexOf('/') + 1);
+}
+
 function formatTimestamp(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -3216,9 +3307,7 @@ function FileMenu({ labels, recents, onNew, onOpen, onSelectRecent }: FileMenuPr
           className={`file-menu__chevron${open ? ' file-menu__chevron--open' : ''}`}
           aria-hidden
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-            <path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-          </svg>
+          <Icon name="chevron-down" size={12} />
         </span>
       </button>
 
@@ -3236,14 +3325,7 @@ function FileMenu({ labels, recents, onNew, onOpen, onSelectRecent }: FileMenuPr
               onKeyDown={(event) => handleItemKeyDown(event, 0)}
             >
               <span className="file-menu__item-icon" aria-hidden>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M12 5v14M5 12h14"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinecap="round"
-                  />
-                </svg>
+                <Icon name="file-earmark-plus" size={15} />
               </span>
               <span className="file-menu__item-copy">
                 <span className="file-menu__item-label">{labels.newDocument}</span>
@@ -3260,14 +3342,7 @@ function FileMenu({ labels, recents, onNew, onOpen, onSelectRecent }: FileMenuPr
               onKeyDown={(event) => handleItemKeyDown(event, 1)}
             >
               <span className="file-menu__item-icon" aria-hidden>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M5 8h5l2 2h7v8H5z"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <Icon name="folder2-open" size={15} />
               </span>
               <span className="file-menu__item-copy">
                 <span className="file-menu__item-label">{labels.openFile}</span>
@@ -3334,350 +3409,95 @@ function describeRecent(summary: DocumentSummary): string {
 }
 
 function PanelLeftIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M4 5h16v14H4z" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M9 5v14" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
+  return <Icon name="layout-sidebar" size={17} />;
 }
 
 function PanelRightIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M4 5h16v14H4z" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M15 5v14" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
+  return <Icon name="layout-sidebar-reverse" size={17} />;
 }
 
 function ImmersiveEnterIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Icon name="arrows-fullscreen" size={15} />;
 }
 
 function ImmersiveExitIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Icon name="fullscreen-exit" size={15} />;
 }
 
 function FitWidthIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect x="4" y="7" width="16" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
-      <path
-        d="M8 12h8M8 12l2-2M8 12l2 2M16 12l-2-2M16 12l-2 2"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Icon name="arrows-expand-vertical" size={15} />;
 }
 
 function FitPageIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect x="6" y="3" width="12" height="18" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
-      <path
-        d="M12 8v8M12 8l-2 2M12 8l2 2M12 16l-2-2M12 16l2-2"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Icon name="arrows-expand" size={15} />;
 }
 
 function InvertColorsIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M12 3a9 9 0 0 1 0 18Z" fill="currentColor" />
-    </svg>
-  );
+  return <Icon name="circle-half" size={15} />;
 }
 
 function QuickActionsIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M6 7.5h12M6 12h7M6 16.5h9M17.5 10.5l2 2 3-4"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Icon name="magic" size={17} />;
 }
 
 function WriteModeIcon() {
-  return (
-    <svg className="workspace__mode-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M6 18l3.4-.7L18 8.7 15.3 6 6.7 14.6z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M13.8 7.5l2.7 2.7M5 20h14"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  return <Icon name="pencil" className="workspace__mode-icon" />;
 }
 
 function PreviewModeIcon() {
-  return (
-    <svg className="workspace__mode-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M4.5 12s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="12" r="2.2" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
+  return <Icon name="eye" className="workspace__mode-icon" />;
 }
 
 function SplitModeIcon() {
-  return (
-    <svg className="workspace__mode-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M5 6h14v12H5zM12 6v12"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M7.5 9h2.2M7.5 12h2.8M14.5 10.2c.6-.7 1.3-1 2-1s1.4.3 2 1M14.5 13.8c.6.7 1.3 1 2 1s1.4-.3 2-1"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  return <Icon name="layout-split" className="workspace__mode-icon" />;
 }
 
 function SaveIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M6 4h10l2 2v14H6z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-      <path
-        d="M9 4v5h6V4M9 17h6"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Icon name="floppy" size={17} />;
 }
 
 function SaveAsIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M5 5h9l2 2v5.5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-      <path
-        d="M7 5v5h6V5M7 19h5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M14 18.5l4.6-4.6 1.5 1.5-4.6 4.6H14z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Icon name="copy" size={17} />;
 }
 
 function SaveStateIcon({ state }: { state: SaveState }) {
-  if (state === 'dirty') {
-    return (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-        <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth="1.7" />
-        <path d="M12 7.5v5.2" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
-        <circle cx="12" cy="16.2" r="1" fill="currentColor" />
-      </svg>
-    );
-  }
-
-  if (state === 'saving') {
-    return (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-        <path d="M12 5a7 7 0 017 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-        <path
-          d="M19 12a7 7 0 01-7 7 7 7 0 01-7-7"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          opacity="0.42"
-        />
-      </svg>
-    );
-  }
-
-  if (state === 'error') {
-    return (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-        <path
-          d="M12 5l7.5 13H4.5z"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M12 10v3.4M12 16.4v.1"
-          stroke="currentColor"
-          strokeWidth="1.9"
-          strokeLinecap="round"
-        />
-      </svg>
-    );
-  }
-
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth="1.7" />
-      <path
-        d="M8.4 12.2l2.2 2.2 5-5"
-        stroke="currentColor"
-        strokeWidth="1.9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  const name =
+    state === 'dirty'
+      ? 'exclamation-circle'
+      : state === 'saving'
+        ? 'arrow-repeat'
+        : state === 'error'
+          ? 'exclamation-triangle'
+          : 'check-circle';
+  return <Icon name={name} size={17} />;
 }
 
 function ExportIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M6 5h8l4 4v10H6z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-      <path
-        d="M14 5v4h4M12 12v5M9.5 14.5L12 17l2.5-2.5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Icon name="file-earmark-pdf" size={17} />;
 }
 
 function GuideIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M5.5 5.5h6.2c1.3 0 2.3 1 2.3 2.3v10.7c0-1.2-1-2.2-2.2-2.2H5.5z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M18.5 5.5H14v13c0-1.2 1-2.2 2.2-2.2h2.3zM8 8.5h3"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Icon name="book" size={17} />;
 }
 
 function SettingsIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M12 8.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M18.2 13.3l1.3 1-.8 1.5-1.6-.4a6.6 6.6 0 01-1.2 1l-.2 1.7h-1.7l-.2-1.7a6.4 6.4 0 01-1.5-.2l-1.2 1.2-1.5-.9.4-1.6a6.4 6.4 0 01-1-1.2l-1.7-.2v-1.7l1.7-.2c.1-.5.2-1 .4-1.4L6.8 8.8l.9-1.5 1.6.4a6.6 6.6 0 011.2-1l.2-1.7h1.7l.2 1.7c.5.1 1 .2 1.4.4l1.3-1.1 1.5.9-.4 1.6c.4.4.7.8 1 1.2l1.7.2v1.7l-1.7.2c-.1.5-.2 1-.4 1.5z"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Icon name="gear" size={17} />;
 }
 
 function InfoIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M12 11v4M12 8.2v.1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
+  return <Icon name="info-circle" size={17} />;
 }
 
 function CloseTabIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M7 7l10 10M17 7L7 17"
-        stroke="currentColor"
-        strokeWidth="1.9"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  return <Icon name="x-lg" size={12} />;
 }
 
 function WarningIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M12 4l8 15H4L12 4z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-      <path d="M12 9v4M12 16.5v.1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
+  return <Icon name="exclamation-triangle" size={13} />;
 }
 
 function ReopenIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M8 7h8a4 4 0 010 8h-5"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M11 11l-4 4 4 4"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Icon name="arrow-counterclockwise" size={13} />;
 }
 
 function MarkdownActionIcon({ actionId }: { actionId: MarkdownActionId }) {
@@ -3718,229 +3538,61 @@ function MarkdownActionIcon({ actionId }: { actionId: MarkdownActionId }) {
 }
 
 function MermaidIcon() {
-  return (
-    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect x="3" y="3" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="15" y="3" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="9" y="17" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M6 7v4h12V7M12 11v6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
+  return <Icon name="diagram-3" className="workspace__quick-action-icon" />;
 }
 
 function MarkmapIcon() {
-  return (
-    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="5" cy="12" r="2" stroke="currentColor" strokeWidth="1.6" />
-      <circle cx="18" cy="6" r="2" stroke="currentColor" strokeWidth="1.6" />
-      <circle cx="18" cy="12" r="2" stroke="currentColor" strokeWidth="1.6" />
-      <circle cx="18" cy="18" r="2" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M7 12c4 0 4-6 9-6M7 12h9M7 12c4 0 4 6 9 6" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
+  return <Icon name="diagram-2" className="workspace__quick-action-icon" />;
 }
 
 function ChartIcon() {
-  return (
-    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M4 20h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      <rect x="6" y="11" width="3" height="7" rx="0.5" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="11" y="6" width="3" height="12" rx="0.5" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="16" y="14" width="3" height="4" rx="0.5" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
+  return <Icon name="bar-chart" className="workspace__quick-action-icon" />;
 }
 
 function TextHeadingIcon({ level }: { level: '1' | '2' }) {
   return (
-    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M5 6v12M14 6v12M5 12h9"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <text x="16" y="18" fill="currentColor" fontSize="8" fontWeight="700">
-        {level}
-      </text>
-    </svg>
+    <Icon name={level === '1' ? 'type-h1' : 'type-h2'} className="workspace__quick-action-icon" />
   );
 }
 
-function TextMarkIcon({ mark, italic = false }: { mark: 'B' | 'I'; italic?: boolean }) {
+function TextMarkIcon({ mark }: { mark: 'B' | 'I'; italic?: boolean }) {
   return (
-    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <text
-        x="7"
-        y="17"
-        fill="currentColor"
-        fontFamily="Georgia, serif"
-        fontSize="15"
-        fontStyle={italic ? 'italic' : 'normal'}
-        fontWeight={italic ? '700' : '800'}
-      >
-        {mark}
-      </text>
-      <path
-        d="M5 20h14"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        opacity="0.42"
-      />
-    </svg>
+    <Icon name={mark === 'B' ? 'type-bold' : 'type-italic'} className="workspace__quick-action-icon" />
   );
 }
 
 function LinkIcon() {
-  return (
-    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M9.5 14.5l5-5M10 7.5l1.2-1.2a4 4 0 015.7 5.7L15.6 13.3M14 16.5l-1.2 1.2a4 4 0 01-5.7-5.7L8.4 10.7"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Icon name="link-45deg" className="workspace__quick-action-icon" />;
 }
 
 function ImageIcon() {
-  return (
-    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M5 7.5h14v9H5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-      <path
-        d="M7.5 15l3.3-3.2 2.5 2.4 1.5-1.5L18 15"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="15.8" cy="9.8" r="1" fill="currentColor" />
-    </svg>
-  );
+  return <Icon name="image" className="workspace__quick-action-icon" />;
 }
 
 function ListIcon({ ordered }: { ordered: boolean }) {
-  return (
-    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      {ordered ? (
-        <>
-          <text x="5" y="9" fill="currentColor" fontSize="5.5" fontWeight="700">
-            1
-          </text>
-          <text x="5" y="14" fill="currentColor" fontSize="5.5" fontWeight="700">
-            2
-          </text>
-          <text x="5" y="19" fill="currentColor" fontSize="5.5" fontWeight="700">
-            3
-          </text>
-        </>
-      ) : (
-        <>
-          <circle cx="7" cy="7.5" r="1.1" fill="currentColor" />
-          <circle cx="7" cy="12" r="1.1" fill="currentColor" />
-          <circle cx="7" cy="16.5" r="1.1" fill="currentColor" />
-        </>
-      )}
-      <path
-        d="M11 7.5h8M11 12h8M11 16.5h8"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  return <Icon name={ordered ? 'list-ol' : 'list-ul'} className="workspace__quick-action-icon" />;
 }
 
 function ChecklistIcon() {
-  return (
-    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M5.5 7.5l1.3 1.3 2.4-2.8M5.5 12l1.3 1.3 2.4-2.8M5.5 16.5l1.3 1.3 2.4-2.8"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M12 7.5h7M12 12h7M12 16.5h7"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  return <Icon name="list-check" className="workspace__quick-action-icon" />;
 }
 
 function QuoteIcon() {
-  return (
-    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M8 8.5h3v3.2c0 2.4-1.1 4-3.2 4.8M15 8.5h3v3.2c0 2.4-1.1 4-3.2 4.8"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Icon name="quote" className="workspace__quick-action-icon" />;
 }
 
 function InlineCodeIcon() {
-  return (
-    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M9 8l-4 4 4 4M15 8l4 4-4 4"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Icon name="code" className="workspace__quick-action-icon" />;
 }
 
 function CodeBlockIcon() {
-  return (
-    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M5 6.5h14v11H5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-      <path
-        d="M9.5 10l-2 2 2 2M14.5 10l2 2-2 2"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Icon name="code-square" className="workspace__quick-action-icon" />;
 }
 
 function DividerIcon() {
-  return (
-    <svg className="workspace__quick-action-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      <circle cx="7" cy="12" r="1.2" fill="currentColor" opacity="0.42" />
-      <circle cx="17" cy="12" r="1.2" fill="currentColor" opacity="0.42" />
-    </svg>
-  );
+  return <Icon name="hr" className="workspace__quick-action-icon" />;
 }
 
 function TableIcon() {
-  return (
-    <svg
-      className="workspace__quick-actions-table-icon"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden
-    >
-      <path
-        d="M5 6h14v12H5zM5 10h14M9.5 6v12M14.5 6v12"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Icon name="table" className="workspace__quick-actions-table-icon" />;
 }

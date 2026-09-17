@@ -78,12 +78,13 @@ test.describe('A4 PDF export (web/print profile)', () => {
       expect(size.height).toBeCloseTo(A4_HEIGHT_PT, 0);
       expect(readPdfPageCount(outputPath)).toBeGreaterThan(1);
 
-      // No content loss: every marker in the source survives into the PDF.
+      // No content loss: every marker in the source survives into the PDF
+      // (narrow cells wrap their tokens, so the check also reads the boxes).
       const pdfText = readPdfText(outputPath);
-      expect(findMissingMarkers(markdown, pdfText)).toEqual([]);
+      const words = readPdfWords(outputPath);
+      expect(findMissingMarkers(markdown, pdfText, words)).toEqual([]);
 
       // No clipping: every glyph box sits inside its page's text band.
-      const words = readPdfWords(outputPath);
       expect(words.length).toBeGreaterThan(100);
       expect(
         findOverflowingWords(words).map((word) => ({

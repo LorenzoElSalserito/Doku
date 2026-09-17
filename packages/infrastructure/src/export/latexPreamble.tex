@@ -1,0 +1,64 @@
+% Doku — LuaLaTeX preamble injected after pandoc's own preamble.
+% Goals: mirror the in-app preview (type scale 2.2 / 1.55 / 1.25 / 1.1 of an
+% 11pt body, rule under H2, warm paper palette, page number bottom centre),
+% never clip anything (code lines and long tokens wrap), and keep A4 twoside
+% binding margins declared by the exporter.
+
+\usepackage{microtype}
+\usepackage{etoolbox}
+\usepackage{longtable,booktabs,array}
+\usepackage{fvextra}
+\fvset{breaklines=true,breakanywhere=true,breakindent=0pt,breaksymbolleft={},breaksymbolright={},fontsize=\small}
+\RecustomVerbatimEnvironment{verbatim}{Verbatim}{breaklines=true,breakanywhere=true,breaksymbolleft={},breaksymbolright={},fontsize=\small,frame=single,framerule=0.4pt,framesep=0.7em,rulecolor=\color{dokushade},fillcolor=\color{dokushade}}
+\makeatletter
+\@ifundefined{Highlighting}{}{%
+  \DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\},breaklines,breakanywhere,breaksymbolleft={},breaksymbolright={},fontsize=\small}}
+\makeatother
+
+\definecolor{dokuaccent}{HTML}{007EB8}
+\definecolor{dokuink}{HTML}{1A1816}
+\definecolor{dokutext}{HTML}{5F5953}
+\definecolor{dokurule}{HTML}{D9D3CA}
+\definecolor{dokushade}{HTML}{F4EFE8}
+\definecolor{dokuquote}{HTML}{F9FCFE}
+\definecolor{dokumuted}{HTML}{8A837B}
+% Pandoc's code background (framed's snugshade) uses shadecolor.
+\definecolor{shadecolor}{HTML}{F4EFE8}
+
+\usepackage{titlesec}
+\titleformat{\section}{\fontsize{24.2pt}{28pt}\selectfont\bfseries\color{dokuink}}{}{0pt}{}
+\titleformat{\subsection}{\fontsize{17pt}{21pt}\selectfont\bfseries\color{dokuink}}{}{0pt}{}[{\color{dokurule}\titlerule}]
+\titleformat{\subsubsection}{\fontsize{13.75pt}{17pt}\selectfont\bfseries\color{dokuink}}{}{0pt}{}
+\titleformat{\paragraph}[hang]{\fontsize{12.1pt}{15pt}\selectfont\bfseries\color{dokuink}}{}{0pt}{}
+\titleformat{\subparagraph}[hang]{\normalsize\bfseries\color{dokuink}}{}{0pt}{}
+\titlespacing*{\section}{0pt}{1.6em}{0.5em}
+\titlespacing*{\subsection}{0pt}{1.6em}{0.5em}
+\titlespacing*{\subsubsection}{0pt}{1.6em}{0.5em}
+\titlespacing*{\paragraph}{0pt}{1.4em}{0.4em}
+\titlespacing*{\subparagraph}{0pt}{1.2em}{0.3em}
+
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[C]{\small\color{dokumuted}\thepage}
+\fancypagestyle{plain}{\fancyhf{}\renewcommand{\headrulewidth}{0pt}\fancyfoot[C]{\small\color{dokumuted}\thepage}}
+
+% Block quotes: accent bar, tinted paper, like the preview.
+\usepackage{framed}
+\makeatletter
+\renewenvironment{quote}{%
+  \def\FrameCommand{{\color{dokuaccent}\vrule width 2pt}\hspace{0.8em}\colorbox{dokuquote}}%
+  \MakeFramed{\advance\hsize-\width\FrameRestore}\color{dokutext}\noindent\ignorespaces}%
+  {\endMakeFramed}
+\makeatother
+
+% Code blocks are plain verbatim (no syntax colours, like the preview) on the
+% preview's warm code shade: see the frame/fillcolor options above.
+
+% Table rules in the paper palette.
+\usepackage{colortbl}
+\arrayrulecolor{dokurule}
+\renewcommand{\arraystretch}{1.25}
+\setlength{\LTpre}{0.6em}
+\setlength{\LTpost}{0.6em}

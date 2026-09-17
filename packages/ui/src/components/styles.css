@@ -187,18 +187,33 @@
   background: var(--color-accent-strong);
 }
 
-/* Dialog */
+/* Dialog
+   The <dialog> element itself never scrolls (its background is transparent, so
+   a scrollbar there would float detached from the card). The card keeps
+   header and footer fixed and scrolls only its content, with the scrollbar
+   inside the rounded surface. */
 .doku-dialog {
   border: none;
   padding: 0;
   background: transparent;
   color: inherit;
-  max-width: min(640px, 92vw);
+  width: min(640px, 92vw);
+  max-width: 92vw;
   max-height: 90vh;
+  overflow: visible;
   border-radius: var(--radius-xl);
 }
+.doku-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
 .doku-dialog--wide {
-  max-width: min(1100px, 94vw);
+  width: min(1100px, 94vw);
+  max-width: 94vw;
+}
+.doku-dialog--guide {
+  width: min(1280px, 96vw);
+  max-width: 96vw;
 }
 .doku-dialog::backdrop {
   background: rgba(12, 10, 8, 0.55);
@@ -214,9 +229,22 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  min-height: 0;
+  max-height: 90vh;
+  overflow: hidden;
 }
 .doku-dialog__body:focus-visible {
   outline: none;
+}
+.doku-dialog__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  /* Keep the scrollbar inside the card padding, flush with the content. */
+  margin-right: calc(var(--space-4) * -1);
+  padding-right: var(--space-4);
 }
 .doku-dialog__header {
   display: flex;

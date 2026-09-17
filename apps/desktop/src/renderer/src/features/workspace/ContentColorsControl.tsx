@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button } from '@doku/ui';
+import { Button, Icon } from '@doku/ui';
 import type { ContentColors } from '@doku/application';
 
 export interface ContentColorsLabels {
@@ -164,24 +164,5 @@ export function ContentColorsControl({
 }
 
 function PaletteIcon() {
-  return (
-    <svg
-      className="workspace__quick-action-icon"
-      width="19"
-      height="19"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden
-    >
-      <path
-        d="M12 3a9 9 0 1 0 0 18c1.3 0 2-1 2-1.8 0-.5-.3-.9-.6-1.3-.3-.4-.6-.8-.6-1.3 0-.8.7-1.4 1.5-1.4H16a5 5 0 0 0 5-5c0-3.6-4-6.2-9-6.2Z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <circle cx="7.5" cy="12" r="1.1" fill="currentColor" />
-      <circle cx="10" cy="7.8" r="1.1" fill="currentColor" />
-      <circle cx="15" cy="7.8" r="1.1" fill="currentColor" />
-    </svg>
-  );
+  return <Icon name="palette" className="workspace__quick-action-icon" />;
 }

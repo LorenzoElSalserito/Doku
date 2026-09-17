@@ -20,3 +20,11 @@ export { Dialog } from './components/Dialog.js';
 export type { DialogProps } from './components/Dialog.js';
 export { EmptyState } from './components/EmptyState.js';
 export type { EmptyStateProps } from './components/EmptyState.js';
+export { Icon } from './components/Icon.js';
+export type { IconProps } from './components/Icon.js';
+export {
+  BOOTSTRAP_ICON_NAMES,
+  BOOTSTRAP_ICON_PATHS,
+  BOOTSTRAP_ICONS_VERSION,
+} from './icons/bootstrapIcons.generated.js';
+export type { BootstrapIconName, BootstrapIconPath } from './icons/bootstrapIcons.generated.js';

@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { PdfExportRequestSchema, type PdfExportRequest, type PdfExportResult } from '@doku/schemas';
 import { shouldInjectPandocTitle } from './markdownTitle.js';
 import { buildWeasyTypographyCss, resolvePdfTypography } from './pdfTypography.js';
+import { materializeVisualAssets } from './visualAssets.js';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_WEASY_SCRIPT_PATH = fileURLToPath(new URL('./scripts/render_weasy_pdf.py', import.meta.url));
@@ -55,7 +56,15 @@ export class WeasyPdfExportService {
       const htmlPath = join(tempDir, 'document.html');
       const stylesheetPath = join(tempDir, 'doku-print.css');
 
-      await writeFile(markdownPath, input.content, 'utf-8');
+      // Diagrams and charts captured by the app replace their code fences, so
+      // the PDF shows exactly what the preview rendered.
+      const { markdown } = await materializeVisualAssets(
+        input.content,
+        input.visualAssets,
+        tempDir,
+        'png-or-svg',
+      );
+      await writeFile(markdownPath, markdown, 'utf-8');
       await copyFile(this.printStylesheetPath, stylesheetPath);
       await writeFile(
         stylesheetPath,

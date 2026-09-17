@@ -576,6 +576,153 @@ describe('Workspace', () => {
     requestAnimationFrameSpy.mockRestore();
   });
 
+  it('focuses the preview scroller when entering preview mode so arrow keys scroll the page', async () => {
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        callback(0);
+        return 1;
+      });
+
+    const view = renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+        workspaceViewMode: 'split',
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    const splitScroller = view.container.querySelector<HTMLElement>('.workspace__preview-scroll');
+    expect(splitScroller).not.toBeNull();
+    expect(splitScroller).not.toHaveAttribute('tabindex');
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Preview' }));
+
+    const scroller = view.container.querySelector<HTMLElement>('.workspace__preview-scroll');
+    expect(scroller).not.toBeNull();
+    expect(scroller).toHaveAttribute('tabindex', '0');
+    expect(scroller).toHaveAttribute('role', 'region');
+    await waitFor(() => {
+      expect(document.activeElement).toBe(scroller);
+    });
+
+    // Arrow keys must scroll, not move the view-mode tab selection.
+    mockScrollMetrics(scroller!, { clientHeight: 500, scrollHeight: 4000 });
+    fireEvent.keyDown(scroller!, { key: 'ArrowDown' });
+    expect(scroller!.scrollTop).toBe(48);
+    expect(screen.getByRole('tab', { name: 'Preview' })).toHaveAttribute('aria-selected', 'true');
+
+    requestAnimationFrameSpy.mockRestore();
+  });
+
+  it('scrolls the preview from the keyboard even when the focus sits on the shell', async () => {
+    const view = renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+        workspaceViewMode: 'preview',
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    const scroller = view.container.querySelector<HTMLElement>('.workspace__preview-scroll');
+    expect(scroller).not.toBeNull();
+    mockScrollMetrics(scroller!, { clientHeight: 500, scrollHeight: 4000 });
+
+    // Focus on body: nothing owns the keys, the preview must take them.
+    (document.activeElement as HTMLElement | null)?.blur();
+    expect(document.activeElement).toBe(document.body);
+
+    const arrowDown = fireEvent.keyDown(document.body, { key: 'ArrowDown' });
+    expect(arrowDown).toBe(false); // preventDefault() was called
+    expect(scroller!.scrollTop).toBe(48);
+
+    fireEvent.keyDown(document.body, { key: 'PageDown' });
+    expect(scroller!.scrollTop).toBe(48 + 450);
+
+    fireEvent.keyDown(document.body, { key: 'End' });
+    expect(scroller!.scrollTop).toBe(3500);
+
+    fireEvent.keyDown(document.body, { key: 'ArrowUp' });
+    expect(scroller!.scrollTop).toBe(3500 - 48);
+
+    fireEvent.keyDown(document.body, { key: 'Home' });
+    expect(scroller!.scrollTop).toBe(0);
+
+    // Focus on a plain toolbar button: still scrolls.
+    const saveButton = screen.getByRole('button', { name: 'Save' });
+    saveButton.focus();
+    fireEvent.keyDown(saveButton, { key: 'ArrowDown' });
+    expect(scroller!.scrollTop).toBe(48);
+  });
+
+  it('leaves arrow keys to the zoom slider and the zoom input in preview mode', async () => {
+    const view = renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+        workspaceViewMode: 'preview',
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    const scroller = view.container.querySelector<HTMLElement>('.workspace__preview-scroll');
+    expect(scroller).not.toBeNull();
+    mockScrollMetrics(scroller!, { clientHeight: 500, scrollHeight: 4000 });
+
+    const slider = view.container.querySelector<HTMLInputElement>('.workspace__preview-zoom-slider');
+    expect(slider).not.toBeNull();
+    slider!.focus();
+    const sliderEvent = fireEvent.keyDown(slider!, { key: 'ArrowDown' });
+    expect(sliderEvent).toBe(true); // not prevented: the slider keeps its key
+    expect(scroller!.scrollTop).toBe(0);
+
+    fireEvent.doubleClick(screen.getByRole('button', { name: 'Reset zoom' }));
+    const zoomInput = await screen.findByRole('spinbutton', { name: 'Preview zoom' });
+    zoomInput.focus();
+    fireEvent.keyDown(zoomInput, { key: 'ArrowUp' });
+    expect(scroller!.scrollTop).toBe(0);
+
+    // The view-mode tab list navigates with arrows too: never hijack it.
+    const previewTab = screen.getByRole('tab', { name: 'Preview' });
+    previewTab.focus();
+    fireEvent.keyDown(previewTab, { key: 'ArrowDown' });
+    expect(scroller!.scrollTop).toBe(0);
+  });
+
+  it('does not intercept keyboard scrolling outside preview mode', async () => {
+    const view = renderWorkspace({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        firstRunCompleted: true,
+        workspaceViewMode: 'split',
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.doku.documents.loadDocument).toHaveBeenCalled();
+    });
+
+    const scroller = view.container.querySelector<HTMLElement>('.workspace__preview-scroll');
+    expect(scroller).not.toBeNull();
+    mockScrollMetrics(scroller!, { clientHeight: 500, scrollHeight: 4000 });
+
+    (document.activeElement as HTMLElement | null)?.blur();
+    const result = fireEvent.keyDown(document.body, { key: 'ArrowDown' });
+    expect(result).toBe(true);
+    expect(scroller!.scrollTop).toBe(0);
+  });
+
   it('imports a dropped image and inserts the markdown snippet', async () => {
     const importAsset = vi.fn().mockResolvedValue({
       fileName: 'hero-cover.png',
@@ -1191,6 +1338,22 @@ describe('Workspace', () => {
   });
 
 });
+
+function mockScrollMetrics(
+  element: HTMLElement,
+  metrics: { clientHeight: number; scrollHeight: number; clientWidth?: number; scrollWidth?: number },
+) {
+  Object.defineProperty(element, 'clientHeight', { configurable: true, value: metrics.clientHeight });
+  Object.defineProperty(element, 'scrollHeight', { configurable: true, value: metrics.scrollHeight });
+  Object.defineProperty(element, 'clientWidth', {
+    configurable: true,
+    value: metrics.clientWidth ?? 800,
+  });
+  Object.defineProperty(element, 'scrollWidth', {
+    configurable: true,
+    value: metrics.scrollWidth ?? 800,
+  });
+}
 
 function renderWorkspace({
   settings = DEFAULT_SETTINGS,

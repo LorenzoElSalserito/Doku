@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 export interface ExportRuntimePaths {
   printStylesheetPath: string;
+  latexPreamblePath: string;
+  tableFilterPath: string;
   weasyScriptPath: string;
   weasyPythonPath?: string;
   pandocPath?: string;
@@ -17,6 +19,8 @@ export interface ExportRuntimePaths {
 export function findMissingExportRuntimeEntries(paths: ExportRuntimePaths): string[] {
   const required: ReadonlyArray<readonly [string, string | undefined]> = [
     ['printStylesheet.css', paths.printStylesheetPath],
+    ['latexPreamble.tex', paths.latexPreamblePath],
+    ['tableWidths.lua', paths.tableFilterPath],
     ['scripts/render_weasy_pdf.py', paths.weasyScriptPath],
     ['weasy-python', paths.weasyPythonPath],
     ['latex/bin/pandoc', paths.pandocPath],
@@ -54,6 +58,8 @@ export function resolveExportRuntimePaths(baseDir: string): ExportRuntimePaths {
 
   return {
     printStylesheetPath: join(exportRoot, 'printStylesheet.css'),
+    latexPreamblePath: join(exportRoot, 'latexPreamble.tex'),
+    tableFilterPath: join(exportRoot, 'tableWidths.lua'),
     weasyScriptPath: join(exportRoot, 'scripts/render_weasy_pdf.py'),
     weasyPythonPath: existsSync(weasyPythonPath) ? weasyPythonPath : undefined,
     pandocPath: existsSync(pandocPath) ? pandocPath : undefined,

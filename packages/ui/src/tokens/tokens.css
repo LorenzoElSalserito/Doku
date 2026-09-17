@@ -82,6 +82,174 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: 'Source Sans 3';
+  src: url('../fonts/SourceSans3.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Work Sans';
+  src: url('../fonts/WorkSans.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Nunito';
+  src: url('../fonts/Nunito.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Manrope';
+  src: url('../fonts/Manrope.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'EB Garamond';
+  src: url('../fonts/EBGaramond.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Crimson Pro';
+  src: url('../fonts/CrimsonPro.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Playfair Display';
+  src: url('../fonts/PlayfairDisplay.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Source Code Pro';
+  src: url('../fonts/SourceCodePro.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inconsolata';
+  src: url('../fonts/Inconsolata.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Lexend';
+  src: url('../fonts/Lexend.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Sans';
+  src: url('../fonts/NotoSans.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Montserrat';
+  src: url('../fonts/Montserrat.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Raleway';
+  src: url('../fonts/Raleway.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Rubik';
+  src: url('../fonts/Rubik.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Karla';
+  src: url('../fonts/Karla.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Public Sans';
+  src: url('../fonts/PublicSans.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Outfit';
+  src: url('../fonts/Outfit.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'DM Sans';
+  src: url('../fonts/DMSans.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Figtree';
+  src: url('../fonts/Figtree.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Serif';
+  src: url('../fonts/NotoSerif.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Literata';
+  src: url('../fonts/Literata.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Bitter';
+  src: url('../fonts/Bitter.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Alegreya';
+  src: url('../fonts/Alegreya.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vollkorn';
+  src: url('../fonts/Vollkorn.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Newsreader';
+  src: url('../fonts/Newsreader.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Cormorant Garamond';
+  src: url('../fonts/CormorantGaramond.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Red Hat Mono';
+  src: url('../fonts/RedHatMono.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  src: url('../fonts/AtkinsonHyperlegibleNext.ttf') format('truetype');
+  font-display: swap;
+}
+
 /* Doku Design Tokens — Warm Ivory (light) / Deep Slate (dark).
  * Palette contrattuale PRD §18.4. Ogni variabile è tokenizzata:
  * i componenti finali non devono usare colori literal.

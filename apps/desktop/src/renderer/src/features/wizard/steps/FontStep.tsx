@@ -30,9 +30,13 @@ export function FontStep({ value, onChange }: FontStepProps) {
               />
               <span className="font-choice__meta">
                 <span className="font-choice__family">{font.family}</span>
-                <span className="font-choice__category">{font.recommendedUse}</span>
+                <span className="font-choice__category">
+                  {dict.fontCatalog.use[font.family] ?? font.recommendedUse}
+                </span>
               </span>
-              <span className="font-choice__preview">{font.previewText}</span>
+              <span className="font-choice__preview">
+                {dict.fontCatalog.preview[font.category]}
+              </span>
             </label>
           );
         })}

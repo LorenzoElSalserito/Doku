@@ -173,12 +173,30 @@ export const DocumentOperationResultSchema = z.object({
 });
 export type DocumentOperationResult = z.infer<typeof DocumentOperationResultSchema>;
 
+/**
+ * A visual block (Mermaid, Markmap, chart) rendered by the app, captured so
+ * the PDF shows the same picture as the preview. `index` is the position of
+ * the block among the document's visual code fences, in source order.
+ */
+export const PdfExportVisualAssetSchema = z.object({
+  index: z.number().int().nonnegative(),
+  kind: z.enum(['mermaid', 'markmap', 'chart']),
+  /** Standalone SVG markup. */
+  svg: z.string().min(1).optional(),
+  /** Base64 PNG (no data-URL prefix), rasterised at 2× for print. */
+  png: z.string().min(1).optional(),
+  width: z.number().positive().optional(),
+  height: z.number().positive().optional(),
+});
+export type PdfExportVisualAsset = z.infer<typeof PdfExportVisualAssetSchema>;
+
 export const PdfExportRequestSchema = z.object({
   engine: z.enum(['lualatex', 'weasy']),
   title: z.string().min(1).optional(),
   content: z.string(),
   sourcePath: z.string().min(1).optional(),
   typography: DokuTypographySchema.optional(),
+  visualAssets: z.array(PdfExportVisualAssetSchema).optional(),
 });
 export type PdfExportRequest = z.infer<typeof PdfExportRequestSchema>;
 

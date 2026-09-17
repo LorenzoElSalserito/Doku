@@ -22,6 +22,14 @@ async function main() {
     join(sourceExportDir, 'scripts/render_weasy_pdf.py'),
     join(runtimeDir, 'scripts/render_weasy_pdf.py'),
   );
+  await fs.copyFile(
+    join(sourceExportDir, 'latexPreamble.tex'),
+    join(runtimeDir, 'latexPreamble.tex'),
+  );
+  await fs.copyFile(
+    join(sourceExportDir, 'tableWidths.lua'),
+    join(runtimeDir, 'tableWidths.lua'),
+  );
   await copyDirIfExists(
     join(sourceExportDir, 'fonts'),
     join(runtimeDir, 'fonts'),

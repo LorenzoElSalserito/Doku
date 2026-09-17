@@ -318,6 +318,9 @@ export interface Dictionary {
     errorTitle: string;
     errorGeneric: string;
     resultEngineLabel: string;
+    capturing: string;
+    visualNote: string;
+    a4Note: string;
   };
   info: {
     title: string;
@@ -326,8 +329,20 @@ export interface Dictionary {
     licenseLabel: string;
     local: string;
     donations: string;
+    support: {
+      title: string;
+      body: string;
+      cta: string;
+      note: string;
+    };
     reportBug: string;
     close: string;
+  };
+  fontCatalog: {
+    /** Recommended use, keyed by font family name from the schema catalog. */
+    use: Record<string, string>;
+    /** Specimen sentence per catalog category. */
+    preview: Record<'sans' | 'serif' | 'monospace' | 'accessibility', string>;
   };
   guideCenter: {
     title: string;
@@ -340,6 +355,11 @@ export interface Dictionary {
     copy: string;
     copied: string;
     livePreview: string;
+    resultsCount: string;
+    outlineTitle: string;
+    outlineBody: string;
+    shortcutKeysHeader: string;
+    shortcutActionHeader: string;
     sections: {
       quickStart: {
         title: string;
@@ -364,6 +384,33 @@ export interface Dictionary {
         snippet: string;
       };
       shortcuts: {
+        title: string;
+        summary: string;
+        intro: string;
+        bullets: string[];
+        items: { keys: string; action: string }[];
+      };
+      visualBlocks: {
+        title: string;
+        summary: string;
+        intro: string;
+        bullets: string[];
+        snippetLabel: string;
+        snippet: string;
+      };
+      exportPdf: {
+        title: string;
+        summary: string;
+        intro: string;
+        bullets: string[];
+      };
+      typography: {
+        title: string;
+        summary: string;
+        intro: string;
+        bullets: string[];
+      };
+      workspace: {
         title: string;
         summary: string;
         intro: string;

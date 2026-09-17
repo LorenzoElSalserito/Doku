@@ -1,5 +1,5 @@
 import { app, BrowserWindow, crashReporter } from 'electron';
-import { mkdirSync, promises as fs } from 'node:fs';
+import { existsSync, mkdirSync, promises as fs } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, extname, join, resolve } from 'node:path';
 import {
@@ -158,6 +158,8 @@ async function bootstrap(): Promise<void> {
         lualatexPath: exportRuntime.lualatexPath,
         latexRuntimeRoot: exportRuntime.latexRuntimeRoot,
         nativeLibraryDir: exportRuntime.nativeLibraryDir,
+        preamblePath: exportRuntime.latexPreamblePath,
+        tableFilterPath: exportRuntime.tableFilterPath,
       }),
       weasy: new WeasyPdfExportService({
         printStylesheetPath: exportRuntime.printStylesheetPath,
@@ -407,18 +409,34 @@ function resolveDocumentsDataDir(fallbackDir: string): string {
 }
 
 function configurePortableDataPaths(): ReturnType<typeof resolvePortableDataPaths> {
-  const paths = resolvePortableDataPaths(process.env);
+  const paths = resolvePortableDataPaths(process.env, {
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    execPath: process.execPath,
+    exists: existsSync,
+  });
   if (!paths) {
     return null;
   }
 
-  for (const path of [
-    paths.rootDir,
-    paths.electronUserDataDir,
-    paths.sessionDataDir,
-    paths.crashDumpsDir,
-  ]) {
-    mkdirSync(path, { recursive: true });
+  try {
+    for (const path of [
+      paths.rootDir,
+      paths.electronUserDataDir,
+      paths.sessionDataDir,
+      paths.crashDumpsDir,
+    ]) {
+      mkdirSync(path, { recursive: true });
+    }
+  } catch (error: unknown) {
+    // The executable sits in a read-only location (e.g. a mounted ISO or a
+    // locked-down folder): fall back to the installed layout instead of
+    // refusing to start.
+    console.warn(
+      `[${PRODUCT_NAME}] portable data folder is not writable, using the user profile instead`,
+      error,
+    );
+    return null;
   }
 
   app.setPath('userData', paths.electronUserDataDir);
