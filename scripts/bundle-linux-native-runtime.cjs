@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { existsSync } = require('node:fs');
+const { closeSync, existsSync, openSync, readSync } = require('node:fs');
 const fs = require('node:fs/promises');
 const { basename, dirname, join } = require('node:path');
 const { spawnSync } = require('node:child_process');
@@ -111,8 +111,11 @@ function probeWeasyLoadedLibraries() {
 
 function resolveLddDependencies(binary) {
   const result = spawnSync('ldd', [binary], { encoding: 'utf8',
-    env: { ...process.env, LD_LIBRARY_PATH: `${dirname(binary)}:${libraryDir}:${process.env.LD_LIBRARY_PATH || ''}` },
+    // LC_ALL=C: ldd's messages are localised ("non è un eseguibile dinamico").
+    env: { ...process.env, LC_ALL: 'C', LD_LIBRARY_PATH: `${dirname(binary)}:${libraryDir}:${process.env.LD_LIBRARY_PATH || ''}` },
   });
+  // Upstream Pandoc releases are fully static ELF executables: nothing to bundle.
+  if (isStaticElf(binary, `${result.stdout}${result.stderr}`)) return [];
   if (result.status !== 0 || result.stdout.includes('not found')) {
     throw new Error(`Unresolved ELF dependencies for ${binary}\n${result.stdout}\n${result.stderr}`);
   }
@@ -123,6 +126,14 @@ function resolveLddDependencies(binary) {
     if (path && existsSync(path)) dependencies.push(path);
   }
   return dependencies;
+}
+
+function isStaticElf(binary, lddOutput) {
+  if (!/not a dynamic executable|statically linked/.test(lddOutput)) return false;
+  const header = Buffer.alloc(4);
+  const fd = openSync(binary, 'r');
+  try { readSync(fd, header, 0, 4, 0); } finally { closeSync(fd); }
+  return header.equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46]));
 }
 
 function run(command, args) {

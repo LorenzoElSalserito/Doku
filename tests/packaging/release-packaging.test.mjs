@@ -33,6 +33,17 @@ test('Mach-O dependency parser ignores universal architecture headers and dedupl
   assert.deepEqual(parseDependencies(`/tmp/python:\n${library}\n`), ['/usr/lib/libSystem.B.dylib'])
 })
 
+test('Mach-O install names come from otool -D, including stale delocate ids', () => {
+  const { parseInstallNames } = require('../../scripts/lib/macho-dependencies.cjs')
+  // Pillow wheels keep the id delocate gave them at build time.
+  assert.deepEqual(parseInstallNames('/tmp/site-packages/PIL/.dylibs/libXau.6.dylib:\n/DLC/PIL/.dylibs/libXau.6.dylib\n'),
+    ['/DLC/PIL/.dylibs/libXau.6.dylib'])
+  assert.deepEqual(parseInstallNames('/tmp/lib (architecture x86_64):\n@rpath/libz.1.dylib\n/tmp/lib (architecture arm64):\n@rpath/libz.1.dylib\n'),
+    ['@rpath/libz.1.dylib'])
+  // Executables carry no LC_ID_DYLIB: otool -D prints the header only.
+  assert.deepEqual(parseInstallNames('/tmp/path with spaces/pandoc:\n'), [])
+})
+
 test('Pandoc data survives file-only packaging with embedded or external defaults', async () => {
   const { preparePandocData } = require('../../scripts/lib/pandoc-data.cjs')
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'doku-pandoc-data-'))

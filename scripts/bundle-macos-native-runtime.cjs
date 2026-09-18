@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const { basename, dirname, join, relative, resolve } = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
 const { copyWritable, createLibraryStore } = require('./lib/macos-library-store.cjs');
-const { parseDependencies } = require('./lib/macho-dependencies.cjs');
+const { parseDependencies, parseInstallNames } = require('./lib/macho-dependencies.cjs');
 
 if (process.platform !== 'darwin') process.exit(0);
 const runtime = resolve(__dirname, '../build/export-runtime');
@@ -54,7 +54,12 @@ while (queue.length) {
   if (inspect.status !== 0) continue;
   const original = origins.get(binary) || binary;
   const dependencies = parseDependencies(inspect.stdout);
+  // otool -L lists a dylib's own install name first. Wheels repaired by
+  // delocate keep a build-time one (Pillow: /DLC/PIL/.dylibs/...) that no
+  // longer exists anywhere, so it must be recognised by name, not by path.
+  const installNames = new Set(parseInstallNames(spawnSync('otool', ['-D', binary], { encoding: 'utf8' }).stdout || ''));
   for (const dependency of dependencies) {
+    if (installNames.has(dependency)) continue;
     if (dependency.startsWith('/usr/lib/') || dependency.startsWith('/System/Library/')) continue;
     // TeX Live ships Metafont and DVI previewers (inimf, mf, xdvi) linked
     // against XQuartz. PDF export never runs them, XQuartz is absent from a
