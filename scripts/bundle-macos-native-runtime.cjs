@@ -19,6 +19,21 @@ fs.cpSync(stdlib, join(pythonHome, 'lib', version), {
 });
 fs.mkdirSync(libraryDir, { recursive: true });
 
+// Homebrew and python.org ship framework builds: bin/python is CPython's
+// pythonw launcher, which locates the framework library with dladdr() and
+// posix_spawns <library dir>/Resources/Python.app/Contents/MacOS/Python.
+// The library gets staged into lib/, so the real interpreter must live there
+// too; the loop below then rewrites its link to the staged library.
+if (run(python, ['-c', 'import sysconfig; print(sysconfig.get_config_var("PYTHONFRAMEWORK") or "")'])) {
+  const pythonApp = join(run(python, ['-c', 'import sys; print(sys.base_prefix)']), 'Resources/Python.app');
+  const stagedApp = join(libraryDir, 'Resources/Python.app');
+  if (!fs.existsSync(pythonApp) && !fs.existsSync(stagedApp)) throw new Error(`Framework Python without ${pythonApp}`);
+  if (fs.existsSync(pythonApp)) {
+    fs.rmSync(stagedApp, { recursive: true, force: true });
+    fs.cpSync(pythonApp, stagedApp, { recursive: true, dereference: true });
+  }
+}
+
 function files(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const file = join(directory, entry.name);
