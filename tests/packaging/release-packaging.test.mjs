@@ -55,6 +55,31 @@ test('Pandoc data survives file-only packaging with embedded or external default
   } finally { fs.rmSync(temp, { recursive: true, force: true }) }
 })
 
+test('LaTeX table filter runs on the oldest supported Pandoc and sizes wide tables', (t) => {
+  const filter = path.resolve(import.meta.dirname, '../../packages/infrastructure/src/export/tableWidths.lua')
+  // `walk` and the current Table AST arrived after Pandoc 2.9, the oldest
+  // release a supported host can bundle: the filter must not call them.
+  assert.ok(!/[:.]walk\s*\(/.test(fs.readFileSync(filter, 'utf8')), 'tableWidths.lua must not use :walk')
+  if (!has('pandoc')) return t.skip('pandoc is not installed')
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'doku-table-filter-'))
+  try {
+    const markdown = path.join(temp, 'document.md')
+    fs.writeFileSync(markdown, [
+      '# Titolo con identificatore_lunghissimo_di_prova_che_supera_trenta_caratteri',
+      '',
+      '| Colonna A | Colonna B | Colonna C | Colonna D | Colonna E |',
+      '| --- | --- | --- | --- | --- |',
+      '| identificatore_molto_lungo | b | c | d | e |',
+      '',
+    ].join('\n'))
+    const latex = execFileSync('pandoc', [markdown, '-t', 'latex', `--lua-filter=${filter}`], { encoding: 'utf8' })
+    // Relative column widths keep the table inside the A4 text column, and
+    // zero-width break points keep long identifiers from overflowing it.
+    assert.match(latex, /\\real\{0\.\d+\}/)
+    assert.ok(latex.includes('\\hspace{0pt}'), 'long tokens keep their break points')
+  } finally { fs.rmSync(temp, { recursive: true, force: true }) }
+})
+
 test('macOS library staging preserves colliding read-only libraries and supports reruns', () => {
   const { createLibraryStore, copyWritable } = require('../../scripts/lib/macos-library-store.cjs')
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'doku-macos-libraries-'))

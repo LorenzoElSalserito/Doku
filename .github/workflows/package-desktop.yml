@@ -27,6 +27,7 @@ jobs:
     timeout-minutes: 60
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      PANDOC_VERSION: '3.1.11.1'
     strategy:
       fail-fast: false
       matrix:
@@ -74,7 +75,18 @@ jobs:
         run: |
           sudo apt-get update
           # Jammy provides libharfbuzz0b; WeasyPrint 66 uses bundled FontTools for subsetting.
-          sudo apt-get install -y fakeroot dpkg rpm binutils bubblewrap python3-venv libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b pandoc texlive-luatex texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended
+          sudo apt-get install -y fakeroot dpkg rpm binutils bubblewrap python3-venv libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b texlive-luatex texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended
+
+      - name: Install pinned Pandoc
+        if: runner.os == 'Linux'
+        # Jammy only offers Pandoc 2.9, whose Lua API lacks the current Table
+        # AST and `walk`, so the bundled table filter cannot run. Windows and
+        # macOS get Pandoc 3 from choco/brew; pin the same generation here.
+        run: |
+          curl -fsSL -o /tmp/pandoc.deb \
+            "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
+          sudo dpkg -i /tmp/pandoc.deb
+          pandoc --version | head -1
 
       - name: Install Windows native libraries
         if: runner.os == 'Windows'

@@ -56,6 +56,10 @@ while (queue.length) {
   const dependencies = parseDependencies(inspect.stdout);
   for (const dependency of dependencies) {
     if (dependency.startsWith('/usr/lib/') || dependency.startsWith('/System/Library/')) continue;
+    // TeX Live ships Metafont and DVI previewers (inimf, mf, xdvi) linked
+    // against XQuartz. PDF export never runs them, XQuartz is absent from a
+    // clean macOS, and bundling it would depend on the build host having it.
+    if (dependency.startsWith('/opt/X11/')) continue;
     let source = dependency.replace('@loader_path', dirname(original)).replace('@executable_path', dirname(python));
     if (source.startsWith('@rpath/')) {
       const loadCommands = run('otool', ['-l', original]);

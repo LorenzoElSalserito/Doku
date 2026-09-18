@@ -1,9 +1,11 @@
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 const { tmpdir } = require('node:os');
+const { ensureBuildTmpdir } = require('./build-tmpdir.cjs');
 const { join, delimiter, resolve } = require('node:path');
 
 function certifyExportRuntime(source) {
+  ensureBuildTmpdir();
   const temporary = fs.mkdtempSync(join(tmpdir(), 'doku portable '));
   const runtime = join(temporary, 'export-runtime');
   try {
@@ -20,7 +22,9 @@ function certifyExportRuntime(source) {
     const env = {
       ...(windows ? { SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR } : {}),
       PATH: bin,
-      HOME: temporary, USERPROFILE: temporary, TEMP: temporary, TMP: temporary,
+      // TMPDIR too: Pandoc and TeX write scratch files there on Unix, and the
+      // sandbox has no /tmp unless the relocated runtime happens to live in it.
+      HOME: temporary, USERPROFILE: temporary, TEMP: temporary, TMP: temporary, TMPDIR: temporary,
       XDG_CACHE_HOME: temporary,
       XDG_DATA_HOME: runtime,
       PYTHONHOME: pythonHome, PYTHONPATH: pythonPath, PYTHONNOUSERSITE: '1',

@@ -4,8 +4,10 @@ const { join } = require('node:path');
 const { tmpdir } = require('node:os');
 const { execFileSync } = require('node:child_process');
 const { certifyExportRuntime } = require('./lib/smoke-export-runtime.cjs');
+const { ensureBuildTmpdir } = require('./lib/build-tmpdir.cjs');
 const { version } = require('../package.json');
 const artifact = join(__dirname, `../build/desktop/doku_v${version}.deb`);
+ensureBuildTmpdir();
 const temporary = fs.mkdtempSync(join(tmpdir(), 'doku-deb-smoke-'));
 try {
   const actual = execFileSync('dpkg-deb', ['-f', artifact, 'Version'], { encoding: 'utf8' }).trim();

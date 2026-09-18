@@ -1,0 +1,10 @@
+# Doku ships generated sources (icons, packaging manifests) whose checks compare
+# file bytes. Windows runners default to core.autocrlf=true, so without this the
+# checkout would rewrite LF to CRLF and every generator check would report stale.
+* text=auto eol=lf
+
+*.icns binary
+*.ico binary
+*.otf binary
+*.png binary
+*.ttf binary

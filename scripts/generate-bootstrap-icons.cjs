@@ -103,7 +103,9 @@ function main() {
   const next = render(names);
   const current = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf8') : null;
   if (check) {
-    if (current !== next) {
+    // Normalise CRLF: a Windows checkout may hold the committed LF file with
+    // CRLF endings, and that is a checkout detail, not a stale generator.
+    if (current === null || current.replace(/\r\n/g, '\n') !== next) {
       console.error(`[generate-bootstrap-icons] ${path.relative(repoRoot, outputPath)} is stale. Run: npm run icons:bootstrap`);
       process.exit(1);
     }
