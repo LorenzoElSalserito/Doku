@@ -91,6 +91,51 @@ test('LaTeX table filter runs on the oldest supported Pandoc and sizes wide tabl
   } finally { fs.rmSync(temp, { recursive: true, force: true }) }
 })
 
+test('libraries WeasyPrint opens by name are staged once, under their unversioned alias', (t) => {
+  if (process.platform === 'win32') return t.skip('needs POSIX symlinks')
+  const { cffiLibraryName, createLibraryStore } = require('../../scripts/lib/macos-library-store.cjs')
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'doku-cffi-libraries-'))
+  try {
+    // Homebrew layout: one real file per library plus versioned/unversioned symlinks.
+    const cellar = path.join(temp, 'Cellar/glib/lib')
+    fs.mkdirSync(cellar, { recursive: true })
+    const gobject = path.join(cellar, 'libgobject-2.0.0.dylib')
+    fs.writeFileSync(gobject, 'gobject')
+    fs.symlinkSync('libgobject-2.0.0.dylib', path.join(cellar, 'libgobject-2.0.dylib'))
+    const glib = path.join(cellar, 'libglib-2.0.0.dylib')
+    fs.writeFileSync(glib, 'glib')
+    const harfbuzz = path.join(temp, 'Cellar/harfbuzz/lib/libharfbuzz.0.dylib')
+    fs.mkdirSync(path.dirname(harfbuzz), { recursive: true })
+    fs.writeFileSync(harfbuzz, 'homebrew harfbuzz')
+    fs.symlinkSync('libharfbuzz.0.dylib', path.join(path.dirname(harfbuzz), 'libharfbuzz.dylib'))
+    const pillow = path.join(temp, 'site-packages/PIL/.dylibs/libharfbuzz.0.dylib')
+    fs.mkdirSync(path.dirname(pillow), { recursive: true })
+    fs.writeFileSync(pillow, 'pillow harfbuzz')
+
+    // ctypes.util.find_library("gobject-2.0") resolves libgobject-2.0.dylib.
+    assert.equal(cffiLibraryName(gobject), 'libgobject-2.0.dylib')
+    assert.equal(cffiLibraryName(harfbuzz), 'libharfbuzz.dylib')
+    assert.equal(cffiLibraryName(glib), null)
+    assert.equal(cffiLibraryName(pillow), null)
+
+    const directory = path.join(temp, 'bundle/lib')
+    const store = createLibraryStore(directory, cffiLibraryName)
+    // Linked through a symlink or directly: one staged file, never an extra copy.
+    assert.equal(store.stage(path.join(cellar, 'libgobject-2.0.dylib')), path.join(directory, 'libgobject-2.0.dylib'))
+    assert.equal(store.stage(gobject), path.join(directory, 'libgobject-2.0.dylib'))
+    assert.equal(store.stage(harfbuzz), path.join(directory, 'libharfbuzz.dylib'))
+    assert.match(path.basename(store.stage(pillow)), /^[0-9a-f]{16}-libharfbuzz\.0\.dylib$/)
+    assert.match(path.basename(store.stage(glib)), /^[0-9a-f]{16}-libglib-2\.0\.0\.dylib$/)
+    assert.equal(fs.readFileSync(path.join(directory, 'libharfbuzz.dylib'), 'utf8'), 'homebrew harfbuzz')
+    assert.deepEqual(fs.readdirSync(directory).filter((name) => name.includes('gobject')), ['libgobject-2.0.dylib'])
+
+    // Two different libraries may never share a staged name.
+    const clash = createLibraryStore(path.join(temp, 'clash'), () => 'libsame.dylib')
+    clash.stage(gobject)
+    assert.throws(() => clash.stage(glib), /Two libraries staged as/)
+  } finally { fs.rmSync(temp, { recursive: true, force: true }) }
+})
+
 test('macOS library staging preserves colliding read-only libraries and supports reruns', () => {
   const { createLibraryStore, copyWritable } = require('../../scripts/lib/macos-library-store.cjs')
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'doku-macos-libraries-'))

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 const fs = require('node:fs');
-const { basename, dirname, join, relative, resolve } = require('node:path');
+const { dirname, join, relative, resolve } = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
-const { copyWritable, createLibraryStore } = require('./lib/macos-library-store.cjs');
+const { cffiLibraryName, createLibraryStore } = require('./lib/macos-library-store.cjs');
 const { parseDependencies, parseInstallNames } = require('./lib/macho-dependencies.cjs');
 
 if (process.platform !== 'darwin') process.exit(0);
@@ -51,7 +51,7 @@ const loaded = run(python, ['-c', [
 ].join('; ')]).split('\n').filter((file) => file.startsWith('/') && !file.startsWith('/usr/lib/') && !file.startsWith('/System/Library/'));
 const queue = files(runtime);
 const visited = new Set();
-const { stage, origins } = createLibraryStore(libraryDir);
+const { stage, origins } = createLibraryStore(libraryDir, cffiLibraryName);
 const modified = [];
 for (const source of loaded) {
   queue.push(stage(source));
@@ -97,30 +97,6 @@ while (queue.length) {
   }
   fs.chmodSync(binary, 0o755);
   modified.push(binary);
-}
-// CFFI requests unversioned dylib names; preserve those entry points.
-for (const binary of [...modified]) {
-  if (dirname(binary) !== libraryDir) continue;
-  const source = origins.get(binary);
-  if (!source || !/^(libgobject-|libpango|libharfbuzz|libfontconfig)/.test(basename(source))) continue;
-  // Wheels vendor their own copies (Pillow ships libharfbuzz.0.dylib) and
-  // reach them through @loader_path. Aliasing one would overwrite the
-  // Homebrew library WeasyPrint's CFFI opens by name, mixing two harfbuzz
-  // instances in one process.
-  if (source.includes('/site-packages/')) continue;
-  const aliases = new Set([basename(source)]);
-  for (const alias of fs.readdirSync(dirname(source))) {
-    const entry = join(dirname(source), alias);
-    if (!fs.lstatSync(entry).isSymbolicLink() || !fs.existsSync(entry)) continue;
-    if (fs.realpathSync(entry) !== fs.realpathSync(source)) continue;
-    aliases.add(alias);
-  }
-  for (const alias of aliases) {
-    const target = join(libraryDir, alias);
-    if (target === binary) continue;
-    copyWritable(binary, target);
-    modified.push(target);
-  }
 }
 for (const binary of modified) run('codesign', ['--force', '--sign', '-', binary]);
 console.log(`macOS native runtime bundled: ${modified.length} Mach-O objects`);
