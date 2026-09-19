@@ -42,6 +42,10 @@ function createLibraryStore(directory, nameFor = () => null) {
   function stage(source) {
     const canonical = fs.realpathSync(source);
     if (sources.has(canonical)) return sources.get(canonical);
+    // A dependency can resolve to a file this run already staged: a wheel
+    // library rewritten in place now points at its lib/ copy. It is its own
+    // staged copy, not a second library competing for the name.
+    if (owners.has(canonical)) return canonical;
     // Homebrew and Python wheels can ship incompatible libraries with the
     // same basename. Preserve both and rewrite each consumer to its own copy.
     const hash = createHash('sha256').update(canonical).digest('hex').slice(0, 16);

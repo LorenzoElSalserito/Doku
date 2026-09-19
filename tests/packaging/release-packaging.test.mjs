@@ -129,6 +129,11 @@ test('libraries WeasyPrint opens by name are staged once, under their unversione
     assert.equal(fs.readFileSync(path.join(directory, 'libharfbuzz.dylib'), 'utf8'), 'homebrew harfbuzz')
     assert.deepEqual(fs.readdirSync(directory).filter((name) => name.includes('gobject')), ['libgobject-2.0.dylib'])
 
+    // Re-staging a staged copy returns it and keeps its real origin.
+    const staged = store.stage(pillow)
+    assert.equal(store.stage(staged), staged)
+    assert.equal(store.origins.get(staged), fs.realpathSync(pillow))
+
     // Two different libraries may never share a staged name.
     const clash = createLibraryStore(path.join(temp, 'clash'), () => 'libsame.dylib')
     clash.stage(gobject)
