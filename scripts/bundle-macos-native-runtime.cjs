@@ -103,6 +103,11 @@ for (const binary of [...modified]) {
   if (dirname(binary) !== libraryDir) continue;
   const source = origins.get(binary);
   if (!source || !/^(libgobject-|libpango|libharfbuzz|libfontconfig)/.test(basename(source))) continue;
+  // Wheels vendor their own copies (Pillow ships libharfbuzz.0.dylib) and
+  // reach them through @loader_path. Aliasing one would overwrite the
+  // Homebrew library WeasyPrint's CFFI opens by name, mixing two harfbuzz
+  // instances in one process.
+  if (source.includes('/site-packages/')) continue;
   const aliases = new Set([basename(source)]);
   for (const alias of fs.readdirSync(dirname(source))) {
     const entry = join(dirname(source), alias);
