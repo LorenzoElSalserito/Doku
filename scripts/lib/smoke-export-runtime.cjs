@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 const { tmpdir } = require('node:os');
 const { ensureBuildTmpdir } = require('./build-tmpdir.cjs');
-const { join, delimiter, resolve } = require('node:path');
+const { join, delimiter } = require('node:path');
 
 function certifyExportRuntime(source) {
   ensureBuildTmpdir();
@@ -10,6 +10,9 @@ function certifyExportRuntime(source) {
   const runtime = join(temporary, 'export-runtime');
   try {
     fs.cpSync(source, runtime, { recursive: true, dereference: true });
+    // dyld and /proc/self/maps report real paths; on macOS the temp dir lives
+    // under /var, a symlink to /private/var.
+    const runtimeRoot = fs.realpathSync(runtime);
     const windows = process.platform === 'win32';
     const pythonHome = join(runtime, 'weasy-python');
     const python = join(pythonHome, windows ? 'python.exe' : 'bin/python');
@@ -74,7 +77,7 @@ function certifyExportRuntime(source) {
         'from weasyprint import HTML',
         'HTML(string="<p>Doku</p>").write_pdf("probe.pdf")',
         'paths = [line.split(None, 5)[-1].strip() for line in open("/proc/self/maps") if "/" in line]',
-        `escaped = [p for p in paths if any(n in p for n in ('libpango', 'libgobject', 'libharfbuzz', 'libfontconfig', 'libfreetype')) and not p.startswith(${JSON.stringify(resolve(runtime))})]`,
+        `escaped = [p for p in paths if any(n in p for n in ('libpango', 'libgobject', 'libharfbuzz', 'libfontconfig', 'libfreetype')) and not p.startswith(${JSON.stringify(runtimeRoot)})]`,
         'assert not escaped, "Libraries loaded from host: " + str(escaped)',
       ].join('; ')]);
     }
@@ -86,7 +89,7 @@ function certifyExportRuntime(source) {
         'dyld = ctypes.CDLL(None)',
         'dyld._dyld_get_image_name.restype = ctypes.c_char_p',
         'paths = [dyld._dyld_get_image_name(i).decode() for i in range(dyld._dyld_image_count())]',
-        `escaped = [p for p in paths if not p.startswith(('/System/Library/', '/usr/lib/', ${JSON.stringify(resolve(runtime))}))]`,
+        `escaped = [p for p in paths if not p.startswith(('/System/Library/', '/usr/lib/', ${JSON.stringify(runtimeRoot)}))]`,
         'assert not escaped, "Libraries loaded from host: " + str(escaped)',
       ].join('; ')]);
     }
