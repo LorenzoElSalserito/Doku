@@ -19,7 +19,10 @@ function verifyExportRuntime(runtime, platform) {
     if (!version) throw new Error('Bundled Python standard library missing');
     required.push(`weasy-python/lib/${version}/encodings/__init__.py`, `weasy-python/lib/${version}/site-packages/weasyprint/__init__.py`);
     if (platform === 'linux') required.push('lib/libgobject-2.0.so.0', 'lib/libpango-1.0.so.0');
-    else required.push('lib/libgobject-2.0.0.dylib', 'lib/libpango-1.0.0.dylib');
+    // The names ctypes.util.find_library resolves for WeasyPrint's CFFI; the
+    // bundler stages each of these libraries once, under exactly this name.
+    else required.push('lib/libgobject-2.0.dylib', 'lib/libpango-1.0.dylib', 'lib/libpangoft2-1.0.dylib',
+      'lib/libharfbuzz.dylib', 'lib/libfontconfig.dylib');
   }
   const missing = required.filter((entry) => !existsSync(join(runtime, entry)));
   if (missing.length) throw new Error(`Bundled export runtime incomplete: ${missing.join(', ')}`);
