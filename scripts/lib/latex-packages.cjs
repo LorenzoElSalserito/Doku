@@ -26,13 +26,14 @@ const TEMPLATE_STYLES = [
 // alone multiplied the Windows bundle and made it unusably slow to unpack),
 // install the packages the export really reads: the list comes from a
 // `lualatex -recorder` run of a document using every Markdown feature with the
-// Pandoc template, the preamble and the table filter.
+// Pandoc template, the preamble and the table filter. Names follow the current
+// TeX Live (l3backend, for example, now ships inside l3kernel).
 const RUNTIME_PACKAGES = [
   'amsfonts', 'amsmath', 'auxhook', 'bigintcalc', 'bitset', 'bookmark', 'booktabs',
   'colortbl', 'ctablestack', 'epstopdf-pkg', 'etexcmds', 'etoolbox', 'fancyhdr', 'fancyvrb',
   'fontspec', 'footnotehyper', 'fvextra', 'geometry', 'gettitlestring', 'graphics',
   'graphics-cfg', 'graphics-def', 'hycolor', 'hyperref', 'iftex', 'infwarerr', 'intcalc',
-  'kvdefinekeys', 'kvoptions', 'kvsetkeys', 'l3backend', 'l3kernel', 'l3packages',
+  'kvdefinekeys', 'kvoptions', 'kvsetkeys', 'l3kernel', 'l3packages',
   'latexconfig', 'lineno', 'lm', 'lm-math', 'ltxcmds', 'lua-uni-algos', 'lua-ul',
   'lualatex-math', 'lualibs', 'luacolor', 'luaotfload', 'luatexbase', 'mdframed',
   'microtype', 'needspace', 'parskip', 'pdfescape', 'pdftexcmds', 'pgf', 'refcount',
