@@ -4,8 +4,7 @@
  * ships with the app, plus what those packages load and TeX Live does not pull
  * in on minimal installs (TinyTeX on Windows and macOS CI).
  *
- *   node scripts/lib/latex-packages.cjs --install   update tlmgr, install the
- *                                                   collections and every package
+ *   node scripts/lib/latex-packages.cjs --install   update tlmgr and install every package
  *   node scripts/lib/latex-packages.cjs --check     fail if a .sty is missing
  */
 const { readFileSync } = require('node:fs');
@@ -17,12 +16,29 @@ const PREAMBLE = join(__dirname, '../../packages/infrastructure/src/export/latex
 // Style files loaded indirectly that are not in every minimal TeX Live.
 const INDIRECT_STYLES = ['fancyvrb', 'upquote', 'lineno', 'zref-abspage', 'needspace', 'xcolor', 'tikz'];
 
-// Collections the export runtime is built from on TinyTeX.
-const COLLECTIONS = [
-  'collection-luatex',
-  'collection-latexrecommended',
-  'collection-latexextra',
-  'collection-fontsrecommended',
+// Style files the Pandoc LaTeX template loads for LuaLaTeX.
+const TEMPLATE_STYLES = [
+  'amsmath', 'bookmark', 'fontspec', 'footnotehyper', 'geometry', 'graphicx', 'hyperref',
+  'iftex', 'parskip', 'selnolig', 'unicode-math', 'xurl',
+];
+
+// TinyTeX starts minimal. Instead of whole collections (collection-latexextra
+// alone multiplied the Windows bundle and made it unusably slow to unpack),
+// install the packages the export really reads: the list comes from a
+// `lualatex -recorder` run of a document using every Markdown feature with the
+// Pandoc template, the preamble and the table filter.
+const RUNTIME_PACKAGES = [
+  'amsfonts', 'amsmath', 'auxhook', 'bigintcalc', 'bitset', 'bookmark', 'booktabs',
+  'colortbl', 'ctablestack', 'epstopdf-pkg', 'etexcmds', 'etoolbox', 'fancyhdr', 'fancyvrb',
+  'fontspec', 'footnotehyper', 'fvextra', 'geometry', 'gettitlestring', 'graphics',
+  'graphics-cfg', 'graphics-def', 'hycolor', 'hyperref', 'iftex', 'infwarerr', 'intcalc',
+  'kvdefinekeys', 'kvoptions', 'kvsetkeys', 'l3backend', 'l3kernel', 'l3packages',
+  'latexconfig', 'lineno', 'lm', 'lm-math', 'ltxcmds', 'lua-uni-algos', 'lua-ul',
+  'lualatex-math', 'lualibs', 'luacolor', 'luaotfload', 'luatexbase', 'mdframed',
+  'microtype', 'needspace', 'parskip', 'pdfescape', 'pdftexcmds', 'pgf', 'refcount',
+  'rerunfilecheck', 'selnolig', 'setspace', 'stringenc', 'tex-ini-files', 'titlesec',
+  'tools', 'unicode-data', 'unicode-math', 'uniquecounter', 'upquote', 'url', 'xcolor',
+  'xurl', 'zref',
 ];
 
 // TeX Live package that provides a style file, when the names differ.
@@ -30,6 +46,7 @@ const TLMGR_PACKAGE = {
   array: 'tools',
   calc: 'tools',
   longtable: 'tools',
+  graphicx: 'graphics',
   tikz: 'pgf',
   'zref-abspage': 'zref',
 };
@@ -47,7 +64,7 @@ function preambleStyles(source = readFileSync(PREAMBLE, 'utf8')) {
 }
 
 function requiredStyles() {
-  return [...new Set([...preambleStyles(), ...INDIRECT_STYLES])].sort();
+  return [...new Set([...preambleStyles(), ...INDIRECT_STYLES, ...TEMPLATE_STYLES])].sort();
 }
 
 function tlmgrPackages(styles = requiredStyles()) {
@@ -80,8 +97,7 @@ function main(argv) {
     // A TinyTeX older than its package repository refuses every install until
     // tlmgr updates itself; stop at the first failure instead of going on.
     tlmgr(['update', '--self']);
-    tlmgr(['install', ...COLLECTIONS]);
-    tlmgr(['install', ...tlmgrPackages()]);
+    tlmgr(['install', ...new Set([...RUNTIME_PACKAGES, ...tlmgrPackages()])]);
   }
   if (argv.includes('--check') || argv.includes('--install')) {
     const missing = missingStyles();
@@ -103,4 +119,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { missingStyles, preambleStyles, requiredStyles, tlmgrPackages };
+module.exports = { RUNTIME_PACKAGES, missingStyles, preambleStyles, requiredStyles, tlmgrPackages };

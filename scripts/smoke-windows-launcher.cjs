@@ -92,11 +92,34 @@ async function launch(exe, { logs, expected, extraEnv = {} }) {
   }
 }
 
+/**
+ * Moves a folder Doku just ran from. Windows refuses the rename while any
+ * handle is open inside the tree, and Defender keeps scanning freshly
+ * extracted files for a while after the app has exited: retry for a minute.
+ */
+async function renameWhenReleased(from, to) {
+  killDoku();
+  const deadline = Date.now() + 60_000;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      fs.renameSync(from, to);
+      if (attempt > 1) console.log(`- Folder released after ${attempt} attempts`);
+      return;
+    } catch (error) {
+      if (!['EPERM', 'EBUSY', 'EACCES'].includes(error.code) || Date.now() > deadline) throw error;
+      await delay(2000);
+    }
+  }
+}
+
 async function smokePortableArchive() {
   const first = join(temporary, 'prima posizione');
   const moved = join(temporary, 'seconda posizione');
   const extractStarted = Date.now();
-  powershell(`Expand-Archive -LiteralPath '${portableArchive}' -DestinationPath '${first}' -Force`);
+  // bsdtar (System32\tar.exe) reads zip archives far faster than Expand-Archive.
+  fs.mkdirSync(first, { recursive: true });
+  const tar = spawnSync(join(process.env.SystemRoot, 'System32', 'tar.exe'), ['-xf', portableArchive, '-C', first], { stdio: 'inherit' });
+  if (tar.status !== 0) powershell(`Expand-Archive -LiteralPath '${portableArchive}' -DestinationPath '${first}' -Force`);
   console.log(`- Portable archive extracted in ${Math.round((Date.now() - extractStarted) / 1000)} s`);
   const exe = join(first, 'Doku.exe');
   assert.ok(fs.existsSync(exe), `Doku.exe missing from the extracted archive: ${exe}`);
@@ -111,7 +134,7 @@ async function smokePortableArchive() {
   settings.theme = 'dark';
   fs.writeFileSync(settingsPath, JSON.stringify(settings));
 
-  fs.renameSync(first, moved);
+  await renameWhenReleased(first, moved);
   await launch(join(moved, 'Doku.exe'), {
     logs: join(moved, 'AppUser/logs'),
     expected: { appDataDir: join(moved, 'AppUser'), electronUserDataDir: join(moved, 'AppUser/Electron') },
