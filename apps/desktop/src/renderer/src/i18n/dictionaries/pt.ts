@@ -269,6 +269,72 @@ export const pt: Dictionary = {
       'Elimina definições, gravações automáticas, logs e dados locais do Doku, e depois fecha a app. Use antes de desinstalar.',
     uninstallPreparationConfirm:
       'Eliminar definitivamente todos os dados de utilizador do Doku e fechar a app?',
+    previewFeatures: {
+      title: 'Funções em pré-visualização',
+      hint: 'Funções ainda em desenvolvimento. Desligadas por padrão; ativar uma não altera seus arquivos.',
+      flags: {
+        vault: {
+          label: 'Vault',
+          description: 'Abrir uma pasta como vault com um índice local de todas as notas.',
+        },
+        links: {
+          label: 'Links e backlinks',
+          description: '[[Wikilinks]], aliases, backlinks e renomeação segura.',
+        },
+        search: {
+          label: 'Busca e paleta de comandos',
+          description: 'Busca de texto completo com operadores, troca rápida e paleta de comandos.',
+        },
+        properties: {
+          label: 'Propriedades e tags',
+          description: 'Front matter tipado, tags e namespaces.',
+        },
+        outline: {
+          label: 'Estrutura e blocos',
+          description: 'Blocos no estilo Logseq com ids, referências e incorporações.',
+        },
+        journal: {
+          label: 'Diário e tarefas',
+          description: 'Notas diárias, marcadores de tarefas, datas agendadas e prazos, agenda.',
+        },
+        queries: {
+          label: 'Consultas e vistas',
+          description: 'Consultas salvas como lista, tabela, kanban, calendário e galeria.',
+        },
+        templates: {
+          label: 'Modelos',
+          description: 'Modelos, trechos e variáveis.',
+        },
+        graph: {
+          label: 'Grafo',
+          description: 'Grafo global e local das notas ligadas.',
+        },
+        cards: {
+          label: 'Flashcards',
+          description: 'Cartões e lacunas com repetição espaçada.',
+        },
+        canvas: {
+          label: 'Canvas',
+          description: 'Canvas infinito salvo como JSON Canvas.',
+        },
+        pdf: {
+          label: 'Visualizador de PDF',
+          description: 'Ler e anotar PDFs dentro do vault.',
+        },
+        history: {
+          label: 'Histórico e lixeira',
+          description: 'Histórico local de versões com diferenças, restauração e lixeira.',
+        },
+        scripts: {
+          label: 'Automações locais',
+          description: 'Scripts locais em sandbox com uma API restrita.',
+        },
+        import: {
+          label: 'Importar e exportar',
+          description: 'Importar do Obsidian, Logseq e Notion; PDF em livro e site estático.',
+        },
+      },
+    },
     customThemeOpen: 'Editar tema personalizado',
     customThemeHint: 'Ajuste os tokens centrais da paleta e aplique-os ao Doku.',
     close: 'Concluído',

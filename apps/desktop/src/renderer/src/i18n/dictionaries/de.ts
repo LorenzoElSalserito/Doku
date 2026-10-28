@@ -270,6 +270,72 @@ export const de: Dictionary = {
       'Löscht Doku-Einstellungen, Autosaves, Logs und lokale App-Daten und schließt danach die App. Vor der Deinstallation verwenden.',
     uninstallPreparationConfirm:
       'Alle Doku-Benutzerdaten endgültig löschen und die App schließen?',
+    previewFeatures: {
+      title: 'Vorschaufunktionen',
+      hint: 'Funktionen in Entwicklung. Standardmäßig aus; das Einschalten ändert nichts an deinen Dateien.',
+      flags: {
+        vault: {
+          label: 'Vault',
+          description: 'Einen Ordner als Vault mit lokalem Index aller Notizen öffnen.',
+        },
+        links: {
+          label: 'Links und Backlinks',
+          description: '[[Wikilinks]], Aliase, Backlinks und sicheres Umbenennen.',
+        },
+        search: {
+          label: 'Suche und Befehlspalette',
+          description: 'Volltextsuche mit Operatoren, Schnellwechsel und Befehlspalette.',
+        },
+        properties: {
+          label: 'Eigenschaften und Tags',
+          description: 'Typisiertes Front Matter, Tags und Namensräume.',
+        },
+        outline: {
+          label: 'Gliederung und Blöcke',
+          description: 'Blöcke im Logseq-Stil mit IDs, Verweisen und Einbettungen.',
+        },
+        journal: {
+          label: 'Journal und Aufgaben',
+          description: 'Tagesnotizen, Aufgabenmarker, geplante Termine und Fristen, Agenda.',
+        },
+        queries: {
+          label: 'Abfragen und Ansichten',
+          description: 'Gespeicherte Abfragen als Liste, Tabelle, Kanban, Kalender und Galerie.',
+        },
+        templates: {
+          label: 'Vorlagen',
+          description: 'Vorlagen, Snippets und Variablen.',
+        },
+        graph: {
+          label: 'Graph',
+          description: 'Globaler und lokaler Graph verknüpfter Notizen.',
+        },
+        cards: {
+          label: 'Lernkarten',
+          description: 'Karten und Lückentexte mit verteilter Wiederholung.',
+        },
+        canvas: {
+          label: 'Canvas',
+          description: 'Unendliche Arbeitsfläche, gespeichert als JSON Canvas.',
+        },
+        pdf: {
+          label: 'PDF-Viewer',
+          description: 'PDFs im Vault lesen und annotieren.',
+        },
+        history: {
+          label: 'Verlauf und Papierkorb',
+          description: 'Lokaler Versionsverlauf mit Vergleich, Wiederherstellung und Papierkorb.',
+        },
+        scripts: {
+          label: 'Lokale Automatisierungen',
+          description: 'Lokale Skripte in einer Sandbox mit eingeschränkter API.',
+        },
+        import: {
+          label: 'Import und Export',
+          description: 'Import aus Obsidian, Logseq und Notion; Buch-PDF und statische Website.',
+        },
+      },
+    },
     customThemeOpen: 'Benutzerdefiniertes Thema bearbeiten',
     customThemeHint: 'Passe die zentralen Paletten-Tokens an und wende sie auf Doku an.',
     close: 'Fertig',

@@ -118,7 +118,8 @@ async function runPandoc(
     const args = [
       markdownPath,
       ...(runtime.latexRuntimeRoot ? [`--data-dir=${join(runtime.latexRuntimeRoot, 'share/pandoc')}`] : []),
-      '--from=gfm',
+      // Same dialect as the preview: GFM without raw HTML or implicit figures.
+      '--from=gfm-raw_html-implicit_figures',
       '--standalone',
       `--pdf-engine=${runtime.lualatexPath}`,
       '--pdf-engine-opt=-halt-on-error',
@@ -126,11 +127,12 @@ async function runPandoc(
       '--variable=classoption:twoside',
       '--variable=geometry:inner=26mm,outer=16mm,top=20mm,bottom=20mm',
       '--variable=fontsize:11pt',
-      '--variable=linestretch:1.2',
+      // 1.65 line height like the preview: LaTeX stretches 1.2 × font size.
+      '--variable=linestretch:1.375',
       '--variable=colorlinks:true',
-      '--variable=linkcolor:dokuaccent',
-      '--variable=urlcolor:dokuaccent',
-      '--variable=citecolor:dokuaccent',
+      '--variable=linkcolor:dokulink',
+      '--variable=urlcolor:dokulink',
+      '--variable=citecolor:dokulink',
       // Plain code, like the preview: no syntax colours, and every line wraps
       // (highlighted tokens would be unbreakable macro arguments).
       '--no-highlight',

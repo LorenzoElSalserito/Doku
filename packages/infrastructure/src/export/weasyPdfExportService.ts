@@ -12,6 +12,7 @@ import { materializeVisualAssets } from './visualAssets.js';
 const execFileAsync = promisify(execFile);
 const DEFAULT_WEASY_SCRIPT_PATH = fileURLToPath(new URL('./scripts/render_weasy_pdf.py', import.meta.url));
 const DEFAULT_PRINT_STYLESHEET_PATH = fileURLToPath(new URL('./printStylesheet.css', import.meta.url));
+const DEFAULT_TABLE_FILTER_PATH = fileURLToPath(new URL('./tableWidths.lua', import.meta.url));
 
 interface WeasyPdfExportServiceOptions {
   weasyScriptPath?: string;
@@ -21,6 +22,8 @@ interface WeasyPdfExportServiceOptions {
   nativeLibraryDir?: string;
   pythonHome?: string;
   pythonPath?: string;
+  /** Pandoc Lua filter shared with the LuaLaTeX profile (table widths, task boxes). */
+  tableFilterPath?: string;
 }
 
 export class WeasyPdfExportService {
@@ -28,6 +31,7 @@ export class WeasyPdfExportService {
   private readonly printStylesheetPath: string;
   private readonly pythonExecutablePath: string;
   private readonly pandocPath: string;
+  private readonly tableFilterPath: string;
   private readonly runtimeEnv: NodeJS.ProcessEnv;
 
   constructor(options: WeasyPdfExportServiceOptions = {}) {
@@ -35,6 +39,7 @@ export class WeasyPdfExportService {
     this.printStylesheetPath = options.printStylesheetPath ?? DEFAULT_PRINT_STYLESHEET_PATH;
     this.pythonExecutablePath = options.pythonExecutablePath ?? 'python3';
     this.pandocPath = options.pandocPath ?? 'pandoc';
+    this.tableFilterPath = options.tableFilterPath ?? DEFAULT_TABLE_FILTER_PATH;
     this.runtimeEnv = buildNativeRuntimeEnvironment(
       options.nativeLibraryDir,
       options.pythonHome,
@@ -76,7 +81,15 @@ export class WeasyPdfExportService {
       );
       await mkdir(dirname(outputPath), { recursive: true });
 
-      await renderHtml(markdownPath, htmlPath, stylesheetPath, input, this.pandocPath, this.runtimeEnv);
+      await renderHtml(
+        markdownPath,
+        htmlPath,
+        stylesheetPath,
+        input,
+        this.pandocPath,
+        this.tableFilterPath,
+        this.runtimeEnv,
+      );
       await renderPdf(htmlPath, outputPath, this.weasyScriptPath, this.pythonExecutablePath, this.runtimeEnv);
 
       const details = await stat(outputPath);
@@ -98,15 +111,20 @@ async function renderHtml(
   stylesheetPath: string,
   input: PdfExportRequest,
   pandocPath: string,
+  tableFilterPath: string,
   runtimeEnv: NodeJS.ProcessEnv,
 ): Promise<void> {
   try {
     const args = [
       markdownPath,
       ...(isAbsolute(pandocPath) ? [`--data-dir=${join(dirname(pandocPath), '../share/pandoc')}`] : []),
-      '--from=gfm',
+      // The preview's dialect: GFM without raw HTML, images stay inline
+      // (no implicit figure captions), code without syntax colours.
+      '--from=gfm-raw_html-implicit_figures',
       '--to=html5',
       '--standalone',
+      '--no-highlight',
+      `--lua-filter=${tableFilterPath}`,
       '--css',
       stylesheetPath,
       '--output',

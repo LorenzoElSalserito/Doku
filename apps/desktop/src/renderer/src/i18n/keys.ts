@@ -1,3 +1,5 @@
+import type { FeatureFlagId } from '@doku/application';
+
 /** Master shape of all translatable strings. Ogni lingua soddisfa questo tipo. */
 export interface Dictionary {
   app: {
@@ -259,6 +261,11 @@ export interface Dictionary {
     uninstallPreparationWorking: string;
     uninstallPreparationHint: string;
     uninstallPreparationConfirm: string;
+    previewFeatures: {
+      title: string;
+      hint: string;
+      flags: Record<FeatureFlagId, { label: string; description: string }>;
+    };
     customThemeOpen: string;
     customThemeHint: string;
     close: string;

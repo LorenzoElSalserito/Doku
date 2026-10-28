@@ -1,0 +1,41 @@
+{
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "file",
+      "file": "projects/Project Atlas.md",
+      "x": 0,
+      "y": 0,
+      "width": 400,
+      "height": 300
+    },
+    {
+      "id": "n2",
+      "type": "text",
+      "text": "Ideas from [[Zettelkasten]]",
+      "x": 480,
+      "y": 0,
+      "width": 260,
+      "height": 120
+    },
+    {
+      "id": "n3",
+      "type": "file",
+      "file": "assets/cover.png",
+      "x": 480,
+      "y": 180,
+      "width": 260,
+      "height": 160
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "fromNode": "n1",
+      "fromSide": "right",
+      "toNode": "n2",
+      "toSide": "left",
+      "label": "inspires"
+    }
+  ]
+}

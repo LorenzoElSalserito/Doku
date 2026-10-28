@@ -54,9 +54,24 @@ describe('A4 print stylesheet', () => {
 
     expect(table).toContain('width: 100%');
     expect(table).toContain('max-width: 100%');
-    expect(cells).toContain('overflow-wrap: anywhere');
+    // Column widths come from the pandoc filter: the fixed layout honours them.
+    expect(table).toContain('table-layout: fixed');
+    // Fit tables never split a word; dense tables and header labels may.
+    expect(cells).toContain('overflow-wrap: break-word');
+    expect(ruleBody(css, 'th,\n.doku-table--dense th,\n.doku-table--dense td')).toContain(
+      'overflow-wrap: anywhere',
+    );
     expect(ruleBody(css, 'thead')).toContain('display: table-header-group');
     expect(ruleBody(css, 'tr')).toContain('break-inside: avoid');
+  });
+
+  it('draws task-list boxes and footnotes like the preview', async () => {
+    const css = await loadStylesheet();
+
+    expect(ruleBody(css, '.doku-task-list ul')).toContain('list-style: none');
+    expect(ruleBody(css, '.doku-task')).toContain('border-radius: 3px');
+    expect(ruleBody(css, '.doku-task--checked::after')).toContain('transform: rotate(45deg)');
+    expect(ruleBody(css, 'section.footnotes > hr')).toContain('display: none');
   });
 
   it('never lets images or long links overflow the page', async () => {

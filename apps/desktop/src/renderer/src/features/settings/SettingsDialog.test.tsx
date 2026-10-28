@@ -41,12 +41,7 @@ describe('SettingsDialog', () => {
     render(
       <I18nProvider language="en">
         <ThemeProvider preference="light">
-          <SettingsDialog
-            open
-            onClose={vi.fn()}
-            settings={DEFAULT_SETTINGS}
-            onUpdate={onUpdate}
-          />
+          <SettingsDialog open onClose={vi.fn()} settings={DEFAULT_SETTINGS} onUpdate={onUpdate} />
         </ThemeProvider>
       </I18nProvider>,
     );
@@ -96,6 +91,55 @@ describe('SettingsDialog', () => {
       }),
     );
   });
+
+  it('hides the preview features section while no capability is released', () => {
+    render(
+      <I18nProvider language="en">
+        <ThemeProvider preference="light">
+          <SettingsDialog open onClose={vi.fn()} settings={DEFAULT_SETTINGS} onUpdate={vi.fn()} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    expect(screen.queryByRole('group', { name: 'Preview features' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+  });
+
+  it('shows preview feature switches and persists the full flag set', async () => {
+    const user = userEvent.setup();
+    const onUpdate = vi.fn<(patch: SettingsPatch) => Promise<void>>().mockResolvedValue(undefined);
+
+    render(
+      <I18nProvider language="en">
+        <ThemeProvider preference="light">
+          <SettingsDialog
+            open
+            onClose={vi.fn()}
+            settings={{
+              ...DEFAULT_SETTINGS,
+              features: { ...DEFAULT_SETTINGS.features, links: true },
+            }}
+            onUpdate={onUpdate}
+            previewFeatures={['vault', 'links']}
+          />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    const section = screen.getByRole('group', { name: 'Preview features' });
+    const vault = screen.getByRole('switch', { name: /^Vault/ });
+    const links = screen.getByRole('switch', { name: /^Links and backlinks/ });
+    expect(section).toContainElement(vault);
+    expect(screen.getAllByRole('switch')).toHaveLength(2);
+    expect(vault).not.toBeChecked();
+    expect(links).toBeChecked();
+
+    await user.click(vault);
+
+    expect(onUpdate).toHaveBeenCalledWith({
+      features: { ...DEFAULT_SETTINGS.features, vault: true, links: true },
+    });
+  });
 });
 
 function renderSettingsDialog({
@@ -106,12 +150,7 @@ function renderSettingsDialog({
   return render(
     <I18nProvider language="en">
       <ThemeProvider preference="light">
-        <SettingsDialog
-          open
-          onClose={vi.fn()}
-          settings={DEFAULT_SETTINGS}
-          onUpdate={onUpdate}
-        />
+        <SettingsDialog open onClose={vi.fn()} settings={DEFAULT_SETTINGS} onUpdate={onUpdate} />
       </ThemeProvider>
     </I18nProvider>,
   );

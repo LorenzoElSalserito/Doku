@@ -1,0 +1,9 @@
+;; Minimal Logseq config: the importer reads the journal file name format and
+;; the preferred workflow from here.
+{:meta/version 1
+ :preferred-format :markdown
+ :preferred-workflow :todo
+ :journal/page-title-format "MMM do, yyyy"
+ :journal/file-name-format "yyyy_MM_dd"
+ :hidden []
+ :default-templates {:journals ""}}

@@ -410,6 +410,12 @@
   top: 0;
   z-index: 48;
   display: grid;
+  /* A single fixed-width column: with the implicit `auto` track the header's
+     min-content width (the sum of every open tab) would widen the whole shell
+     once the tab strip overflowed. The strip must scroll, never the window. */
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .workspace__header {
@@ -417,6 +423,8 @@
   justify-content: flex-start;
   align-items: center;
   gap: var(--space-3);
+  min-width: 0;
+  max-width: 100%;
   padding: var(--space-1) var(--space-5);
   background:
     linear-gradient(
@@ -837,6 +845,7 @@
 .workspace__header-tabs {
   flex: 1 1 auto;
   min-width: 0;
+  max-width: 100%;
 }
 
 .workspace-tabs-bar {
@@ -844,6 +853,7 @@
   align-items: center;
   gap: var(--space-1);
   min-width: 0;
+  max-width: 100%;
 }
 
 .workspace-tabs__nav {
@@ -880,9 +890,14 @@
   align-items: center;
   gap: var(--space-1);
   min-width: 0;
+  max-width: 100%;
+  /* Browser-style strip: overflow scrolls horizontally inside the bar (nav
+     buttons, wheel, keyboard focus) and the native scrollbar stays hidden so
+     the header height never jumps when tabs overflow. */
   overflow-x: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-border) transparent;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
   scroll-behavior: smooth;
   padding: var(--space-1);
   border: 1px solid var(--color-border-subtle);
@@ -891,25 +906,22 @@
 }
 
 .workspace-tabs::-webkit-scrollbar {
-  height: 6px;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
-.workspace-tabs::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.workspace-tabs::-webkit-scrollbar-thumb {
-  border-radius: var(--radius-pill);
-  background: var(--color-border);
-}
-
-.workspace-tabs::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--color-border) 72%, var(--color-text-muted));
+@media (prefers-reduced-motion: reduce) {
+  .workspace-tabs {
+    scroll-behavior: auto;
+  }
 }
 
 .workspace-tabs__item {
   display: inline-flex;
   align-items: center;
+  /* Tabs share the strip while it has room, shrink down to `min-width`, and
+     beyond that the strip scrolls instead of growing. */
   flex: 1 1 auto;
   min-width: 5.5rem;
   max-width: 14rem;
@@ -2251,7 +2263,10 @@
   width: 100%;
   min-width: 100%;
   border-collapse: collapse;
-  table-layout: auto;
+  /* Column widths are computed by tableColumnLayout.ts (the same algorithm
+     the PDF exports use) and applied through <col>; the fixed layout makes
+     the browser honour them so Split, Preview and PDF wrap identically. */
+  table-layout: fixed;
   color: var(--color-text-secondary);
   font-size: 0.95em;
   line-height: 1.5;
@@ -2267,9 +2282,26 @@
   border-bottom: 1px solid var(--color-border-subtle);
   text-align: left;
   vertical-align: top;
+  /* `fit` tables never split a word: every column is at least as wide as its
+     longest token. `dense` tables (minima wider than the column) and header
+     labels may break anywhere, as in the exported PDF. */
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: auto;
+}
+
+.markdown-preview__table th,
+.markdown-preview__table--dense th,
+.markdown-preview__table--dense td {
   overflow-wrap: anywhere;
   word-break: break-word;
-  hyphens: auto;
+}
+
+/* Dense tables trade horizontal padding for room, so words stay whole. */
+.markdown-preview__table--dense th,
+.markdown-preview__table--dense td {
+  padding-left: 0.35em;
+  padding-right: 0.35em;
 }
 
 .workspace__editor-pane--preview-page .markdown-preview__table th,
@@ -2290,6 +2322,99 @@
 
 .markdown-preview__table tr:last-child td {
   border-bottom: none;
+}
+
+/* Task lists: `- [ ]` / `- [x]` rendered as check boxes, as in the PDFs. */
+.markdown-preview__task {
+  list-style: none;
+}
+
+.doku-task {
+  display: inline-block;
+  width: 0.95em;
+  height: 0.95em;
+  margin: 0 0.5em 0 -1.3em;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  vertical-align: -0.14em;
+  background: var(--color-surface);
+  position: relative;
+}
+
+.workspace__editor-pane--preview-page .doku-task {
+  border-color: #d9d3ca;
+  background: #ffffff;
+}
+
+.doku-task--checked,
+.workspace__editor-pane--preview-page .doku-task--checked {
+  border-color: #007eb8;
+  background: #007eb8;
+}
+
+.doku-task--checked::after {
+  content: '';
+  position: absolute;
+  left: 0.3em;
+  top: 0.08em;
+  width: 0.24em;
+  height: 0.5em;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.markdown-preview del {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--color-text-muted) 70%, transparent);
+}
+
+/* Footnotes: numbered list under a hairline, as in both PDF profiles. */
+.markdown-preview__footnote-ref {
+  font-size: 0.75em;
+  line-height: 0;
+  vertical-align: super;
+}
+
+.markdown-preview__footnote-ref a,
+.markdown-preview__footnote-back {
+  color: var(--color-accent-strong);
+  text-decoration: none;
+}
+
+.workspace__editor-pane--preview-page .markdown-preview__footnote-ref a,
+.workspace__editor-pane--preview-page .markdown-preview__footnote-back {
+  color: #007eb8;
+}
+
+.markdown-preview__footnotes {
+  margin-top: 1.6em;
+  padding-top: 0.8em;
+  border-top: 1px solid var(--color-border);
+  font-size: 0.9em;
+  color: var(--color-text-secondary);
+}
+
+.workspace__editor-pane--preview-page .markdown-preview__footnotes {
+  border-top-color: #d9d3ca;
+  color: #5f5953;
+}
+
+.markdown-preview__footnotes ol {
+  margin: 0;
+  padding-left: 1.3em;
+  display: grid;
+  gap: 0.35em;
+}
+
+.markdown-preview__footnotes .markdown-preview__paragraph {
+  margin: 0;
+  display: inline;
+}
+
+.markdown-preview__footnote-back {
+  margin-left: 0.3em;
+  color: var(--color-text-secondary);
 }
 
 .markdown-preview__inline-code {
@@ -2636,6 +2761,106 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-2);
+}
+
+/* Preview (v2) feature switches */
+.settings-features {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings-features__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-features__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.settings-features__row:hover {
+  border-color: var(--color-border);
+}
+
+.settings-features__copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.settings-features__name {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.settings-features__switch {
+  appearance: none;
+  position: relative;
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 1.25rem;
+  margin: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-elevated);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.settings-features__switch::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0.15rem;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+  transform: translateY(-50%);
+  transition:
+    transform var(--duration-fast) var(--ease-standard),
+    background var(--duration-fast) var(--ease-standard);
+}
+
+.settings-features__switch:checked {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+.settings-features__switch:checked::after {
+  background: #ffffff;
+  transform: translate(1rem, -50%);
+}
+
+.settings-features__switch:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-features__row,
+  .settings-features__switch,
+  .settings-features__switch::after {
+    transition: none;
+  }
 }
 
 .settings-field--danger {

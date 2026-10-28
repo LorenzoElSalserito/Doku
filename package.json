@@ -1,7 +1,7 @@
 {
   "name": "doku",
   "productName": "Doku",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "icon": "apps/desktop/src/assets/icon.png",
   "description": "Doku — Your Second Mind",
@@ -28,6 +28,7 @@
     "icons:bootstrap": "node scripts/generate-bootstrap-icons.cjs",
     "icons:bootstrap:check": "node scripts/generate-bootstrap-icons.cjs --check",
     "test:packaging": "node --test tests/packaging/release-packaging.test.mjs",
+    "bench:index": "node scripts/bench-index.cjs",
     "dist": "npm run version:bump && npm run ensure:export-runtime && npm run ensure:deb-docs && npm run verify:packaging && npm run package:linux:all --workspace doku-desktop && npm run smoke:linux && npm run smoke:linux:deb && npm run smoke:linux:rpm",
     "smoke:linux": "node scripts/smoke-linux-package.cjs",
     "smoke:mac": "node scripts/smoke-macos-package.cjs",

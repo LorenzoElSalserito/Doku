@@ -197,9 +197,7 @@ a {
   word-break: break-word;
 }
 
-strong {
-  color: var(--print-text);
-}
+/* Bold inherits the surrounding ink, exactly like the preview. */
 
 /* ------------------------------------------------------------------ code */
 
@@ -283,12 +281,15 @@ pre.numberSource code > span {
 
 /* ---------------------------------------------------------------- tables */
 
+/* Column widths come from the pandoc filter (tableWidths.lua), the same
+   algorithm the preview runs: `fit` tables never split a word, `dense`
+   tables (minima wider than the page) break tokens anywhere. The <col>
+   widths are honoured through the fixed layout, so wrapping matches the
+   preview page column for column. */
 table {
   width: 100%;
   max-width: 100%;
-  /* Auto layout plus breakable cell content lets WeasyPrint shrink columns to
-     the text column instead of overflowing the page. */
-  table-layout: auto;
+  table-layout: fixed;
   border-collapse: collapse;
   border: 1px solid var(--print-border);
   background: #ffffff;
@@ -303,11 +304,29 @@ th, td {
   border-bottom: 1px solid var(--print-border);
   text-align: left;
   vertical-align: top;
-  /* `anywhere` (unlike `break-word`) also shrinks the column's min-content
-     width, which is what actually keeps wide tables inside the page. */
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: auto;
+}
+
+/* Header labels may sit in a narrow column: let them break like the preview. */
+th,
+.doku-table--dense th,
+.doku-table--dense td {
   overflow-wrap: anywhere;
   word-break: break-word;
-  hyphens: auto;
+}
+
+/* Dense tables trade horizontal padding for room, so words stay whole. */
+.doku-table--dense th,
+.doku-table--dense td {
+  padding-left: 0.35em;
+  padding-right: 0.35em;
+}
+
+td > p:last-child,
+th > p:last-child {
+  margin-bottom: 0;
 }
 
 th {
@@ -343,11 +362,55 @@ caption {
   caption-side: top;
 }
 
+/* ------------------------------------------------------------ task lists */
+
+/* `- [ ]` / `- [x]` items: the pandoc filter replaces the form control with a
+   span drawn like the preview's check box. */
+.doku-task-list ul {
+  list-style: none;
+  padding-left: 0.4em;
+}
+
+.doku-task {
+  display: inline-block;
+  width: 0.95em;
+  height: 0.95em;
+  margin-right: 0.5em;
+  border: 1px solid var(--print-border);
+  border-radius: 3px;
+  vertical-align: -0.14em;
+  background: #ffffff;
+  position: relative;
+}
+
+.doku-task--checked {
+  border-color: var(--print-link);
+  background: var(--print-link);
+}
+
+.doku-task--checked::after {
+  content: "";
+  position: absolute;
+  left: 0.3em;
+  top: 0.08em;
+  width: 0.24em;
+  height: 0.5em;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
 /* ---------------------------------------------------------------- images */
 
 img, svg {
   max-width: 100%;
   height: auto;
+}
+
+/* An image on its own line is centred, like the preview's figure. */
+p > img:only-child {
+  display: block;
+  margin: 0 auto;
 }
 
 figure {
@@ -382,4 +445,26 @@ section.footnotes {
   border-top: 1px solid var(--print-border);
   font-size: 0.9em;
   color: var(--print-text-secondary);
+}
+
+section.footnotes > hr {
+  display: none;
+}
+
+section.footnotes ol {
+  padding-left: 1.3em;
+}
+
+section.footnotes li + li {
+  margin-top: 0.35em;
+}
+
+a.footnote-ref {
+  text-decoration: none;
+}
+
+a.footnote-back {
+  margin-left: 0.3em;
+  color: var(--print-text-secondary);
+  text-decoration: none;
 }

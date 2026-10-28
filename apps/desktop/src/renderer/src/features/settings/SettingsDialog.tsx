@@ -2,9 +2,14 @@ import { useState } from 'react';
 import { Button, Dialog, SegmentedControl, type SegmentedOption } from '@doku/ui';
 import {
   DOKU_FONT_CATALOG,
+  DEFAULT_FEATURE_FLAGS,
+  RELEASED_FEATURE_FLAGS,
   buildUnifiedDokuTypography,
+  isFeatureEnabled,
+  withFeature,
   type AppZoom,
   type DokuFontFamily,
+  type FeatureFlagId,
   type Language,
   type Settings,
   type SettingsPatch,
@@ -19,6 +24,11 @@ interface SettingsDialogProps {
   onClose: () => void;
   settings: Settings;
   onUpdate: (patch: SettingsPatch) => Promise<void>;
+  /**
+   * Capabilities offered under "Preview features". Defaults to the released
+   * ones; the section is hidden while the list is empty.
+   */
+  previewFeatures?: readonly FeatureFlagId[];
 }
 
 function logSettingsDialogEvent(event: string, context?: Record<string, unknown>): void {
@@ -28,7 +38,13 @@ function logSettingsDialogEvent(event: string, context?: Record<string, unknown>
 
 type AppZoomOption = '75' | '100' | '125' | '150';
 
-export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDialogProps) {
+export function SettingsDialog({
+  open,
+  onClose,
+  settings,
+  onUpdate,
+  previewFeatures = RELEASED_FEATURE_FLAGS,
+}: SettingsDialogProps) {
   const dict = useDict();
   const [customThemeOpen, setCustomThemeOpen] = useState(false);
   const [uninstallPreparing, setUninstallPreparing] = useState(false);
@@ -160,6 +176,14 @@ export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDi
         <span className="settings-field__hint">{dict.settings.defaultAppsHint}</span>
       </div>
 
+      {previewFeatures.length > 0 ? (
+        <PreviewFeaturesField
+          features={previewFeatures}
+          settings={settings}
+          onUpdate={onUpdate}
+        />
+      ) : null}
+
       <div className="settings-field settings-field--danger">
         <label className="settings-field__label">{dict.settings.uninstallPreparationLabel}</label>
         <Button
@@ -195,6 +219,58 @@ export function SettingsDialog({ open, onClose, settings, onUpdate }: SettingsDi
         }}
       />
     </Dialog>
+  );
+}
+
+function PreviewFeaturesField({
+  features,
+  settings,
+  onUpdate,
+}: {
+  features: readonly FeatureFlagId[];
+  settings: Settings;
+  onUpdate: (patch: SettingsPatch) => Promise<void>;
+}) {
+  const dict = useDict();
+  const labels = dict.settings.previewFeatures;
+  const flags = settings.features ?? DEFAULT_FEATURE_FLAGS;
+
+  return (
+    <fieldset className="settings-field settings-features">
+      <legend className="settings-field__label">{labels.title}</legend>
+      <span className="settings-field__hint">{labels.hint}</span>
+      <ul className="settings-features__list">
+        {features.map((id) => {
+          const inputId = `settings-feature-${id}`;
+          const enabled = isFeatureEnabled(flags, id);
+          return (
+            <li key={id} className="settings-features__item">
+              <label className="settings-features__row" htmlFor={inputId}>
+                <span className="settings-features__copy">
+                  <span className="settings-features__name">{labels.flags[id].label}</span>
+                  <span className="settings-field__hint">{labels.flags[id].description}</span>
+                </span>
+                <input
+                  id={inputId}
+                  type="checkbox"
+                  role="switch"
+                  className="settings-features__switch"
+                  checked={enabled}
+                  aria-checked={enabled}
+                  onChange={(event) => {
+                    logSettingsDialogEvent('preview-feature-toggled', {
+                      feature: id,
+                      enabled: event.target.checked,
+                    });
+                    void onUpdate({ features: withFeature(flags, id, event.target.checked) });
+                  }}
+                />
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+    </fieldset>
   );
 }
 

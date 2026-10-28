@@ -269,6 +269,72 @@ export const es: Dictionary = {
       'Elimina ajustes, autoguardados, logs y datos locales de Doku, y después cierra la app. Úsalo antes de desinstalar.',
     uninstallPreparationConfirm:
       '¿Eliminar definitivamente todos los datos de usuario de Doku y cerrar la app?',
+    previewFeatures: {
+      title: 'Funciones en vista previa',
+      hint: 'Funciones aún en desarrollo. Desactivadas por defecto; activar una no cambia tus archivos.',
+      flags: {
+        vault: {
+          label: 'Vault',
+          description: 'Abre una carpeta como vault con un índice local de todas las notas.',
+        },
+        links: {
+          label: 'Enlaces y retroenlaces',
+          description: '[[Wikilinks]], alias, retroenlaces y cambios de nombre seguros.',
+        },
+        search: {
+          label: 'Búsqueda y paleta de comandos',
+          description: 'Búsqueda de texto completo con operadores, cambio rápido y paleta de comandos.',
+        },
+        properties: {
+          label: 'Propiedades y etiquetas',
+          description: 'Front matter tipado, etiquetas y espacios de nombres.',
+        },
+        outline: {
+          label: 'Esquema y bloques',
+          description: 'Bloques al estilo Logseq con id, referencias e incrustaciones.',
+        },
+        journal: {
+          label: 'Diario y tareas',
+          description: 'Notas diarias, marcadores de tareas, fechas programadas y límite, agenda.',
+        },
+        queries: {
+          label: 'Consultas y vistas',
+          description: 'Consultas guardadas como lista, tabla, kanban, calendario y galería.',
+        },
+        templates: {
+          label: 'Plantillas',
+          description: 'Plantillas, fragmentos y variables.',
+        },
+        graph: {
+          label: 'Grafo',
+          description: 'Grafo global y local de las notas enlazadas.',
+        },
+        cards: {
+          label: 'Tarjetas',
+          description: 'Tarjetas y huecos con repetición espaciada.',
+        },
+        canvas: {
+          label: 'Lienzo',
+          description: 'Lienzo infinito guardado como JSON Canvas.',
+        },
+        pdf: {
+          label: 'Visor de PDF',
+          description: 'Lee y anota PDF dentro del vault.',
+        },
+        history: {
+          label: 'Historial y papelera',
+          description: 'Historial local de versiones con diferencias, restauración y papelera.',
+        },
+        scripts: {
+          label: 'Automatizaciones locales',
+          description: 'Scripts locales aislados con una API restringida.',
+        },
+        import: {
+          label: 'Importar y exportar',
+          description: 'Importa desde Obsidian, Logseq y Notion; PDF de libro y sitio estático.',
+        },
+      },
+    },
     customThemeOpen: 'Editar tema personalizado',
     customThemeHint: 'Ajusta los tokens principales de la paleta y aplícalos a Doku.',
     close: 'Hecho',

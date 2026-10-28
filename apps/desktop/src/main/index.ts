@@ -169,6 +169,7 @@ async function bootstrap(): Promise<void> {
         nativeLibraryDir: exportRuntime.nativeLibraryDir,
         pythonHome: exportRuntime.pythonHome,
         pythonPath: exportRuntime.pythonPath,
+        tableFilterPath: exportRuntime.tableFilterPath,
       }),
     },
     logger,

@@ -267,6 +267,72 @@ export const en: Dictionary = {
       'Deletes Doku settings, autosaves, logs, and local app data, then closes the app. Use this before uninstalling.',
     uninstallPreparationConfirm:
       'Permanently delete all Doku user data and close the app?',
+    previewFeatures: {
+      title: 'Preview features',
+      hint: 'Capabilities still in development. Off by default; switching one on changes nothing in your files.',
+      flags: {
+        vault: {
+          label: 'Vault',
+          description: 'Open a folder as a vault with a local index of every note.',
+        },
+        links: {
+          label: 'Links and backlinks',
+          description: '[[Wikilinks]], aliases, backlinks and safe renames.',
+        },
+        search: {
+          label: 'Search and command palette',
+          description: 'Full-text search with operators, quick switcher and command palette.',
+        },
+        properties: {
+          label: 'Properties and tags',
+          description: 'Typed front matter, tags and namespaces.',
+        },
+        outline: {
+          label: 'Outliner and blocks',
+          description: 'Logseq-style blocks with ids, references and embeds.',
+        },
+        journal: {
+          label: 'Journal and tasks',
+          description: 'Daily notes, task markers, scheduled and deadline dates, agenda.',
+        },
+        queries: {
+          label: 'Queries and views',
+          description: 'Saved queries rendered as lists, tables, kanban, calendar and gallery.',
+        },
+        templates: {
+          label: 'Templates',
+          description: 'Templates, snippets and variables.',
+        },
+        graph: {
+          label: 'Graph',
+          description: 'Global and local graph of linked notes.',
+        },
+        cards: {
+          label: 'Flashcards',
+          description: 'Cards and cloze deletions with spaced repetition.',
+        },
+        canvas: {
+          label: 'Canvas',
+          description: 'Infinite canvas saved as JSON Canvas.',
+        },
+        pdf: {
+          label: 'PDF viewer',
+          description: 'Read and annotate PDFs inside the vault.',
+        },
+        history: {
+          label: 'History and trash',
+          description: 'Local version history with diff, restore and trash.',
+        },
+        scripts: {
+          label: 'Local automations',
+          description: 'Sandboxed local scripts with a restricted API.',
+        },
+        import: {
+          label: 'Import and export',
+          description: 'Import from Obsidian, Logseq and Notion; book PDF and static site.',
+        },
+      },
+    },
     customThemeOpen: 'Edit custom theme',
     customThemeHint: 'Adjust the core palette tokens and apply them to Doku.',
     close: 'Done',

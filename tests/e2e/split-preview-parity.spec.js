@@ -173,9 +173,11 @@ test.describe('split / preview rendering parity', () => {
       }
       // Split-specific guarantees.
       expect(split.tableWrap['overflow-x']).toBe('visible');
-      expect(split.cell['overflow-wrap']).toBe('anywhere');
+      // Fit tables never split a word; the column widths come from the shared
+      // layout algorithm and are honoured through the fixed table layout.
+      expect(split.cell['overflow-wrap']).toBe('break-word');
       expect(split.code['white-space']).toBe('pre-wrap');
-      expect(split.table['table-layout']).toBe('auto');
+      expect(split.table['table-layout']).toBe('fixed');
 
       await page.getByRole('tab', { name: 'Preview' }).click();
       await page.getByRole('group', { name: 'Preview zoom' }).waitFor({ state: 'visible' });

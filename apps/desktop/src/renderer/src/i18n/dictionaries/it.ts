@@ -270,6 +270,72 @@ export const it: Dictionary = {
       'Elimina impostazioni, autosalvataggi, log e dati locali di Doku, poi chiude l’app. Usa questa opzione prima di disinstallare.',
     uninstallPreparationConfirm:
       'Eliminare definitivamente tutti i dati utente di Doku e chiudere l’app?',
+    previewFeatures: {
+      title: 'Funzioni in anteprima',
+      hint: 'Funzioni ancora in sviluppo. Spente di default; attivarne una non modifica i tuoi file.',
+      flags: {
+        vault: {
+          label: 'Vault',
+          description: 'Apri una cartella come vault con un indice locale di tutte le note.',
+        },
+        links: {
+          label: 'Link e backlink',
+          description: '[[Wikilink]], alias, backlink e rinomina sicura.',
+        },
+        search: {
+          label: 'Ricerca e palette comandi',
+          description: 'Ricerca full-text con operatori, cambio rapido e palette comandi.',
+        },
+        properties: {
+          label: 'Proprietà e tag',
+          description: 'Front matter tipizzato, tag e namespace.',
+        },
+        outline: {
+          label: 'Outliner e blocchi',
+          description: 'Blocchi in stile Logseq con id, riferimenti e incorporamenti.',
+        },
+        journal: {
+          label: 'Journal e attività',
+          description: 'Note giornaliere, marcatori di attività, date pianificate e scadenze, agenda.',
+        },
+        queries: {
+          label: 'Query e viste',
+          description: 'Query salvate mostrate come elenco, tabella, kanban, calendario e galleria.',
+        },
+        templates: {
+          label: 'Modelli',
+          description: 'Modelli, snippet e variabili.',
+        },
+        graph: {
+          label: 'Grafo',
+          description: 'Grafo globale e locale delle note collegate.',
+        },
+        cards: {
+          label: 'Flashcard',
+          description: 'Schede e cloze con ripetizione dilazionata.',
+        },
+        canvas: {
+          label: 'Canvas',
+          description: 'Canvas infinito salvato in formato JSON Canvas.',
+        },
+        pdf: {
+          label: 'Visualizzatore PDF',
+          description: 'Leggi e annota i PDF dentro il vault.',
+        },
+        history: {
+          label: 'Cronologia e cestino',
+          description: 'Cronologia locale delle versioni con differenze, ripristino e cestino.',
+        },
+        scripts: {
+          label: 'Automazioni locali',
+          description: 'Script locali in sandbox con un’API limitata.',
+        },
+        import: {
+          label: 'Importa ed esporta',
+          description: 'Importa da Obsidian, Logseq e Notion; PDF libro e sito statico.',
+        },
+      },
+    },
     customThemeOpen: 'Modifica tema personalizzato',
     customThemeHint: 'Scegli i token principali della palette e applicali a Doku.',
     close: 'Fatto',

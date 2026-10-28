@@ -5,6 +5,7 @@ import { useSettings } from '../hooks/useSettings.js';
 import { I18nProvider, useDict } from '../i18n/I18nProvider.js';
 import { SetupWizard } from '../features/wizard/SetupWizard.js';
 import { Workspace } from '../features/workspace/Workspace.js';
+import { FeatureFlagsProvider } from '../features/featureFlags/FeatureFlags.js';
 import { AppLoading } from './AppLoading.js';
 import { AppError } from './AppError.js';
 import type { LanguageCode } from '../i18n/keys.js';
@@ -223,53 +224,55 @@ function AppShell({
   }
 
   return (
-    <div className="app-root">
-      <a className="app-skip-link" href="#workspace-editor">
-        {dict.app.skipToEditor}
-      </a>
+    <FeatureFlagsProvider flags={settings.features}>
+      <div className="app-root">
+        <a className="app-skip-link" href="#workspace-editor">
+          {dict.app.skipToEditor}
+        </a>
 
-      <Workspace
-        settings={settings}
-        initialTabs={initialTabs}
-        initialActiveTabId={initialActiveTabId}
-        onUpdate={onUpdate}
-        onOpenSettings={onOpenSettings}
-        onOpenInfo={onOpenInfo}
-        onOpenGuide={onOpenGuide}
-        onOpenExport={onOpenExport}
-        onReady={onOperationalReady}
-      />
+        <Workspace
+          settings={settings}
+          initialTabs={initialTabs}
+          initialActiveTabId={initialActiveTabId}
+          onUpdate={onUpdate}
+          onOpenSettings={onOpenSettings}
+          onOpenInfo={onOpenInfo}
+          onOpenGuide={onOpenGuide}
+          onOpenExport={onOpenExport}
+          onReady={onOperationalReady}
+        />
 
-      <Suspense fallback={null}>
-        {settingsOpen ? (
-          <SettingsDialog
-            open={settingsOpen}
-            onClose={onCloseSettings}
-            settings={settings}
-            onUpdate={onUpdate}
-          />
-        ) : null}
-      </Suspense>
+        <Suspense fallback={null}>
+          {settingsOpen ? (
+            <SettingsDialog
+              open={settingsOpen}
+              onClose={onCloseSettings}
+              settings={settings}
+              onUpdate={onUpdate}
+            />
+          ) : null}
+        </Suspense>
 
-      <Suspense fallback={null}>
-        {infoOpen ? <InfoDialog open={infoOpen} onClose={onCloseInfo} /> : null}
-      </Suspense>
-      <Suspense fallback={null}>
-        {guideOpen ? <GuideDialog open={guideOpen} onClose={onCloseGuide} /> : null}
-      </Suspense>
-      <Suspense fallback={null}>
-        {exportOpen ? (
-          <ExportDialog
-            open={exportOpen}
-            onClose={onCloseExport}
-            documentTitle={exportDraft?.title ?? quickResumeDocument?.title}
-            documentContent={exportDraft?.content ?? ''}
-            documentPath={exportDraft?.path}
-            typography={normalizeUnifiedTypography(settings.typography)}
-          />
-        ) : null}
-      </Suspense>
-    </div>
+        <Suspense fallback={null}>
+          {infoOpen ? <InfoDialog open={infoOpen} onClose={onCloseInfo} /> : null}
+        </Suspense>
+        <Suspense fallback={null}>
+          {guideOpen ? <GuideDialog open={guideOpen} onClose={onCloseGuide} /> : null}
+        </Suspense>
+        <Suspense fallback={null}>
+          {exportOpen ? (
+            <ExportDialog
+              open={exportOpen}
+              onClose={onCloseExport}
+              documentTitle={exportDraft?.title ?? quickResumeDocument?.title}
+              documentContent={exportDraft?.content ?? ''}
+              documentPath={exportDraft?.path}
+              typography={normalizeUnifiedTypography(settings.typography)}
+            />
+          ) : null}
+        </Suspense>
+      </div>
+    </FeatureFlagsProvider>
   );
 }
 

@@ -33,6 +33,63 @@ describe('MarkdownPreview', () => {
     expect(within(table).getByRole('cell', { name: 'Blocked' })).toBeInTheDocument();
   });
 
+  it('nests lists, keeps ordered numbering and renders task boxes and footnotes', () => {
+    const { container } = render(
+      <MarkdownPreview
+        emptyLabel="Empty"
+        content={[
+          '1. Primo',
+          '2. Secondo con **16 sprint**',
+          '   - figlio uno',
+          '   - figlio due',
+          '3. Terzo',
+          '',
+          '- [x] Fatto',
+          '- [ ] Da fare',
+          '',
+          'Testo ~~barrato~~ con nota[^1] e https://example.org/auto.',
+          '',
+          '[^1]: Corpo della nota.',
+        ].join('\n')}
+      />,
+    );
+
+    const ordered = container.querySelector('ol.markdown-preview__list--ordered');
+    expect(ordered).not.toBeNull();
+    expect(ordered?.querySelectorAll(':scope > li')).toHaveLength(3);
+    expect(ordered?.querySelector(':scope > li:nth-child(2) > ul')?.querySelectorAll('li')).toHaveLength(2);
+
+    const tasks = container.querySelectorAll('li.markdown-preview__task');
+    expect(tasks).toHaveLength(2);
+    expect(tasks[0]?.querySelector('.doku-task--checked')).not.toBeNull();
+    expect(tasks[1]?.querySelector('.doku-task--checked')).toBeNull();
+    expect(tasks[1]?.textContent?.trim()).toBe('Da fare');
+
+    expect(container.querySelector('del')?.textContent).toBe('barrato');
+    expect(container.querySelector('a[href="https://example.org/auto"]')).not.toBeNull();
+    expect(container.querySelector('.markdown-preview__footnote-ref a')?.textContent).toBe('1');
+    expect(container.querySelector('.markdown-preview__footnotes li')?.textContent).toContain(
+      'Corpo della nota.',
+    );
+  });
+
+  it('sizes table columns with the shared layout and tags the mode', () => {
+    const { container } = render(
+      <MarkdownPreview
+        emptyLabel="Empty"
+        content={['| Area | Note |', '| --- | --- |', '| Editor | Testo descrittivo lungo che va a capo |'].join('\n')}
+      />,
+    );
+
+    const wrap = container.querySelector('.markdown-preview__table-wrap');
+    expect(wrap?.getAttribute('data-table-mode')).toBe('fit');
+    const cols = container.querySelectorAll('colgroup col');
+    expect(cols).toHaveLength(2);
+    const widths = [...cols].map((col) => parseFloat((col as HTMLElement).style.width));
+    expect(widths[0]! + widths[1]!).toBeCloseTo(100, 0);
+    expect(widths[1]!).toBeGreaterThan(widths[0]!);
+  });
+
   it('renders the table inserted by the quick action helper', () => {
     render(
       <MarkdownPreview

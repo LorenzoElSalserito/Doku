@@ -232,6 +232,43 @@ export const DefaultAppPromptSchema = z.object({
 });
 export type DefaultAppPrompt = z.infer<typeof DefaultAppPromptSchema>;
 
+/**
+ * v2 "Doku Knowledge" capabilities, one per sprint (PLAN Part 2). Every flag is
+ * off by default: with all flags off the app behaves exactly like 0.2.0. A
+ * flag is switched on by default only once its sprint is closed.
+ */
+export const FEATURE_FLAG_IDS = [
+  'vault',
+  'links',
+  'search',
+  'properties',
+  'outline',
+  'journal',
+  'queries',
+  'templates',
+  'graph',
+  'cards',
+  'canvas',
+  'pdf',
+  'history',
+  'scripts',
+  'import',
+] as const;
+export const FeatureFlagIdSchema = z.enum(FEATURE_FLAG_IDS);
+export type FeatureFlagId = z.infer<typeof FeatureFlagIdSchema>;
+
+export const FeatureFlagsSchema = z.object(
+  Object.fromEntries(FEATURE_FLAG_IDS.map((id) => [id, z.boolean().default(false)])) as Record<
+    FeatureFlagId,
+    z.ZodDefault<z.ZodBoolean>
+  >,
+);
+export type FeatureFlags = z.infer<typeof FeatureFlagsSchema>;
+
+export const DEFAULT_FEATURE_FLAGS: FeatureFlags = Object.fromEntries(
+  FEATURE_FLAG_IDS.map((id) => [id, false]),
+) as FeatureFlags;
+
 export const SettingsSchema = z.object({
   language: LanguageSchema,
   theme: ThemePreferenceSchema,
@@ -248,6 +285,7 @@ export const SettingsSchema = z.object({
   workspaceViewMode: WorkspaceViewModeSchema,
   sessionTabs: z.array(DocumentSummarySchema).max(40).default([]),
   activeSessionTabId: z.string().nullable().default(null),
+  features: FeatureFlagsSchema.default(DEFAULT_FEATURE_FLAGS),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 
@@ -273,6 +311,7 @@ export const DEFAULT_SETTINGS: Settings = {
   workspaceViewMode: 'split',
   sessionTabs: [],
   activeSessionTabId: null,
+  features: DEFAULT_FEATURE_FLAGS,
 };
 
 export const SettingsPatchSchema = SettingsSchema.partial();

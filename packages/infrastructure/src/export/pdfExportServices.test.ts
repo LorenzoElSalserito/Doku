@@ -62,9 +62,10 @@ describe('PDF export services', () => {
         '--variable=papersize:a4',
         '--variable=classoption:twoside',
         '--variable=geometry:inner=26mm,outer=16mm,top=20mm,bottom=20mm',
+        '--from=gfm-raw_html-implicit_figures',
         '--variable=fontsize:11pt',
-        '--variable=linestretch:1.2',
-        '--variable=linkcolor:dokuaccent',
+        '--variable=linestretch:1.375',
+        '--variable=linkcolor:dokulink',
         '--no-highlight',
         expect.stringMatching(/^--include-in-header=.*latexPreamble\.tex$/),
         expect.stringMatching(/^--lua-filter=.*tableWidths\.lua$/),
@@ -115,7 +116,13 @@ describe('PDF export services', () => {
     expect(execFileMock).toHaveBeenNthCalledWith(
       1,
       '/opt/Doku/resources/export-runtime/latex/bin/pandoc',
-      expect.arrayContaining(['--to=html5', '--output']),
+      expect.arrayContaining([
+        '--from=gfm-raw_html-implicit_figures',
+        '--to=html5',
+        '--no-highlight',
+        expect.stringMatching(/^--lua-filter=.*tableWidths\.lua$/),
+        '--output',
+      ]),
       expect.objectContaining({ env: expect.objectContaining({
         XDG_DATA_HOME: '/opt/Doku portable/resources/export-runtime',
         FONTCONFIG_FILE: '/opt/Doku portable/resources/export-runtime/fontconfig.conf',

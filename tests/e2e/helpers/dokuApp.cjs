@@ -126,6 +126,27 @@ function hasLatexExportRuntime() {
   );
 }
 
+const FIXTURES_DIR = resolve(__dirname, '..', 'fixtures');
+
+/**
+ * Copies the fixture vault `tests/e2e/fixtures/<fixtureName>` into the test's
+ * temporary folder, so a test can edit, rename or delete notes freely.
+ * Returns the vault root and a resolver for paths inside it.
+ */
+async function openVault(context, fixtureName) {
+  if (!/^vault-[a-z0-9-]+$/.test(fixtureName)) {
+    throw new Error(`Unknown fixture vault name: ${fixtureName}`);
+  }
+  const source = join(FIXTURES_DIR, fixtureName);
+  const vaultDir = join(context.rootDir, 'vaults', fixtureName);
+  await fs.mkdir(dirname(vaultDir), { recursive: true });
+  await fs.cp(source, vaultDir, { recursive: true });
+  return {
+    vaultDir,
+    notePath: (relativePath) => join(vaultDir, ...relativePath.split('/')),
+  };
+}
+
 async function cleanupDokuE2EContext(context) {
   await fs.rm(context.rootDir, { recursive: true, force: true });
 }
@@ -234,6 +255,7 @@ module.exports = {
   launchDokuApp,
   launchDokuAppWithEnv,
   openMarkdownFileInRunningApp,
+  openVault,
   prepareDokuProfile,
   readLogEntries,
   readSettings,

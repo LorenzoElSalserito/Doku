@@ -269,6 +269,72 @@ export const fr: Dictionary = {
       'Supprime les préférences, sauvegardes automatiques, logs et données locales de Doku, puis ferme l’app. À utiliser avant la désinstallation.',
     uninstallPreparationConfirm:
       'Supprimer définitivement toutes les données utilisateur de Doku et fermer l’app ?',
+    previewFeatures: {
+      title: 'Fonctions en avant-première',
+      hint: 'Fonctions encore en développement. Désactivées par défaut ; en activer une ne modifie pas vos fichiers.',
+      flags: {
+        vault: {
+          label: 'Coffre',
+          description: 'Ouvrir un dossier comme coffre avec un index local de toutes les notes.',
+        },
+        links: {
+          label: 'Liens et rétroliens',
+          description: '[[Wikiliens]], alias, rétroliens et renommage sûr.',
+        },
+        search: {
+          label: 'Recherche et palette de commandes',
+          description: 'Recherche plein texte avec opérateurs, sélecteur rapide et palette de commandes.',
+        },
+        properties: {
+          label: 'Propriétés et étiquettes',
+          description: 'Front matter typé, étiquettes et espaces de noms.',
+        },
+        outline: {
+          label: 'Plan et blocs',
+          description: 'Blocs façon Logseq avec identifiants, références et intégrations.',
+        },
+        journal: {
+          label: 'Journal et tâches',
+          description: 'Notes quotidiennes, marqueurs de tâches, dates planifiées et échéances, agenda.',
+        },
+        queries: {
+          label: 'Requêtes et vues',
+          description: 'Requêtes enregistrées en liste, tableau, kanban, calendrier et galerie.',
+        },
+        templates: {
+          label: 'Modèles',
+          description: 'Modèles, extraits et variables.',
+        },
+        graph: {
+          label: 'Graphe',
+          description: 'Graphe global et local des notes liées.',
+        },
+        cards: {
+          label: 'Cartes mémoire',
+          description: 'Cartes et textes à trous avec répétition espacée.',
+        },
+        canvas: {
+          label: 'Canevas',
+          description: 'Canevas infini enregistré au format JSON Canvas.',
+        },
+        pdf: {
+          label: 'Lecteur PDF',
+          description: 'Lire et annoter des PDF dans le coffre.',
+        },
+        history: {
+          label: 'Historique et corbeille',
+          description: 'Historique local des versions avec différences, restauration et corbeille.',
+        },
+        scripts: {
+          label: 'Automatisations locales',
+          description: 'Scripts locaux isolés avec une API restreinte.',
+        },
+        import: {
+          label: 'Import et export',
+          description: 'Import depuis Obsidian, Logseq et Notion ; PDF livre et site statique.',
+        },
+      },
+    },
     customThemeOpen: 'Modifier le thème personnalisé',
     customThemeHint: 'Ajustez les tokens principaux de la palette et appliquez-les à Doku.',
     close: 'Terminé',
