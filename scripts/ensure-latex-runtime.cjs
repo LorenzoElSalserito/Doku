@@ -5,6 +5,7 @@ const fs = require('node:fs/promises');
 const { dirname, join } = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { preparePandocData } = require('./lib/pandoc-data.cjs');
+const { missingStyles, tlmgrPackages } = require('./lib/latex-packages.cjs');
 
 const rootDir = join(__dirname, '..');
 const runtimeDir = join(rootDir, 'build/export-runtime/latex');
@@ -21,6 +22,16 @@ async function main() {
   const pandoc = process.env.DOKU_PANDOC_BIN || resolveExecutable('pandoc', '/usr/bin/pandoc');
   const luahbtex = resolveExecutable('luahbtex', '/usr/bin/luahbtex');
   const kpsewhich = resolveExecutable('kpsewhich', '/usr/bin/kpsewhich');
+
+  // The bundled runtime is a copy of this TeX installation: refuse to package
+  // one that cannot compile the export preamble.
+  const missing = missingStyles(kpsewhich);
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing LaTeX packages for PDF export: ${missing.join(', ')}. ` +
+        `Install them with: tlmgr install ${tlmgrPackages(missing).join(' ')}`,
+    );
+  }
 
   if (process.platform === 'win32') {
     // TeX Live binaries need sibling DLLs, launchers and helper programs.

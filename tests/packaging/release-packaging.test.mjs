@@ -85,10 +85,25 @@ test('LaTeX table filter runs on the oldest supported Pandoc and sizes wide tabl
     ].join('\n'))
     const latex = execFileSync('pandoc', [markdown, '-t', 'latex', `--lua-filter=${filter}`], { encoding: 'utf8' })
     // Relative column widths keep the table inside the A4 text column, and
-    // zero-width break points keep long identifiers from overflowing it.
+    // invisible break points keep long identifiers from overflowing it.
     assert.match(latex, /\\real\{0\.\d+\}/)
-    assert.ok(latex.includes('\\hspace{0pt}'), 'long tokens keep their break points')
+    assert.ok(latex.includes('\\discretionary{}{}{}'), 'long tokens keep their break points')
+    // A token that fits its column is never split: the column is sized to it.
+    assert.ok(latex.includes('identificatore\\_molto\\_lungo & b'), 'fitting cell tokens stay whole')
   } finally { fs.rmSync(temp, { recursive: true, force: true }) }
+})
+
+test('every LaTeX package of the export preamble is required from the TeX runtime', () => {
+  const { preambleStyles, requiredStyles, tlmgrPackages } = require('../../scripts/lib/latex-packages.cjs')
+  const preamble = fs.readFileSync(path.resolve(import.meta.dirname, '../../packages/infrastructure/src/export/latexPreamble.tex'), 'utf8')
+  // Windows and macOS CI install these on TinyTeX; ensure:latex-runtime refuses
+  // to bundle a TeX tree that lacks any of them.
+  for (const style of ['microtype', 'mdframed', 'fvextra', 'lua-ul', 'luacolor', 'titlesec']) {
+    assert.ok(preambleStyles(preamble).includes(style), `${style} parsed from the preamble`)
+  }
+  assert.deepEqual(preambleStyles('% \\usepackage{ghost}\n\\usepackage[a]{one,two}'), ['one', 'two'])
+  assert.ok(requiredStyles().includes('tikz'), 'TikZ boxes are drawn by the preamble')
+  assert.ok(tlmgrPackages(['calc', 'tikz', 'zref-abspage']).join() === 'pgf,tools,zref')
 })
 
 test('libraries WeasyPrint opens by name are staged once, under their unversioned alias', (t) => {

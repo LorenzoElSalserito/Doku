@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Fixed: CI Windows (e macOS): la certificazione del pacchetto falliva con `microtype.sty` mancante nel TeX Live portabile. I pacchetti LaTeX dell’export ora sono un elenco unico ricavato dal preambolo (`scripts/lib/latex-packages.cjs`, con le dipendenze indirette come TikZ, zref e needspace): la CI li installa esplicitamente con `tlmgr` e `ensure:latex-runtime` rifiuta di includere un TeX Live a cui ne manca uno, indicando il comando per installarli.
+- Fixed: Test di packaging del filtro tabelle allineato ai nuovi punti di rottura (`\discretionary{}{}{}`) e alla regola per cui una parola che entra nella colonna non viene mai spezzata; nuovo test che verifica l’elenco dei pacchetti LaTeX.
+
 ## [0.3.0] - 2026-10-28
 
 - Changed: Sprint K0 (fondamenta v2), nessun cambiamento visibile. `Workspace.tsx` (3.637 righe) è ora una composizione di 15 righe: `WorkspaceShell` collega componenti (`WorkspaceHeader`, `DocumentTabs`, `FileMenu`, `QuickActionsBar`, `EditorPanes`, `PreviewZoomBar`, `WorkspaceSidePanels`, `ResizeHandle`, `PlainTextEditor`, `WorkspaceIcons`) e hook con una sola responsabilità ciascuno (`useDocumentTabs`, `useDocumentOpening`, `useDocumentLoader`, `useSessionRestore`, `useAutosave`, `useViewMode`, `useResizablePanels`, `usePreviewZoom`, `useEditorReadiness`, `useWorkspaceTree`, `useImageDrop`, `useQuickActions`, `useImmersiveMode`); tab, tab attivo, richiesta di apertura e avvisi stanno in uno store Context + reducer (`state/workspaceStore.ts`, nessuna libreria). Classi CSS, `data-testid`, scorciatoie e testi invariati; nessun file della feature supera le 600 righe. `Workspace.test.tsx` diviso per area (`chrome`, `preview`, `files`, `saving`) con gli stessi 29 casi.
