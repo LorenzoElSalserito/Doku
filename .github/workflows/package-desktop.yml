@@ -117,9 +117,9 @@ jobs:
 
       - name: Install TeX packages used by PDF export
         if: runner.os != 'Linux'
-        run: |
-          tlmgr install collection-luatex collection-latexrecommended collection-latexextra collection-fontsrecommended
-          node scripts/lib/latex-packages.cjs --install
+        # Node runs tlmgr and stops at the first failure on every OS (a pwsh
+        # step would carry on after a failed native command).
+        run: node scripts/lib/latex-packages.cjs --install
 
       - name: Unit tests
         if: runner.os == 'Linux'

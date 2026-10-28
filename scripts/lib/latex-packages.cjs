@@ -4,7 +4,8 @@
  * ships with the app, plus what those packages load and TeX Live does not pull
  * in on minimal installs (TinyTeX on Windows and macOS CI).
  *
- *   node scripts/lib/latex-packages.cjs --install   tlmgr install every package
+ *   node scripts/lib/latex-packages.cjs --install   update tlmgr, install the
+ *                                                   collections and every package
  *   node scripts/lib/latex-packages.cjs --check     fail if a .sty is missing
  */
 const { readFileSync } = require('node:fs');
@@ -15,6 +16,14 @@ const PREAMBLE = join(__dirname, '../../packages/infrastructure/src/export/latex
 
 // Style files loaded indirectly that are not in every minimal TeX Live.
 const INDIRECT_STYLES = ['fancyvrb', 'upquote', 'lineno', 'zref-abspage', 'needspace', 'xcolor', 'tikz'];
+
+// Collections the export runtime is built from on TinyTeX.
+const COLLECTIONS = [
+  'collection-luatex',
+  'collection-latexrecommended',
+  'collection-latexextra',
+  'collection-fontsrecommended',
+];
 
 // TeX Live package that provides a style file, when the names differ.
 const TLMGR_PACKAGE = {
@@ -57,15 +66,22 @@ function missingStyles(kpsewhich = 'kpsewhich', styles = requiredStyles()) {
   });
 }
 
+function tlmgr(args) {
+  console.log(`tlmgr ${args.join(' ')}`);
+  // tlmgr is a .bat launcher on Windows: it needs a shell there.
+  const result = spawnSync('tlmgr', args, { stdio: 'inherit', shell: process.platform === 'win32' });
+  if (result.status !== 0) {
+    throw new Error(`tlmgr ${args[0]} failed with exit code ${result.status ?? 'unknown'}`);
+  }
+}
+
 function main(argv) {
   if (argv.includes('--install')) {
-    const packages = tlmgrPackages();
-    console.log(`tlmgr install ${packages.join(' ')}`);
-    const result = spawnSync('tlmgr', ['install', ...packages], {
-      stdio: 'inherit',
-      shell: process.platform === 'win32',
-    });
-    if (result.status !== 0) process.exit(result.status ?? 1);
+    // A TinyTeX older than its package repository refuses every install until
+    // tlmgr updates itself; stop at the first failure instead of going on.
+    tlmgr(['update', '--self']);
+    tlmgr(['install', ...COLLECTIONS]);
+    tlmgr(['install', ...tlmgrPackages()]);
   }
   if (argv.includes('--check') || argv.includes('--install')) {
     const missing = missingStyles();
@@ -78,6 +94,13 @@ function main(argv) {
   }
 }
 
-if (require.main === module) main(process.argv.slice(2));
+if (require.main === module) {
+  try {
+    main(process.argv.slice(2));
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
 
 module.exports = { missingStyles, preambleStyles, requiredStyles, tlmgrPackages };

@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- Fixed: CI Windows (e macOS): la certificazione del pacchetto falliva con `microtype.sty` mancante nel TeX Live portabile. I pacchetti LaTeX dell’export ora sono un elenco unico ricavato dal preambolo (`scripts/lib/latex-packages.cjs`, con le dipendenze indirette come TikZ, zref e needspace): la CI li installa esplicitamente con `tlmgr` e `ensure:latex-runtime` rifiuta di includere un TeX Live a cui ne manca uno, indicando il comando per installarli.
+- Fixed: CI Windows e macOS: TinyTeX ha un `tlmgr` più vecchio del suo repository e rifiutava ogni installazione (“tlmgr itself needs to be updated”); su Windows lo step PowerShell proseguiva lo stesso e la certificazione falliva più avanti con `microtype.sty` mancante. Ora `scripts/lib/latex-packages.cjs --install` aggiorna `tlmgr` (`update --self`), installa collezioni e pacchetti e si ferma al primo errore su ogni sistema. I pacchetti LaTeX dell’export ora sono un elenco unico ricavato dal preambolo (`scripts/lib/latex-packages.cjs`, con le dipendenze indirette come TikZ, zref e needspace): la CI li installa esplicitamente con `tlmgr` e `ensure:latex-runtime` rifiuta di includere un TeX Live a cui ne manca uno, indicando il comando per installarli.
 - Fixed: Test di packaging del filtro tabelle allineato ai nuovi punti di rottura (`\discretionary{}{}{}`) e alla regola per cui una parola che entra nella colonna non viene mai spezzata; nuovo test che verifica l’elenco dei pacchetti LaTeX.
 
 ## [0.3.0] - 2026-10-28
